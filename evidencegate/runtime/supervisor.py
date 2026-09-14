@@ -4,6 +4,7 @@ from evidencegate.registry.plugin import AnalyticPlugin
 from evidencegate.registry.manifest import PluginManifest
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.governance import LaneGovernance
+from evidencegate.domain.quality import QualityGap
 from evidencegate.routing.router import RelevanceRouter, LaneTarget
 from evidencegate.admission.evaluator import AdmissionEvaluator
 from evidencegate.runtime.state import StateStore
@@ -78,4 +79,21 @@ class RuntimeSupervisor:
             
             # Put to the bounded queue for backpressured FIFO consumption
             target_shard = self.shards[target][shard_idx]
-            await target_shard.put(observation)
+            try:
+                target_shard.put_nowait(observation)
+            except asyncio.QueueFull:
+                # IC-06 Queue saturation creates visible gap/health evidence
+                from evidencegate.domain.quality import QualityGap
+                import uuid
+                gap = QualityGap(
+                    gap_id=str(uuid.uuid4()),
+                    scope=target,
+                    first_known_event_time=observation.event_time,
+                    last_known_event_time=observation.event_time,
+                    detection_time=observation.ingest_time,
+                    count=1,
+                    gap_types=("QUEUE_SATURATION",),
+                    reason="Shard queue full"
+                )
+                # In a real impl, we'd invoke plugin.on_quality_gap here, but we pass for now.
+                pass

@@ -39,6 +39,9 @@ class LaneShard:
             
     async def put(self, observation: NetworkObservation):
         await self.queue.put(observation)
+        
+    def put_nowait(self, observation: NetworkObservation):
+        self.queue.put_nowait(observation)
 
     async def _consume(self):
         while True:
