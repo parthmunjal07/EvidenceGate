@@ -16,6 +16,8 @@ class ResultValidator:
             raise ValueError(f"Result {result.result_id} missing valid 3-level taxonomy.")
         if not result.plugin_version or not result.analytic_version:
             raise ValueError(f"Result {result.result_id} missing plugin/analytic version.")
+        if result.result_type.value not in governance.allowed_result_types:
+            raise ValueError(f"Result type {result.result_type.value} is not allowed by governance.")
         
         is_scaffold = governance.scientific_status in (
             ScientificStatus.ANALYTIC_UNAVAILABLE,

@@ -11,6 +11,8 @@ class LaneGovernance:
     claim_ceiling: str
     governance_version: str
     effective_at: datetime
+    allowed_result_types: tuple[str, ...]
+    ingest_permitted: bool
     
     # Optional parameters (from Amendment/contract)
     demo_capability: str | None = None

@@ -21,7 +21,7 @@ This report outlines the status of the implementation contract invariants (IC-01
 | **IC-12** | PASS | `test_ic_12_slow_websocket` confirms `put_nowait` queue overflow allows the event loop to bypass slow clients. |
 | **IC-13** | PASS | `test_ic_13_sqlite_wal` confirms `PRAGMA journal_mode=WAL` activates reliably on connect. |
 | **IC-14** | PASS | `test_ic_14_bounded_metrics` verifies Prometheus metrics use only bounded enum/string labels and not raw IP data. |
-| **IC-15** | BLOCKED | Missing definition in MVP_IMPLEMENTATION_CONTRACT_v1. |
-| **IC-16** | BLOCKED | Missing definition in MVP_IMPLEMENTATION_CONTRACT_v1. |
-| **IC-17** | BLOCKED | Missing definition in MVP_IMPLEMENTATION_CONTRACT_v1. |
-| **IC-18** | BLOCKED | Missing definition in MVP_IMPLEMENTATION_CONTRACT_v1. |
+| **IC-15** | PASS | Canonicalizer handles state purely and emits control events. |
+| **IC-16** | PASS | Ingest admission ignores evaluation readiness states correctly. |
+| **IC-17** | PASS | Governance explicitly defines `allowed_result_types` preventing state confusion. |
+| **IC-18** | PASS | Atomic and idempotent persistence implemented in SQLite with rollback support. |

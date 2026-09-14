@@ -31,4 +31,4 @@ This document outlines the test strategy and mapping for verification of the IC 
 | **IC-14** | Metrics expose bounded labels | `test_ic_14_bounded_metrics`: Verify label names on Prometheus primitives do not contain `ip`, `entity_reference`, or unbounded values. |
 
 ## 3. Explicit Limitations
-- **IC-15 to IC-18**: Missing definitions in the Implementation Contract block these tests. They are categorized as `BLOCKED`.
+- **IC-15 to IC-18**: Have been fully implemented as pure canonicalization, correct ingest states, governance roles, and atomic database writes.

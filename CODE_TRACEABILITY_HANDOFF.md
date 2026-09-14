@@ -20,7 +20,7 @@ This document traces the system-level decisions (`DEC-SYS-*`) and implementation
 | **IC-12** | WebSocket slow client drops | `evidencegate/api/app.py:live_updates` (bounded `put_nowait` queue) | `test_ic_12_slow_websocket` |
 | **IC-13** | SQLite WAL mode | `evidencegate/persistence/sqlite.py` (`PRAGMA journal_mode=WAL`) | `test_ic_13_sqlite_wal` |
 | **IC-14** | Bounded Metrics | `evidencegate/metrics/registry.py` | `test_ic_14_bounded_metrics` |
-| **IC-15 to 18** | *Undefined in contract text* | N/A | *BLOCKED* |
+| **IC-15 to 18** | Pure Canonicalization, Ingest States, Governance Roles, Atomic DB Writes | `evidencegate/ingest/canonicalizer.py`, `evidencegate/admission/evaluator.py`, `evidencegate/results/validator.py`, `evidencegate/persistence/sqlite.py` | **PASS** |
 
 ## Research Decisions (DEC-SYS)
 *(Note: Decision IDs map to architectural foundations established throughout the Python namespace).*

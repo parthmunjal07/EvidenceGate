@@ -9,6 +9,7 @@ from evidencegate.routing.router import RelevanceRouter, LaneTarget
 from evidencegate.admission.evaluator import AdmissionEvaluator
 from evidencegate.runtime.state import StateStore
 from evidencegate.runtime.shard import LaneShard, compute_shard
+from evidencegate.runtime.dispatcher import LaneDispatcher
 from evidencegate.results.types import ResultDraft
 
 class RuntimeSupervisor:
@@ -34,6 +35,7 @@ class RuntimeSupervisor:
         }
         
         self.shards: Dict[LaneTarget, list[LaneShard]] = {}
+        self.dispatchers: Dict[LaneTarget, LaneDispatcher] = {}
         for target, plugin in plugins.items():
             lane_shards = []
             for i in range(shard_count):
@@ -48,13 +50,28 @@ class RuntimeSupervisor:
                 )
                 lane_shards.append(shard)
             self.shards[target] = lane_shards
+            
+            # Create dispatcher for this lane
+            gov = self.governances.get(target)
+            if gov:
+                self.dispatchers[target] = LaneDispatcher(
+                    target=target,
+                    plugin=plugin,
+                    governance=gov,
+                    shards=lane_shards,
+                    shard_count=shard_count
+                )
 
     def start_all(self):
         for shard_list in self.shards.values():
             for shard in shard_list:
                 shard.start()
+        for dispatcher in self.dispatchers.values():
+            dispatcher.start()
                 
     async def stop_all(self):
+        for dispatcher in self.dispatchers.values():
+            await dispatcher.stop()
         for shard_list in self.shards.values():
             for shard in shard_list:
                 await shard.stop()
@@ -62,25 +79,12 @@ class RuntimeSupervisor:
     async def ingest_observation(self, observation: NetworkObservation):
         relevant_targets = self.router.route(observation)
         for target in relevant_targets:
-            plugin = self.plugins[target]
-            manifest = plugin.manifest()
-            governance = self.governances.get(target)
-            if not governance:
-                continue # Skip if no governance config exists for this lane
-                
-            decision = AdmissionEvaluator.evaluate(observation, manifest, governance)
-            if not decision.admitted:
-                # Based on user visibility config, we might yield a Reason result here.
-                # In MVP, if rejected, it stops here for this lane unless emitting a diagnostic.
+            dispatcher = self.dispatchers.get(target)
+            if not dispatcher:
                 continue
             
-            state_key = plugin.state_key(observation)
-            shard_idx = compute_shard(manifest.plugin_id, state_key, self.shard_count)
-            
-            # Put to the bounded queue for backpressured FIFO consumption
-            target_shard = self.shards[target][shard_idx]
             try:
-                target_shard.put_nowait(observation)
+                dispatcher.put_nowait(observation)
             except asyncio.QueueFull:
                 # IC-06 Queue saturation creates visible gap/health evidence
                 from evidencegate.domain.quality import QualityGap
@@ -93,7 +97,6 @@ class RuntimeSupervisor:
                     detection_time=observation.ingest_time,
                     count=1,
                     gap_types=("QUEUE_SATURATION",),
-                    reason="Shard queue full"
+                    reason="Lane ingress queue full"
                 )
-                # In a real impl, we'd invoke plugin.on_quality_gap here, but we pass for now.
                 pass

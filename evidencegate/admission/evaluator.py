@@ -25,11 +25,11 @@ class AdmissionEvaluator:
     ) -> AdmissionDecision:
         reasons = []
         
-        if governance.scientific_status == ScientificStatus.ANALYTIC_UNAVAILABLE:
+        if not governance.ingest_permitted:
             reasons.append(AdmissionReason.ANALYTIC_UNAVAILABLE)
             
-        # Example required checks based on manifest
-        # (A real implementation would check specific fields from manifest.admission_requirements)
+        # Check required fields, supported observation contract, minimum quality/visibility.
+        # (A real implementation would check specific fields from manifest.admission_spec)
         
         admitted = len(reasons) == 0
         return AdmissionDecision(

@@ -50,11 +50,16 @@ class LaneShard:
                 state_key = self.plugin.state_key(observation)
                 state = None
                 if state_key:
+                    # Factual state update (mocked/delegated to store for MVP)
                     state = self.state_store.get(state_key)
+                    # state = self.state_store.update(state_key, observation) -> Conceptual step
                 
-                # Evaluation Readiness logic (Warmup, etc.) is handled inside process, or wrapped here
-                # We assume state mutation happens inside process for now.
-                context = {} # Future: context injection
+                # Evaluation Readiness logic occurs AFTER factual state update
+                # It handles WARMING_UP, INSUFFICIENT_HISTORY, STATE_EVICTED, etc.
+                # It does not prevent the factual observation from warming state above.
+                readiness_state = "READY" # In full impl, this is derived from state history
+                
+                context = {"readiness": readiness_state}
                 results = await self.plugin.process(observation, context, state)
                 
                 for res in results:

@@ -21,10 +21,10 @@ class BasicScaffoldPlugin(AnalyticPlugin):
             taxonomy=("Test", "Scaffold", "Basic"),
             accepted_observation_types=(ObservationType.PACKET, ObservationType.FLOW),
             routing_predicate_version="1.0",
-            admission_requirements=("some_field",),
-            state_key_declaration="source_address",
-            scientific_history_duration=None,
-            resource_retention_duration="1h",
+            admission_requirements=("NOT_YET_GOVERNED",),
+            state_key_declaration="NOT_APPLICABLE",
+            scientific_history_duration="NOT_APPLICABLE",
+            resource_retention_duration="NOT_APPLICABLE",
             gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
             allowed_result_types=(ResultType.REVIEW_FINDING, ResultType.ANALYTIC_UNAVAILABLE),
             integration_status=IntegrationStatus.RUNTIME_SCAFFOLD_READY,
@@ -38,7 +38,7 @@ class BasicScaffoldPlugin(AnalyticPlugin):
         return True
         
     def state_key(self, observation: NetworkObservation) -> Optional[StateKey]:
-        return StateKey("test_key")
+        return None
         
     async def process(self, observation: NetworkObservation, context: Any, state: Any) -> Sequence[ResultDraft]:
         # Emits a review finding, validating it doesn't emit a ThreatAlert

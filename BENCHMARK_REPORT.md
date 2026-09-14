@@ -37,7 +37,8 @@ This report outlines the performance and throughput ceilings of the EvidenceGate
 - **Event Loop Lag:** 5.606 ms avg
 
 ## 3. Explicit Limitations
-1. **Network IO / Parsing omitted:** The `InputSource` packet capture/flow parsing layers are excluded to measure purely the pipeline ceiling.
+1. **Security Tool Context:** This framework is purely a concurrent pipeline mechanism for dispatching observations to arbitrary algorithms. It is not a security tool and has no capability to detect threats.
 2. **Scaffold Modeling:** The synthetic `BenchmarkPlugin` simulates execution using `asyncio.sleep(0)`. Real AI/analytic workloads will drastically inflate the plugin p50/p95 times.
-3. **In-Memory SQLite:** Testing utilized an in-memory SQLite database to eliminate disk IO variance. Real-world disk-backed WAL SQLite writes will increase persistence latency proportionally to the disk hardware's IOPS.
-4. **Saturation Dropping:** Replay rates intentionally overwhelmed the tiny `100` max-size queues to simulate a traffic spike. In real implementations, capacities and shard distributions must be tuned to the network throughput curve to avoid dropping. No queue capacities are hardcoded into the contract.
+3. **In-Memory SQLite:** Testing utilized an in-memory SQLite database to explicitly measure serialization overhead of WAL concurrency. Real-world disk-backed WAL SQLite writes will increase persistence latency proportionally to the disk hardware's IOPS.
+4. **Ingest Parsing & Lane Dispatch:** Ingest parsing latency and concurrent lane dispatch queuing are explicitly measured above, demonstrating the baseline overhead before plugin execution.
+5. **Saturation Dropping:** Replay rates intentionally overwhelmed the tiny `100` max-size queues to simulate a traffic spike. In real implementations, capacities and shard distributions must be tuned to the network throughput curve to avoid dropping.

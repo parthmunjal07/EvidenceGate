@@ -1,65 +1,60 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Sequence
-from evidencegate.domain.enums import ResultType, ReasonCode
+from typing import Sequence, Any, Optional
+from evidencegate.domain.enums import ResultType, AnalyticUnavailableReason
 
 @dataclass(frozen=True, slots=True)
-class BaseResult:
+class Result:
     result_id: str
     result_type: ResultType
     created_time: datetime
     entity_reference: str
-    taxonomy: tuple[str, str, str]
     plugin_version: str
     analytic_version: str
-    status_snapshot: dict[str, str]
+    status_snapshot: dict[str, Any]
     claim_ceiling: str
-    quality_ref: str
-    provenance_ref: str
     evidence_items: tuple[str, ...]
     missing_prerequisites: tuple[str, ...]
     governing_ids: tuple[str, ...]
-    evidence_interval: Optional[tuple[datetime, datetime]] = None
+    
+    taxonomy: tuple[str, str, str] | None = None
+    quality_ref: str | None = None
+    provenance_ref: str | None = None
+    evidence_interval: tuple[datetime, datetime] | None = None
 
 @dataclass(frozen=True, slots=True)
-class ThreatAlert(BaseResult):
-    confidence: Optional[str] = None
-    severity: Optional[str] = None
+class ThreatAlert(Result):
+    confidence: float = 0.0
+    severity: str | None = None
 
 @dataclass(frozen=True, slots=True)
-class ReviewFinding(BaseResult):
+class AnalyticUnavailable(Result):
+    reason_code: AnalyticUnavailableReason = AnalyticUnavailableReason.SCIENTIFIC_NOT_READY
+
+@dataclass(frozen=True, slots=True)
+class ReviewFinding(Result):
     pass
 
 @dataclass(frozen=True, slots=True)
-class AnalyticUnavailable(BaseResult):
-    reason_code: ReasonCode = ReasonCode.SCIENTIFIC_NOT_READY
-
-@dataclass(frozen=True, slots=True)
-class PrerequisiteMissing(BaseResult):
+class PrerequisiteMissing(Result):
     pass
 
 @dataclass(frozen=True, slots=True)
-class InsufficientEvidence(BaseResult):
+class InsufficientEvidence(Result):
     pass
 
 @dataclass(frozen=True, slots=True)
-class QualityDegraded(BaseResult):
+class QualityDegraded(Result):
     pass
 
 @dataclass(frozen=True, slots=True)
-class PluginStatus(BaseResult):
+class PluginStatus(Result):
     pass
 
 @dataclass(frozen=True, slots=True)
-class CorrelationFinding(BaseResult):
+class CorrelationFinding(Result):
     linked_result_ids: tuple[str, ...] = field(default_factory=tuple)
 
-Result = (
-    ThreatAlert | ReviewFinding | AnalyticUnavailable | PrerequisiteMissing |
-    InsufficientEvidence | QualityDegraded | PluginStatus | CorrelationFinding
-)
-
-# A ResultDraft is what a plugin yields before validation/enrichment
 @dataclass(frozen=True, slots=True)
 class ResultDraft:
     result_type: ResultType

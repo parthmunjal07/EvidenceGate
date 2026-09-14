@@ -1,4 +1,4 @@
-# SIH26145 — MVP IMPLEMENTATION CONTRACT v1
+# SIH26145 — MVP IMPLEMENTATION CONTRACT v1.1
 
 **Status:** `IMPLEMENTATION-AUTHORITATIVE`  
 **Scope:** shared EvidenceGate product/runtime infrastructure only  
@@ -356,6 +356,10 @@ live_end_to_end_latency   = only when source clock quality supports it
 | IC-12 | A slow WebSocket client cannot block the analytic path and can recover via durable cursor query. |
 | IC-13 | SQLite version/fix gate and concurrent-reader/WAL test pass before the database is accepted for the MVP. |
 | IC-14 | Metrics expose only bounded labels and omit entity identifiers. |
+| IC-15 | Canonicalization is pure and returns observations plus control events without side effects. |
+| IC-16 | Ingest admission does not reject WARMING_UP, INSUFFICIENT_HISTORY, or STATE_EVICTED. |
+| IC-17 | Governance owns allowed_result_types; result permissions are never inferred from status names. |
+| IC-18 | Result plus mandatory evidence/provenance/link rows are atomic and idempotent in SQLite. |
 
 ---
 

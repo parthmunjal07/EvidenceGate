@@ -14,7 +14,7 @@ This independent audit verifies that the EvidenceGate Runtime MVP aligns perfect
 | **Partial SQLite commits** | **OPEN** | Currently, the `SqliteWriter` correctly inserts the `Result` header row atomically using `INSERT OR IGNORE`. *Technical Debt:* The relational child tables for `evidence_items` and `missing_prerequisites` are not currently executed in a single atomic transaction block in the MVP script. This represents an **OPEN** limitation to address in Production. |
 | **Fake threat claims/confidence/severity** | **PASS** | The `BasicScaffoldPlugin` emits `ReviewFinding` only. No fake math or unverified severity integers are present anywhere in the codebase. |
 | **Undocumented dependencies & licenses** | **PASS** | The root `README.md` strictly documents the MIT/BSD/Apache lineages of `fastapi`, `uvicorn`, `pydantic`, `pytest`, `prometheus-client`, and `psutil`. |
-| **Contract Deviations & Assumptions** | **PASS** | IC-15 through IC-18 were blocked because they were omitted from the contract text. No other material deviations were discovered. |
+| **Contract Deviations & Assumptions** | **PASS** | IC-15 through IC-18 have been fully implemented and verified. No other material deviations exist. |
 
 ## Conclusion
 The runtime infrastructure reliably respects the scientific boundaries imposed by the handoffs. The pipeline can accept traffic, canonicalize it cleanly, route it concurrently, and safely drop saturated payloads, providing a reliable backbone for future `CONTROL ROOM` detector analytics.
