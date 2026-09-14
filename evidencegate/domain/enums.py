@@ -61,13 +61,17 @@ class ScientificStatus(str, Enum):
     MODEL_VALIDATED = "MODEL_VALIDATED"
 
 class AdmissionReason(str, Enum):
+    """Rejection reasons only. The positive case is AdmissionDecision.admitted == True."""
     PREREQUISITE_MISSING = "PREREQUISITE_MISSING"
     UNSUPPORTED_OBSERVATION_CONTRACT = "UNSUPPORTED_OBSERVATION_CONTRACT"
     INSUFFICIENT_VISIBILITY = "INSUFFICIENT_VISIBILITY"
     ANALYTIC_UNAVAILABLE = "ANALYTIC_UNAVAILABLE"
+    # NOTE: INSUFFICIENT_HISTORY and STATE_EVICTED must NEVER appear in
+    # IngestAdmissionDecision — they are EvaluationReadiness states (IC-16).
+    # They are listed here because they CAN appear in historical/audit records
+    # but IngestAdmissionDecision.evaluate() must not set them.
     INSUFFICIENT_HISTORY = "INSUFFICIENT_HISTORY"
     STATE_EVICTED = "STATE_EVICTED"
-    ADMITTED = "ADMITTED" # added to simplify 'successful admission' logic if needed, though 'bool admitted' is used in decision
 
 class GapAction(str, Enum):
     CONTINUE_WITH_QUALITY_FLAG = "CONTINUE_WITH_QUALITY_FLAG"
