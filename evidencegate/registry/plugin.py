@@ -1,0 +1,23 @@
+from typing import Protocol, Sequence, Any, Optional
+from evidencegate.registry.manifest import PluginManifest
+from evidencegate.domain.events import NetworkObservation
+from evidencegate.domain.quality import QualityGap
+from evidencegate.results.types import ResultDraft
+
+class StateKey(str):
+    pass
+
+class AnalyticPlugin(Protocol):
+    def manifest(self) -> PluginManifest: ...
+    
+    def route(self, observation: NetworkObservation) -> bool: ...
+    
+    def state_key(self, observation: NetworkObservation) -> Optional[StateKey]: ...
+    
+    async def process(self, observation: NetworkObservation, context: Any, state: Any) -> Sequence[ResultDraft]: ...
+    
+    async def on_quality_gap(self, gap: QualityGap, context: Any, state: Any) -> Sequence[ResultDraft]: ...
+    
+    async def on_watermark(self, watermark: Any, context: Any, state: Any) -> Sequence[ResultDraft]: ...
+    
+    async def on_expire(self, key: StateKey, context: Any, state: Any) -> Sequence[ResultDraft]: ...
