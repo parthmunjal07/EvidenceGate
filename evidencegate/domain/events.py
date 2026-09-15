@@ -6,6 +6,11 @@ from evidencegate.domain.payloads import NetworkPayloadType
 
 @dataclass(frozen=True, slots=True)
 class NetworkObservationEnvelope:
+    """
+    present_fields is authoritative for whether a field was observed.
+    None means the field was absent or not supplied.
+    'UNKNOWN' means the field was observed, but its factual value could not be determined.
+    """
     observation_id: str
     schema_version: str
     observation_type: ObservationType

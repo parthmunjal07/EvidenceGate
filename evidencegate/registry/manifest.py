@@ -13,6 +13,12 @@ class PluginManifest:
     routing_predicate_version: str
     
     admission_requirements: tuple[str, ...]
+    required_fields: tuple[str, ...]
+    required_observation_contracts: tuple[str, ...]
+    minimum_quality: str | None
+    minimum_visibility: str | None
+    allowed_finality: tuple[bool, ...]
+    allowed_availability_basis: tuple[str, ...]
     state_key_declaration: str | None
     scientific_history_duration: str | None
     resource_retention_duration: str | None

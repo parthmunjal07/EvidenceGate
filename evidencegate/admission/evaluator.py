@@ -95,9 +95,33 @@ class AdmissionEvaluator:
         if observation.observation_type not in manifest.accepted_observation_types:
             reasons.append(AdmissionReason.UNSUPPORTED_OBSERVATION_CONTRACT)
 
-        # Factual field presence: if present_fields is explicitly set and non-empty,
-        # we could check required fields here. For the MVP scaffold this is permissive.
-        # A real implementation would check manifest.admission_requirements.
+        # Check required fields
+        for field in manifest.required_fields:
+            if field not in observation.present_fields:
+                reasons.append(AdmissionReason.PREREQUISITE_MISSING)
+
+        # Check observation contracts
+        if manifest.required_observation_contracts and manifest.required_observation_contracts[0] not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
+            if observation.observation_contract not in manifest.required_observation_contracts:
+                reasons.append(AdmissionReason.UNSUPPORTED_OBSERVATION_CONTRACT)
+
+        # Check finality
+        if manifest.allowed_finality and observation.finality not in manifest.allowed_finality:
+            reasons.append(AdmissionReason.UNSUPPORTED_FINALITY)
+
+        # Check availability basis
+        if manifest.allowed_availability_basis and manifest.allowed_availability_basis[0] not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
+            if observation.availability_basis not in manifest.allowed_availability_basis:
+                reasons.append(AdmissionReason.UNSUPPORTED_AVAILABILITY)
+
+        # Check minimum quality / visibility (placeholder logic for MVP as these are strings)
+        if manifest.minimum_quality not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
+            if not observation.quality_ref:
+                reasons.append(AdmissionReason.INSUFFICIENT_VISIBILITY)
+        if manifest.minimum_visibility not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
+            # Real logic would compare visibility tiers, for now just ensure it's not silently ignored
+            if not observation.quality_ref:
+                reasons.append(AdmissionReason.INSUFFICIENT_VISIBILITY)
 
         admitted = len(reasons) == 0
         return IngestAdmissionDecision(

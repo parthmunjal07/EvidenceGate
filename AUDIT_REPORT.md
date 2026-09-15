@@ -10,7 +10,7 @@
 
 | Audit Criterion | Status | Evidence / Notes |
 |---|---|---|
-| **Test evidence is real (not fabricated)** | ✅ RESOLVED | Prior `TEST_REPORT.md` claimed 18 PASS while 0 tests ran (collection `NameError`). All 19 tests now pass with real execution evidence. |
+| **Test evidence is real (not fabricated)** | ✅ RESOLVED | Prior `TEST_REPORT.md` claimed 18 PASS while 0 tests ran (collection `NameError`). All 23 tests now pass with real execution evidence. |
 | **IC-16: WARMING_UP never blocks ingest** | ✅ RESOLVED | `IngestAdmissionDecision` (Phase 1) runs before state update; `EvaluationReadinessDecision` (Phase 2) runs after. Neither `WARMING_UP` nor `INSUFFICIENT_HISTORY` nor `STATE_EVICTED` appears in `IngestAdmissionDecision.reasons`. |
 | **IC-18: Rollback proven by failure injection** | ✅ RESOLVED | Test patches `_write_result_sync` to raise `RuntimeError` after result row INSERT; verifies `COUNT(*) == 0` (full rollback). Clean write + idempotent re-write then verified. |
 | **Canonicalization purity (IC-15)** | ✅ RESOLVED | `CanonicalizationResult.observations` and `.control_events` are `tuple` types. `FlowCanonicalizer` has no I/O, no logging, no enqueue. Determinism verified by same `observation_id` across two calls. |
@@ -37,9 +37,9 @@
 | REST/WebSocket not wired to runtime | DEFERRED — API skeleton exists; not connected to runtime queues |
 | Packet/DNS/TLS/QUIC canonicalizers | DEFERRED — only `FlowCanonicalizer` is concrete |
 | `on_expire` / `on_watermark` not called by runtime | DEFERRED — protocol methods present; runtime caller not implemented |
-| Concurrent-reader WAL stress test | DEFERRED — WAL pragma verified; concurrent stress deferred per §12 |
+| Concurrent writers WAL stress test | DEFERRED — WAL pragma verified and concurrent readers pass; concurrent writers stress deferred per §12 |
 | `gap_sink` not connected to SQLite writer | DEFERRED — plumbing present; gap persistence call not wired |
-| Metric counter `.inc()` call sites | DEFERRED — registry defined; hot-path instrumentation not wired |
+| Metric counter `.inc()` call sites | DEFERRED — Error counter wired in dispatcher; other hot-path instrumentation not wired |
 
 ---
 

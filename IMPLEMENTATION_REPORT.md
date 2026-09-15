@@ -4,7 +4,7 @@
 **Python:** 3.13.7  
 **pytest:** 8.2.2  
 **SQLite version:** stdlib `sqlite3` (WAL mode verified)  
-**Status:** IC-01 through IC-18 — all 18 PASS (19 total tests including import smoke test)
+**Status:** IC-01 through IC-18 — all 18 PASS (23 total tests including import smoke test and 4 new edge cases)
 
 ---
 
@@ -149,8 +149,8 @@ No benchmark results are claimed in this report. Any performance measurements mu
 | `LaneDispatcher.gap_sink` persistence call | Plumbing present; no DB writer connected |
 | Replay/validation mode source pausing | Not implemented |
 | `AnalyticPlugin.on_expire` / `on_watermark` lifecycle | Methods present on protocol; not called by runtime |
-| Multi-shard concurrent-reader WAL test | SQLite WAL pragma verified; concurrent reader test deferred |
-| Metric instrumentation call sites | Registry defined; counter `.inc()` calls not wired to hot path |
+| Multi-shard concurrent writers WAL test | SQLite WAL pragma verified; concurrent reader test passes; concurrent writers deferred |
+| Metric instrumentation call sites | Error counter wired in dispatcher; other counters deferred |
 | Full per-observation-type canonicalizers | Only `FlowCanonicalizer` concrete; Packet/DNS/TLS/QUIC are TODO |
 | Persistent analytic-state recovery | Deferred per contract §12 |
 | External plugin loading | Deferred per contract §12 |

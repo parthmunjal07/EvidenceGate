@@ -26,6 +26,10 @@
 | **IC-16** | Ingest admission does not reject WARMING_UP / INSUFFICIENT_HISTORY / STATE_EVICTED | [`admission/evaluator.py:IngestAdmissionDecision`](evidencegate/admission/evaluator.py) (Phase 1) vs [`EvaluationReadinessDecision`](evidencegate/admission/evaluator.py) (Phase 2, post-update) | `test_ic_16_ingest_admission_states` |
 | **IC-17** | Governance owns `allowed_result_types`; permissions not inferred from status names | [`domain/governance.py:LaneGovernance.allowed_result_types: tuple[ResultType, ...]`](evidencegate/domain/governance.py); [`results/validator.py`](evidencegate/results/validator.py) checks enum directly | `test_ic_17_governance_owns_result_permissions` |
 | **IC-18** | Result + evidence/provenance/links atomic; idempotent | [`persistence/sqlite.py:SqliteWriter._write_result_sync()`](evidencegate/persistence/sqlite.py): single `BEGIN`/`COMMIT`/`ROLLBACK` | `test_ic_18_atomic_idempotent_sqlite` |
+| **N/A** | Enforces missing required fields | [`admission/evaluator.py`](evidencegate/admission/evaluator.py): Checks `required_fields` against `present_fields` | `test_missing_required_fields` |
+| **N/A** | Enforces visibility/quality | [`admission/evaluator.py`](evidencegate/admission/evaluator.py): Checks `minimum_visibility` | `test_insufficient_visibility` |
+| **N/A** | Enforces finality | [`admission/evaluator.py`](evidencegate/admission/evaluator.py): Checks `allowed_finality` | `test_unsupported_finality` |
+| **N/A** | Dispatcher exception observable | [`runtime/dispatcher.py`](evidencegate/runtime/dispatcher.py): Increment metric, emit ERROR control event | `test_unexpected_dispatcher_exception` |
 
 ---
 

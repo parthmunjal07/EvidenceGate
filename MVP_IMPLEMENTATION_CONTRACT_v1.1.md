@@ -14,9 +14,35 @@ Build one single-host Python application that accepts passive/replay inputs, con
 The application must preserve this separation:
 
 ```text
-router:   could a lane care?
-admission: may a lane use this evidence now?
-analytic: what follows from admitted evidence?
+InputSource
+  ↓
+Pure Canonicalizer
+  ├── NetworkObservations
+  └── RuntimeControlEvents
+  ↓
+Quality / Visibility
+  ↓
+Zero-to-many Relevance Router
+  ↓
+Bounded Lane Ingress Queue
+  ↓
+Ingest Admission
+  ↓
+State-Key Calculation
+  ↓
+Deterministic Shard Dispatch
+  ↓
+Factual State Update
+  ↓
+Evaluation Readiness
+  ↓
+Analytic / Scaffold Plugin
+  ↓
+Result Validator
+  ↓
+Atomic SQLite Persistence
+  ↓
+REST / WebSocket / UI
 ```
 
 The runtime must not decide that a threat occurred. It must not silently turn absence, loss, or an unavailable analytic into a benign result.
@@ -55,7 +81,7 @@ Dependencies flow inward: `api`, `persistence`, `runtime`, and `plugins` may dep
 - Hot-path domain objects are `@dataclass(frozen=True, slots=True)` or immutable equivalents.
 - All IDs are opaque strings/UUIDs; no ID embeds an IP, domain, or threat conclusion.
 - UTC-aware timestamps are required. Performance timings use a monotonic clock and are not network facts.
-- Field absence is explicit (`None`, `UNKNOWN`, or a presence set); canonicalization never manufactures an observation.
+- Field absence is explicit: `present_fields` is authoritative for whether a field was observed. `None` means the field was absent or not supplied. `UNKNOWN` means the field was observed, but its factual value could not be determined. Canonicalization never manufactures an observation.
 - API DTO validation may use Pydantic. Do not require Pydantic objects on the hot path.
 
 ### 3.2 Core enums
@@ -154,7 +180,22 @@ class InputSource(Protocol):
     async def close(self) -> None: ...
 ```
 
-`Canonicalizer.canonicalize(record, manifest, quality) -> tuple[NetworkObservation, ...]` is factual, deterministic, and side-effect-free except for emitting parser/quality control events. It must attach:
+```python
+@dataclass(frozen=True, slots=True)
+class CanonicalizationResult:
+    observations: tuple[NetworkObservation, ...]
+    control_events: tuple[RuntimeControlEvent, ...]
+```
+
+`Canonicalizer.canonicalize(raw_record, manifest, quality) -> CanonicalizationResult` is factual and side-effect-free. The canonicalizer must:
+- be deterministic;
+- perform no queue writes;
+- perform no database writes;
+- perform no asynchronous publishing;
+- perform no logging-dependent behavior;
+- return observations and control events as data.
+
+A runtime component may publish the returned control events. It must attach:
 
 - `event_time`: underlying event time;
 - `causal_available_time`: earliest time the complete emitted fact could be known;
@@ -182,7 +223,11 @@ class LaneGovernance:
     claim_ceiling: str
     governance_version: str
     effective_at: datetime
+    allowed_result_types: tuple[ResultType, ...]
+    ingest_permitted: bool
 ```
+
+Result permissions must come from governance configuration. Never infer permissions from `scientific_status == MODEL_VALIDATED`. A scaffold lane may explicitly allow `AnalyticUnavailable`, `PrerequisiteMissing`, `QualityDegraded`, `PluginStatus`, or `ReviewFinding`, but must not emit `ThreatAlert` unless governance explicitly permits it.
 
 The initial snapshot must preserve the active blockers from Amendment A1, including data/admission/audit blockers for DDoS, data/validation blockers for Recon, information-mechanism/data blockers for C2, and the known DNS/TLS/QUIC/unusual-transfer blockers. A missing configuration entry disables the lane with `AnalyticUnavailable(reason_code=GOVERNANCE_DISABLED)`.
 
@@ -223,16 +268,45 @@ The router records candidate, relevant, delivered, zero-route, exception, and pr
 
 ### 6.3 Admission
 
+The runtime explicitly distinguishes two phases of admission.
+
+#### Phase 1 — Ingest admission
+Runs before state mutation. May check:
+- supported observation type;
+- required factual fields;
+- observation-contract compatibility;
+- minimum quality/visibility needed to safely update state;
+- finality/availability compatibility;
+- governance ingest permission.
+
+Must not reject because of `WARMING_UP`, `INSUFFICIENT_HISTORY`, `STATE_EVICTED`, or terminal evidence still pending.
+
 ```python
 @dataclass(frozen=True, slots=True)
-class AdmissionDecision:
+class IngestAdmissionDecision:
     admitted: bool
     reasons: tuple[AdmissionReason, ...]
     quality_ref: str | None
     governance_version: str
 ```
 
-Admission evaluates required fields, observation contract, finality, visibility, quality, history readiness, and imported governance availability. It runs within the matched lane before any state mutation. A rejection must create a typed diagnostic/result when configured for user visibility; it must never be reinterpreted as benign or erased as a router miss.
+#### Phase 2 — Evaluation readiness
+Runs after factual state update. Checks:
+- warm-up state;
+- insufficient history;
+- state eviction;
+- terminal evidence pending;
+- lateness/window completion;
+- other declared readiness conditions.
+
+```python
+@dataclass(frozen=True, slots=True)
+class EvaluationReadinessDecision:
+    readiness: EvidenceReadiness
+    reason: str | None
+```
+
+A rejection must create a typed diagnostic/result when configured for user visibility; it must never be reinterpreted as benign or erased as a router miss.
 
 ---
 

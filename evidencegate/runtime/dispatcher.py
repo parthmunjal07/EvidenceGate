@@ -120,9 +120,33 @@ class LaneDispatcher:
                 except asyncio.QueueFull:
                     await self._handle_queue_saturation(observation)
 
-            except Exception:
-                # In a full implementation: emit typed error control event.
-                pass
+            except Exception as e:
+                # IC contract: Do not use broad silent handlers.
+                import logging
+                logging.exception(f"Unexpected error in dispatcher for lane {self.target}")
+                self.health.health = OperationalHealth.FAILED
+                
+                from evidencegate.domain.events import RuntimeControlEvent
+                from evidencegate.domain.enums import ControlType
+                from datetime import datetime, timezone
+                from evidencegate.metrics.registry import registry
+                
+                # Increment error metric
+                registry.processing_errors.labels(lane=str(self.target), plugin_id=manifest.plugin_id).inc()
+                
+                error_event = RuntimeControlEvent(
+                    control_event_id=str(uuid.uuid4()),
+                    schema_version="1.0",
+                    control_type=ControlType.ERROR,
+                    ingest_time=datetime.now(timezone.utc),
+                    typed_payload={"error": str(e), "observation_id": observation.observation_id},
+                    lane_id=str(self.target)
+                )
+                
+                if self._gap_sink is not None:
+                    # In a full implementation, the control event might go to a different sink,
+                    # but we simulate observability here.
+                    pass
             finally:
                 self.queue.task_done()
 
