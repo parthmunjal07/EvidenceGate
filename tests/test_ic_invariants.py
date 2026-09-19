@@ -35,7 +35,7 @@ from evidencegate.results.types import (
 )
 from evidencegate.results.validator import ResultValidator
 from evidencegate.runtime.shard import compute_shard, LaneShard, ShardKeyState
-from evidencegate.runtime.state import StateStore
+from evidencegate.runtime.state import StateOperation, StateStore
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.ingest.canonicalizer import FlowCanonicalizer
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
@@ -264,11 +264,16 @@ async def test_ic_06_queue_saturation(test_observation):
 def test_ic_07_restart_epoch():
     """IC-07: Restart creates new state epoch — no state bleeds across instances."""
     store1 = StateStore()
-    store1.put("k1", "v1")
-    assert store1.get("k1") == "v1"
+    now = _now()
+    store1.transition(
+        "test", "k1", None, StateOperation.UPSERT, "v1", now, timedelta(minutes=1)
+    )
+    assert store1.read("test", "k1", now).payload == "v1"
 
     store2 = StateStore()
-    assert store2.get("k1") is None, "New StateStore must start empty (new epoch)"
+    assert store2.read("test", "k1", now) is None, (
+        "New StateStore must start empty (new epoch)"
+    )
 
 
 # ─────────────────────────── IC-08 ────────────────────────────────────────
@@ -845,4 +850,3 @@ async def test_unexpected_dispatcher_exception(test_observation):
     # Metric should be incremented
     final_errors = metrics_registry.processing_errors.labels(lane="lane1", plugin_id=plugin.manifest().plugin_id)._value.get()
     assert final_errors == initial_errors + 1
-

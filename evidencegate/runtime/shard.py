@@ -111,7 +111,12 @@ class LaneShard:
                 # Readiness state must never block this update (IC-16).
                 state = None
                 if key_str is not None:
-                    state = self.state_store.get(key_str)
+                    entry = self.state_store.read(
+                        namespace=self.plugin.manifest().plugin_id,
+                        key=key_str,
+                        at_time=observation.event_time,
+                    )
+                    state = entry.payload if entry is not None else None
                     # Update key tracking BEFORE readiness evaluation
                     if key_str not in self._key_states:
                         self._key_states[key_str] = ShardKeyState()
