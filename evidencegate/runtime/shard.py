@@ -27,7 +27,7 @@ from evidencegate.registry.plugin import (
     StateTransitionRequest,
 )
 from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
-from evidencegate.domain.enums import ControlType, EvidenceReadiness
+from evidencegate.domain.enums import ControlType, EvidenceReadiness, GapAction
 from evidencegate.metrics.registry import registry
 from evidencegate.runtime.state import StateOperation, StateStore
 from evidencegate.results.types import ResultDraft
@@ -46,11 +46,12 @@ class ShardKeyState:
     Per-state-key metadata tracked by the shard for readiness lifecycle.
     No threat science here — only counts to determine warm-up progression.
     """
-    __slots__ = ("observation_count", "evicted")
+    __slots__ = ("observation_count", "evicted", "abstaining_gap_ids")
 
     def __init__(self) -> None:
         self.observation_count: int = 0
         self.evicted: bool = False
+        self.abstaining_gap_ids: set[str] = set()
 
     def record_observation(self) -> None:
         self.observation_count += 1
@@ -61,6 +62,10 @@ class ShardKeyState:
     def reenter_warmup(self) -> None:
         self.observation_count = 0
         self.evicted = False
+
+    @property
+    def abstaining(self) -> bool:
+        return bool(self.abstaining_gap_ids)
 
 
 class LaneShard:
@@ -90,6 +95,59 @@ class LaneShard:
         self._task: asyncio.Task | None = None
         # Readiness tracking per state_key (no threat science)
         self._key_states: dict[str, ShardKeyState] = {}
+        self._quality_degraded = False
+
+    def set_quality_degraded(self, value: bool) -> None:
+        """Set immutable-at-use lane quality context supplied to plugins."""
+        self._quality_degraded = value
+
+    def apply_gap_action(
+        self,
+        action: GapAction,
+        gap_id: str,
+        state_key: StateKey | None,
+        event_time: datetime,
+    ) -> tuple[str, str]:
+        """Apply a bounded generic lifecycle action for one known state key."""
+        if action is GapAction.CONTINUE_WITH_QUALITY_FLAG:
+            return "APPLIED", "quality flag recorded at lane scope"
+        if state_key is None:
+            return "BLOCKED_NO_STATE_KEY", "no safe affected state key"
+
+        key_str = str(state_key)
+        key_state = self._key_states.setdefault(key_str, ShardKeyState())
+        if action is GapAction.ABSTAIN_UNTIL_RECOVERED:
+            key_state.abstaining_gap_ids.add(gap_id)
+            return "APPLIED", "result publication suppressed for affected key"
+        if action not in (GapAction.RESET_AFFECTED_STATE, GapAction.REENTER_WARMUP):
+            return "NOT_APPLICABLE", "action is owned by lane dispatcher"
+
+        namespace = self.plugin.manifest().plugin_id
+        entry = self.state_store.read(namespace, state_key, event_time)
+        if entry is None:
+            return "NOT_APPLICABLE", "affected state is already missing"
+        operation = (
+            StateOperation.RESET
+            if action is GapAction.RESET_AFFECTED_STATE
+            else StateOperation.REENTER_WARMUP
+        )
+        self.state_store.transition(
+            namespace=namespace,
+            key=state_key,
+            expected_version=entry.version,
+            operation=operation,
+            payload=None,
+            event_time=event_time,
+            ttl=None,
+        )
+        key_state.reenter_warmup()
+        return "APPLIED", "versioned affected-state lifecycle transition applied"
+
+    def resolve_gap(self, gap_id: str, state_key: StateKey | None) -> None:
+        if state_key is not None:
+            key_state = self._key_states.get(str(state_key))
+            if key_state is not None:
+                key_state.abstaining_gap_ids.discard(gap_id)
 
     def start(self) -> None:
         if self._task is None:
@@ -162,10 +220,16 @@ class LaneShard:
                         else False
                     ),
                 )
+                if key_str is not None and self._key_states[key_str].abstaining:
+                    readiness_decision = EvaluationReadinessDecision(
+                        readiness=EvidenceReadiness.ABSTAINING,
+                        reason="affected quality gap remains active",
+                    )
 
                 context = {
                     "readiness": readiness_decision,
                     "shard_id": self.shard_id,
+                    "quality_degraded": self._quality_degraded,
                 }
 
                 outcome = await self.plugin.process(observation, context, state)
@@ -202,8 +266,10 @@ class LaneShard:
                     ):
                         self._key_states[key_str].reenter_warmup()
 
-                for res in outcome.result_drafts:
-                    await self.result_callback(res)
+                abstaining = key_str is not None and self._key_states[key_str].abstaining
+                if not abstaining:
+                    for res in outcome.result_drafts:
+                        await self.result_callback(res)
 
             except Exception as exc:
                 plugin_id = self._plugin_id()

@@ -422,5 +422,7 @@ async def test_failing_diagnostic_sinks_are_bounded_and_do_not_kill_loop() -> No
     finally:
         await dispatcher.stop()
 
-    assert control_calls == 1
+    # Admission rejection plus the required gap-action status are each attempted
+    # once; neither sink failure recurses.
+    assert control_calls == 2
     assert gap_calls == 1

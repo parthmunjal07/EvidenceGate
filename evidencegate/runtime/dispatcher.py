@@ -12,7 +12,7 @@ from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.quality import QualityGap
 from evidencegate.metrics.registry import registry
-from evidencegate.registry.plugin import AnalyticPlugin
+from evidencegate.registry.plugin import AnalyticPlugin, StateKey
 from evidencegate.routing.router import LaneTarget
 from evidencegate.runtime.shard import LaneShard, compute_shard
 
@@ -68,6 +68,8 @@ class LaneDispatcher:
         self.health = LaneHealthRecord(lane_id=str(target))
         self._gap_sink = gap_sink
         self._control_sink = control_sink
+        self._gap_context: dict[str, tuple[GapAction, StateKey | None, int | None]] = {}
+        self._disabled = False
 
     def start(self) -> None:
         if self._task is None:
@@ -88,6 +90,9 @@ class LaneDispatcher:
         while True:
             observation = await self.queue.get()
             try:
+                if self._disabled:
+                    await self._emit_disabled_skip(observation)
+                    continue
                 manifest = self.plugin.manifest()
                 decision = AdmissionEvaluator.evaluate(
                     observation, manifest, self.governance
@@ -103,7 +108,7 @@ class LaneDispatcher:
                 try:
                     self.shards[shard_idx].put_nowait(observation)
                 except asyncio.QueueFull:
-                    await self._handle_queue_saturation(observation, shard_idx)
+                    await self._handle_queue_saturation(observation, shard_idx, state_key)
 
             except Exception as exc:
                 plugin_id = self._plugin_id()
@@ -173,6 +178,19 @@ class LaneDispatcher:
         )
         await self._emit_control(event)
 
+    async def _emit_disabled_skip(self, observation: NetworkObservation) -> None:
+        await self._emit_control(RuntimeControlEvent(
+            control_event_id=str(uuid.uuid4()), schema_version="1.0",
+            control_type=ControlType.GAP_ACTION_STATUS,
+            ingest_time=datetime.now(timezone.utc), event_time=observation.event_time,
+            source_id=observation.source_id, lane_id=str(self.target),
+            provenance_ref=observation.provenance_ref, quality_ref=observation.quality_ref,
+            typed_payload={"component": "dispatcher", "plugin_id": self._plugin_id(),
+                "observation_id": observation.observation_id,
+                "action": GapAction.DISABLE_LANE.value, "status": "SKIPPED_DISABLED",
+                "reason": "lane is operationally disabled"},
+        ))
+
     async def _emit_control(self, event: RuntimeControlEvent) -> None:
         if self._control_sink is None:
             logger.warning("Runtime control event has no sink: %s", event.typed_payload)
@@ -200,14 +218,21 @@ class LaneDispatcher:
         self, observation: NetworkObservation
     ) -> QualityGap:
         """Record evidence dropped before lane admission."""
+        try:
+            state_key = self.plugin.state_key(observation)
+            shard_id = compute_shard(self._plugin_id(), state_key, self.shard_count)
+        except Exception:
+            logger.exception("Unable to identify affected key for lane ingress gap")
+            state_key, shard_id = None, None
         return await self._record_queue_saturation(
             observation,
             shard_label="ingress",
             reason="Lane ingress queue full — routed observation dropped before admission.",
+            state_key=state_key, shard_id=shard_id,
         )
 
     async def _handle_queue_saturation(
-        self, observation: NetworkObservation, shard_id: int = 0
+        self, observation: NetworkObservation, shard_id: int = 0, state_key: StateKey | None = None
     ) -> QualityGap:
         """Record admitted evidence dropped before plugin processing."""
         return await self._record_queue_saturation(
@@ -217,6 +242,7 @@ class LaneDispatcher:
                 "Shard queue full — admitted observation dropped before plugin "
                 "processing."
             ),
+            state_key=state_key, shard_id=shard_id,
         )
 
     async def _record_queue_saturation(
@@ -224,6 +250,8 @@ class LaneDispatcher:
         observation: NetworkObservation,
         shard_label: str,
         reason: str,
+        state_key: StateKey | None,
+        shard_id: int | None,
     ) -> QualityGap:
         gap = QualityGap(
             gap_id=str(uuid.uuid4()),
@@ -240,16 +268,59 @@ class LaneDispatcher:
             lane=str(self.target), shard_id=shard_label
         ).inc()
         await self._emit_gap(gap)
-        self._invoke_gap_action(self.plugin.manifest().gap_action, gap)
+        await self._invoke_gap_action(self.plugin.manifest().gap_action, gap, state_key, shard_id)
         return gap
 
-    def _invoke_gap_action(self, action: GapAction, gap: QualityGap) -> None:
-        """Preserve existing bounded health behavior; lifecycle is deferred."""
-        if action == GapAction.CONTINUE_WITH_QUALITY_FLAG:
-            pass
-        elif action in (GapAction.RESET_AFFECTED_STATE, GapAction.REENTER_WARMUP):
-            self.health.health = OperationalHealth.BACKPRESSURED
-        elif action == GapAction.ABSTAIN_UNTIL_RECOVERED:
-            self.health.health = OperationalHealth.STALLED
-        elif action == GapAction.DISABLE_LANE:
+    async def _invoke_gap_action(
+        self, action: GapAction, gap: QualityGap, state_key: StateKey | None, shard_id: int | None
+    ) -> None:
+        self._gap_context[gap.gap_id] = (action, state_key, shard_id)
+        self._set_quality_degraded(True)
+        status, reason = "APPLIED", "lane quality degradation remains visible"
+        try:
+            if action is GapAction.DISABLE_LANE:
+                self._disabled = True
+                self.health.health = OperationalHealth.DISABLED
+            elif action is not GapAction.CONTINUE_WITH_QUALITY_FLAG:
+                if state_key is None or shard_id is None:
+                    status, reason = "BLOCKED_NO_STATE_KEY", "no safe affected state key"
+                else:
+                    status, reason = self.shards[shard_id].apply_gap_action(
+                        action, gap.gap_id, state_key, gap.detection_time
+                    )
+        except Exception as exc:
+            logger.exception("Gap action failed for %s", gap.gap_id)
+            status, reason = "FAILED", str(exc)[:500]
+        await self._emit_control(RuntimeControlEvent(
+            control_event_id=str(uuid.uuid4()), schema_version="1.0",
+            control_type=ControlType.GAP_ACTION_STATUS,
+            ingest_time=datetime.now(timezone.utc), event_time=gap.detection_time,
+            source_id=None, lane_id=str(self.target), provenance_ref=None, quality_ref=None,
+            typed_payload={"component": "dispatcher", "gap_id": gap.gap_id,
+                "lane_id": str(self.target), "plugin_id": self._plugin_id(),
+                "action": action.value, "status": status, "state_key_known": state_key is not None,
+                "shard_id": shard_id, "reason": reason},
+        ))
+
+    def _set_quality_degraded(self, value: bool) -> None:
+        for shard in self.shards:
+            shard.set_quality_degraded(value)
+
+    async def resolve_gap(self, gap_id: str) -> bool:
+        context = self._gap_context.pop(gap_id, None)
+        if context is None:
+            return False
+        _, state_key, shard_id = context
+        if state_key is not None and shard_id is not None:
+            self.shards[shard_id].resolve_gap(gap_id, state_key)
+        self.health.close_gap(gap_id)
+        self._set_quality_degraded(bool(self.health.active_gaps))
+        if self._disabled:
             self.health.health = OperationalHealth.DISABLED
+        return True
+
+    def enable_lane(self) -> None:
+        self._disabled = False
+        self.health.health = (
+            OperationalHealth.BACKPRESSURED if self.health.active_gaps else OperationalHealth.HEALTHY
+        )
