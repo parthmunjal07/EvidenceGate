@@ -5,21 +5,12 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum
 from typing import Any
 
-from evidencegate.registry.plugin import StateKey
+from evidencegate.runtime.state_contract import StateKey, StateOperation
 
 
 DEFAULT_MAX_ENTRIES = 10_000
-
-
-class StateOperation(str, Enum):
-    NO_CHANGE = "NO_CHANGE"
-    UPSERT = "UPSERT"
-    DELETE = "DELETE"
-    RESET = "RESET"
-    REENTER_WARMUP = "REENTER_WARMUP"
 
 
 class StateStoreError(Exception):

@@ -1,7 +1,12 @@
 from typing import Sequence, Any, Optional
 import uuid
 from datetime import datetime
-from evidencegate.registry.plugin import AnalyticPlugin, StateKey
+from evidencegate.registry.plugin import (
+    AnalyticPlugin,
+    PluginProcessOutcome,
+    PluginStateSnapshot,
+    StateKey,
+)
 from evidencegate.registry.manifest import PluginManifest
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.enums import ObservationType, GapAction, ResultType, IntegrationStatus
@@ -46,16 +51,21 @@ class BasicScaffoldPlugin(AnalyticPlugin):
     def state_key(self, observation: NetworkObservation) -> Optional[StateKey]:
         return None
         
-    async def process(self, observation: NetworkObservation, context: Any, state: Any) -> Sequence[ResultDraft]:
+    async def process(
+        self,
+        observation: NetworkObservation,
+        context: Any,
+        state: PluginStateSnapshot | None,
+    ) -> PluginProcessOutcome:
         # Emits a review finding, validating it doesn't emit a ThreatAlert
-        return [
-            ResultDraft(
+        return PluginProcessOutcome(
+            result_drafts=(ResultDraft(
                 result_type=ResultType.REVIEW_FINDING,
                 entity_reference="test_entity",
                 evidence_items=(observation.observation_id,),
                 missing_prerequisites=()
-            )
-        ]
+            ),)
+        )
         
     async def on_quality_gap(self, gap: QualityGap, context: Any, state: Any) -> Sequence[ResultDraft]:
         return []

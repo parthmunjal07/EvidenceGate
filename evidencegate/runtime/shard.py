@@ -16,10 +16,16 @@ import asyncio
 import hashlib
 from typing import Callable, Awaitable
 
-from evidencegate.registry.plugin import AnalyticPlugin, StateKey
+from evidencegate.registry.plugin import (
+    AnalyticPlugin,
+    PluginProcessOutcome,
+    PluginStateSnapshot,
+    StateKey,
+    StateTransitionRequest,
+)
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.enums import EvidenceReadiness
-from evidencegate.runtime.state import StateStore
+from evidencegate.runtime.state import StateOperation, StateStore
 from evidencegate.results.types import ResultDraft
 from evidencegate.admission.evaluator import (
     EvaluationReadinessEvaluator,
@@ -43,6 +49,10 @@ class ShardKeyState:
 
     def mark_evicted(self) -> None:
         self.evicted = True
+
+    def reenter_warmup(self) -> None:
+        self.observation_count = 0
+        self.evicted = False
 
 
 class LaneShard:
@@ -116,7 +126,11 @@ class LaneShard:
                         key=key_str,
                         at_time=observation.event_time,
                     )
-                    state = entry.payload if entry is not None else None
+                    state = (
+                        PluginStateSnapshot.from_entry(entry)
+                        if entry is not None
+                        else None
+                    )
                     # Update key tracking BEFORE readiness evaluation
                     if key_str not in self._key_states:
                         self._key_states[key_str] = ShardKeyState()
@@ -142,9 +156,41 @@ class LaneShard:
                     "shard_id": self.shard_id,
                 }
 
-                results = await self.plugin.process(observation, context, state)
+                outcome = await self.plugin.process(observation, context, state)
+                if not isinstance(outcome, PluginProcessOutcome):
+                    raise TypeError("plugin process must return PluginProcessOutcome")
 
-                for res in results:
+                transition = outcome.state_transition
+                if transition is not None:
+                    if not isinstance(transition, StateTransitionRequest):
+                        raise TypeError(
+                            "plugin state transition must be StateTransitionRequest"
+                        )
+                    if state_key is None:
+                        raise ValueError(
+                            "a stateless plugin invocation cannot request state mutation"
+                        )
+                    if transition.key != state_key:
+                        raise ValueError(
+                            "state transition key must match plugin.state_key(observation)"
+                        )
+
+                    transition_result = self.state_store.transition(
+                        namespace=self.plugin.manifest().plugin_id,
+                        key=transition.key,
+                        expected_version=transition.expected_version,
+                        operation=transition.operation,
+                        payload=transition.payload,
+                        event_time=observation.event_time,
+                        ttl=transition.ttl,
+                    )
+                    if transition_result.operation in (
+                        StateOperation.RESET,
+                        StateOperation.REENTER_WARMUP,
+                    ):
+                        self._key_states[key_str].reenter_warmup()
+
+                for res in outcome.result_drafts:
                     await self.result_callback(res)
 
             except Exception:
