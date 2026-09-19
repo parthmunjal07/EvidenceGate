@@ -23,6 +23,7 @@ class ControlType(str, Enum):
     ADMISSION_REJECTED = "ADMISSION_REJECTED"
     ERROR = "ERROR"
     GAP_ACTION_STATUS = "GAP_ACTION_STATUS"
+    LATE_EVENT_OBSERVED = "LATE_EVENT_OBSERVED"
 
 class OfficialPsCategory(str, Enum):
     DDOS = "DDOS"

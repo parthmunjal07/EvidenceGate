@@ -29,7 +29,7 @@ from evidencegate.registry.plugin import (
 from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
 from evidencegate.domain.enums import ControlType, EvidenceReadiness, GapAction
 from evidencegate.metrics.registry import registry
-from evidencegate.runtime.state import StateOperation, StateStore
+from evidencegate.runtime.state import StateEntry, StateOperation, StateStore
 from evidencegate.results.types import ResultDraft
 from evidencegate.admission.evaluator import (
     EvaluationReadinessEvaluator,
@@ -148,6 +148,79 @@ class LaneShard:
             key_state = self._key_states.get(str(state_key))
             if key_state is not None:
                 key_state.abstaining_gap_ids.discard(gap_id)
+
+    async def handle_expiry(
+        self, entry: StateEntry, watermark: datetime, publish_results: bool
+    ) -> None:
+        """Run post-expiry plugin work; state is already authoritatively absent."""
+        key_str = str(entry.key)
+        self._key_states.setdefault(key_str, ShardKeyState()).reenter_warmup()
+        context = {
+            "state_key": entry.key,
+            "watermark": watermark,
+            "shard_id": self.shard_id,
+            "quality_degraded": self._quality_degraded,
+        }
+        try:
+            outcome = await self.plugin.on_expire(
+                entry.key, context, PluginStateSnapshot.from_entry(entry)
+            )
+            await self._deliver_lifecycle_outcome(
+                outcome, watermark, "on_expire", entry.key, publish_results
+            )
+        except Exception as exc:
+            await self._emit_lifecycle_error("on_expire", watermark, exc)
+
+    async def handle_watermark(
+        self, watermark: datetime, expired_state_count: int, publish_results: bool
+    ) -> None:
+        context = {
+            "watermark": watermark,
+            "expired_state_count": expired_state_count,
+            "lane_id": self.lane_id,
+            "quality_degraded": self._quality_degraded,
+        }
+        try:
+            outcome = await self.plugin.on_watermark(watermark, context)
+            await self._deliver_lifecycle_outcome(
+                outcome, watermark, "on_watermark", None, publish_results
+            )
+        except Exception as exc:
+            await self._emit_lifecycle_error("on_watermark", watermark, exc)
+
+    async def _deliver_lifecycle_outcome(
+        self,
+        outcome: PluginProcessOutcome,
+        watermark: datetime,
+        callback: str,
+        state_key: StateKey | None,
+        publish_results: bool,
+    ) -> None:
+        if not isinstance(outcome, PluginProcessOutcome):
+            raise TypeError(f"plugin {callback} must return PluginProcessOutcome")
+        if outcome.state_transition is not None:
+            raise ValueError(f"plugin {callback} cannot request state mutation")
+        abstaining = state_key is not None and self._key_states.get(
+            str(state_key), ShardKeyState()
+        ).abstaining
+        if publish_results and not abstaining:
+            for draft in outcome.result_drafts:
+                await self.result_callback(draft)
+
+    async def _emit_lifecycle_error(
+        self, callback: str, watermark: datetime, exc: Exception
+    ) -> None:
+        registry.processing_errors.labels(
+            lane=self.lane_id or "unassigned", plugin_id=self._plugin_id()
+        ).inc()
+        await self._emit_control(RuntimeControlEvent(
+            control_event_id=str(uuid.uuid4()), schema_version="1.0",
+            control_type=ControlType.ERROR, ingest_time=datetime.now(timezone.utc),
+            event_time=watermark, lane_id=self.lane_id,
+            typed_payload={"component": "lifecycle", "callback": callback,
+                "plugin_id": self._plugin_id(), "shard_id": self.shard_id,
+                "exception_type": type(exc).__name__, "error": str(exc)[:500]},
+        ))
 
     def start(self) -> None:
         if self._task is None:

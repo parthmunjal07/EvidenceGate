@@ -1,4 +1,4 @@
-from typing import Sequence, Any, Optional
+from typing import Any, Optional, Sequence
 import uuid
 from datetime import datetime
 from evidencegate.registry.plugin import (
@@ -70,8 +70,10 @@ class BasicScaffoldPlugin(AnalyticPlugin):
     async def on_quality_gap(self, gap: QualityGap, context: Any, state: Any) -> Sequence[ResultDraft]:
         return []
         
-    async def on_watermark(self, watermark: Any, context: Any, state: Any) -> Sequence[ResultDraft]:
-        return []
+    async def on_watermark(self, watermark: datetime, context: Any) -> PluginProcessOutcome:
+        return PluginProcessOutcome()
         
-    async def on_expire(self, key: StateKey, context: Any, state: Any) -> Sequence[ResultDraft]:
-        return []
+    async def on_expire(
+        self, key: StateKey, context: Any, state: PluginStateSnapshot
+    ) -> PluginProcessOutcome:
+        return PluginProcessOutcome()

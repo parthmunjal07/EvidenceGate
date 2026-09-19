@@ -35,7 +35,8 @@ class RuntimeSupervisor:
         
         self.router = RelevanceRouter(plugins)
         self.state_stores: Dict[LaneTarget, StateStore] = {
-            target: StateStore() for target in plugins.keys()
+            # Explicit lane watermarks, not observation timestamps, own expiry.
+            target: StateStore(expire_on_access=False) for target in plugins.keys()
         }
         
         self.shards: Dict[LaneTarget, list[LaneShard]] = {}
@@ -95,3 +96,10 @@ class RuntimeSupervisor:
                 dispatcher.put_nowait(observation)
             except asyncio.QueueFull:
                 await dispatcher.handle_ingress_saturation(observation)
+
+    async def advance_watermark(self, target: LaneTarget, watermark) -> bool:
+        """Advance one lane's explicit event-time boundary."""
+        dispatcher = self.dispatchers.get(target)
+        if dispatcher is None:
+            raise KeyError(f"unknown lane: {target}")
+        return await dispatcher.advance_watermark(watermark)

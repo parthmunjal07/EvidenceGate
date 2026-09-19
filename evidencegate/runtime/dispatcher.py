@@ -22,6 +22,10 @@ ControlSink = Callable[[RuntimeControlEvent], Awaitable[None]]
 GapSink = Callable[[QualityGap], Awaitable[None]]
 
 
+class WatermarkError(ValueError):
+    """An invalid lane watermark request."""
+
+
 class LaneHealthRecord:
     """Mutable lane health record and in-memory saturation evidence."""
 
@@ -70,6 +74,12 @@ class LaneDispatcher:
         self._control_sink = control_sink
         self._gap_context: dict[str, tuple[GapAction, StateKey | None, int | None]] = {}
         self._disabled = False
+        self._watermark: datetime | None = None
+        self._watermark_lock = asyncio.Lock()
+
+    @property
+    def watermark(self) -> datetime | None:
+        return self._watermark
 
     def start(self) -> None:
         if self._task is None:
@@ -92,6 +102,9 @@ class LaneDispatcher:
             try:
                 if self._disabled:
                     await self._emit_disabled_skip(observation)
+                    continue
+                if self._watermark is not None and observation.event_time < self._watermark:
+                    await self._emit_late_event(observation)
                     continue
                 manifest = self.plugin.manifest()
                 decision = AdmissionEvaluator.evaluate(
@@ -190,6 +203,61 @@ class LaneDispatcher:
                 "action": GapAction.DISABLE_LANE.value, "status": "SKIPPED_DISABLED",
                 "reason": "lane is operationally disabled"},
         ))
+
+    async def _emit_late_event(self, observation: NetworkObservation) -> None:
+        await self._emit_control(RuntimeControlEvent(
+            control_event_id=str(uuid.uuid4()), schema_version="1.0",
+            control_type=ControlType.LATE_EVENT_OBSERVED,
+            ingest_time=datetime.now(timezone.utc), event_time=observation.event_time,
+            source_id=observation.source_id, lane_id=str(self.target),
+            provenance_ref=observation.provenance_ref, quality_ref=observation.quality_ref,
+            typed_payload={"component": "dispatcher", "lane_id": str(self.target),
+                "plugin_id": self._plugin_id(), "observation_id": observation.observation_id,
+                "event_time": observation.event_time.isoformat(),
+                "current_watermark": self._watermark.isoformat() if self._watermark else None,
+                "source_id": observation.source_id,
+                "reason": "event_time is earlier than the lane watermark"},
+        ))
+
+    async def advance_watermark(self, watermark: datetime) -> bool:
+        """Advance the one lane-owned event-time boundary and run lifecycle work."""
+        if not isinstance(watermark, datetime):
+            raise TypeError("watermark must be a datetime")
+        if watermark.tzinfo is None or watermark.utcoffset() is None:
+            raise WatermarkError("watermark must be timezone-aware")
+        async with self._watermark_lock:
+            previous = self._watermark
+            if previous is not None:
+                if watermark < previous:
+                    raise WatermarkError("watermark must not move backward")
+                if watermark == previous:
+                    return False
+
+            # All shards share this store, so expiry is owned and invoked once here.
+            expired = self.shards[0].state_store.expire(watermark)
+            self._watermark = watermark
+            plugin_id = self._plugin_id()
+            for entry in expired:
+                shard_id = compute_shard(plugin_id, entry.key, self.shard_count)
+                await self.shards[shard_id].handle_expiry(
+                    entry, watermark, publish_results=not self._disabled
+                )
+            # One plugin callback per real lane advancement, after all expiries.
+            await self.shards[0].handle_watermark(
+                watermark, len(expired), publish_results=not self._disabled
+            )
+            await self._emit_control(RuntimeControlEvent(
+                control_event_id=str(uuid.uuid4()), schema_version="1.0",
+                control_type=ControlType.WATERMARK_ADVANCED,
+                ingest_time=datetime.now(timezone.utc), event_time=watermark,
+                lane_id=str(self.target),
+                typed_payload={"component": "lifecycle", "lane_id": str(self.target),
+                    "plugin_id": plugin_id,
+                    "previous_watermark": previous.isoformat() if previous else None,
+                    "new_watermark": watermark.isoformat(),
+                    "expired_state_count": len(expired)},
+            ))
+            return True
 
     async def _emit_control(self, event: RuntimeControlEvent) -> None:
         if self._control_sink is None:

@@ -69,12 +69,15 @@ class StateStore:
     kept separate from any plugin-defined scientific history window.
     """
 
-    def __init__(self, max_entries: int = DEFAULT_MAX_ENTRIES) -> None:
+    def __init__(
+        self, max_entries: int = DEFAULT_MAX_ENTRIES, *, expire_on_access: bool = True
+    ) -> None:
         if isinstance(max_entries, bool) or not isinstance(max_entries, int):
             raise TypeError("max_entries must be an integer")
         if max_entries <= 0:
             raise ValueError("max_entries must be greater than zero")
         self._max_entries = max_entries
+        self._expire_on_access = expire_on_access
         self._state: dict[tuple[str, StateKey], StateEntry] = {}
 
     @property
@@ -96,7 +99,7 @@ class StateStore:
         entry = self._state.get(identity)
         if entry is None:
             return None
-        if entry.expires_at <= at_time:
+        if self._expire_on_access and entry.expires_at <= at_time:
             del self._state[identity]
             return None
         return self._snapshot(entry)
@@ -135,7 +138,8 @@ class StateStore:
         except ValueError as exc:
             raise ValueError(f"unsupported state operation: {operation!r}") from exc
 
-        self.expire(event_time)
+        if self._expire_on_access:
+            self.expire(event_time)
         before = self._state.get(identity)
         version_before = before.version if before is not None else None
         if expected_version != version_before:
