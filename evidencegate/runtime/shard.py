@@ -14,6 +14,9 @@ Lifecycle (per state_key):
 """
 import asyncio
 import hashlib
+import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Callable, Awaitable
 
 from evidencegate.registry.plugin import (
@@ -23,14 +26,19 @@ from evidencegate.registry.plugin import (
     StateKey,
     StateTransitionRequest,
 )
-from evidencegate.domain.events import NetworkObservation
-from evidencegate.domain.enums import EvidenceReadiness
+from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
+from evidencegate.domain.enums import ControlType, EvidenceReadiness
+from evidencegate.metrics.registry import registry
 from evidencegate.runtime.state import StateOperation, StateStore
 from evidencegate.results.types import ResultDraft
 from evidencegate.admission.evaluator import (
     EvaluationReadinessEvaluator,
     EvaluationReadinessDecision,
 )
+
+
+logger = logging.getLogger(__name__)
+ControlSink = Callable[[RuntimeControlEvent], Awaitable[None]]
 
 
 class ShardKeyState:
@@ -69,11 +77,15 @@ class LaneShard:
         state_store: StateStore,
         result_callback: Callable[[ResultDraft], Awaitable[None]],
         max_size: int = 1000,
+        control_sink: ControlSink | None = None,
+        lane_id: str | None = None,
     ):
         self.shard_id = shard_id
         self.plugin = plugin
         self.state_store = state_store
         self.result_callback = result_callback
+        self.control_sink = control_sink
+        self.lane_id = lane_id
         self.queue: asyncio.Queue[NetworkObservation] = asyncio.Queue(maxsize=max_size)
         self._task: asyncio.Task | None = None
         # Readiness tracking per state_key (no threat science)
@@ -193,12 +205,59 @@ class LaneShard:
                 for res in outcome.result_drafts:
                     await self.result_callback(res)
 
-            except Exception:
-                # In a full implementation: emit a typed control event / error result.
-                # For the MVP scaffold: swallow so the shard keeps running.
-                pass
+            except Exception as exc:
+                plugin_id = self._plugin_id()
+                registry.processing_errors.labels(
+                    lane=self.lane_id or "unassigned",
+                    plugin_id=plugin_id,
+                ).inc()
+                logger.exception(
+                    "Shard processing failed (lane=%s plugin=%s shard=%s observation=%s)",
+                    self.lane_id,
+                    plugin_id,
+                    self.shard_id,
+                    observation.observation_id,
+                )
+                event = RuntimeControlEvent(
+                    control_event_id=str(uuid.uuid4()),
+                    schema_version="1.0",
+                    control_type=ControlType.ERROR,
+                    ingest_time=datetime.now(timezone.utc),
+                    event_time=observation.event_time,
+                    source_id=observation.source_id,
+                    lane_id=self.lane_id,
+                    provenance_ref=observation.provenance_ref,
+                    quality_ref=observation.quality_ref,
+                    typed_payload={
+                        "component": "shard",
+                        "plugin_id": plugin_id,
+                        "shard_id": self.shard_id,
+                        "observation_id": observation.observation_id,
+                        "exception_type": type(exc).__name__,
+                        "error": str(exc)[:500],
+                    },
+                )
+                await self._emit_control(event)
             finally:
                 self.queue.task_done()
+
+    def _plugin_id(self) -> str:
+        try:
+            return self.plugin.manifest().plugin_id
+        except Exception:
+            return type(self.plugin).__name__
+
+    async def _emit_control(self, event: RuntimeControlEvent) -> None:
+        if self.control_sink is None:
+            logger.error("Runtime control event has no sink: %s", event.typed_payload)
+            return
+        try:
+            await self.control_sink(event)
+        except Exception:
+            logger.exception(
+                "Control sink failed for shard event %s; event will not be retried",
+                event.control_event_id,
+            )
 
 
 def compute_shard(plugin_id: str, state_key: StateKey | None, shard_count: int) -> int:

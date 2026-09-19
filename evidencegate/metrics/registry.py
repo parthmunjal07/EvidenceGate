@@ -1,7 +1,7 @@
 from prometheus_client import Counter, Histogram, Gauge
 
 # Bounded metric labels only (no IPs, domains, flow IDs, result IDs)
-# Valid labels: lane, status, observation_type, plugin_id
+# Valid labels: lane, status, observation_type, plugin_id, shard_id
 
 class MetricsRegistry:
     def __init__(self):
@@ -44,7 +44,7 @@ class MetricsRegistry:
         
         self.processing_errors = Counter(
             'evidencegate_processing_errors_total',
-            'Total processing errors caught in the dispatcher',
+            'Total bounded runtime processing errors',
             ['lane', 'plugin_id']
         )
 

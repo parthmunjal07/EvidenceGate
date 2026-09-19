@@ -245,7 +245,8 @@ async def test_ic_06_queue_saturation(test_observation):
     # 1. Gap is visible through health record
     assert len(dispatcher.health.active_gaps) == 1
     gap = dispatcher.health.active_gaps[0]
-    assert gap.reason == "Shard queue full — observation dropped at lane boundary."
+    assert "Shard queue full" in gap.reason
+    assert "before plugin processing" in gap.reason
     
     # 2. Delivered to sink
     assert len(sink_gaps) == 1
@@ -819,6 +820,10 @@ async def test_unexpected_dispatcher_exception(test_observation):
     
     plugin = BasicScaffoldPlugin()
     gov = _make_governance()
+    control_events = []
+
+    async def capture_control(event):
+        control_events.append(event)
     
     # Patch shard dispatch to raise Exception
     class FailingShard:
@@ -831,6 +836,7 @@ async def test_unexpected_dispatcher_exception(test_observation):
         governance=gov,
         shards=[FailingShard()],
         shard_count=1,
+        control_sink=capture_control,
     )
     
     dispatcher.put_nowait(test_observation)
@@ -850,3 +856,6 @@ async def test_unexpected_dispatcher_exception(test_observation):
     # Metric should be incremented
     final_errors = metrics_registry.processing_errors.labels(lane="lane1", plugin_id=plugin.manifest().plugin_id)._value.get()
     assert final_errors == initial_errors + 1
+    assert len(control_events) == 1
+    assert control_events[0].control_type is ControlType.ERROR
+    assert control_events[0].typed_payload["component"] == "dispatcher"

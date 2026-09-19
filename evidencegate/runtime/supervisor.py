@@ -2,7 +2,7 @@ import asyncio
 from typing import Dict, Awaitable, Callable
 from evidencegate.registry.plugin import AnalyticPlugin
 from evidencegate.registry.manifest import PluginManifest
-from evidencegate.domain.events import NetworkObservation
+from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.quality import QualityGap
 from evidencegate.routing.router import RelevanceRouter, LaneTarget
@@ -22,12 +22,16 @@ class RuntimeSupervisor:
         plugins: Dict[LaneTarget, AnalyticPlugin],
         governances: Dict[LaneTarget, LaneGovernance],
         result_writer: Callable[[ResultDraft, LaneTarget], Awaitable[None]],
-        shard_count: int = 4
+        shard_count: int = 4,
+        control_sink: Callable[[RuntimeControlEvent], Awaitable[None]] | None = None,
+        gap_sink: Callable[[QualityGap], Awaitable[None]] | None = None,
     ):
         self.plugins = plugins
         self.governances = governances
         self.result_writer = result_writer
         self.shard_count = shard_count
+        self.control_sink = control_sink
+        self.gap_sink = gap_sink
         
         self.router = RelevanceRouter(plugins)
         self.state_stores: Dict[LaneTarget, StateStore] = {
@@ -46,7 +50,9 @@ class RuntimeSupervisor:
                     shard_id=i,
                     plugin=plugin,
                     state_store=self.state_stores[target],
-                    result_callback=bound_writer
+                    result_callback=bound_writer,
+                    control_sink=control_sink,
+                    lane_id=str(target),
                 )
                 lane_shards.append(shard)
             self.shards[target] = lane_shards
@@ -59,7 +65,9 @@ class RuntimeSupervisor:
                     plugin=plugin,
                     governance=gov,
                     shards=lane_shards,
-                    shard_count=shard_count
+                    shard_count=shard_count,
+                    control_sink=control_sink,
+                    gap_sink=gap_sink,
                 )
 
     def start_all(self):
@@ -86,17 +94,4 @@ class RuntimeSupervisor:
             try:
                 dispatcher.put_nowait(observation)
             except asyncio.QueueFull:
-                # IC-06 Queue saturation creates visible gap/health evidence
-                from evidencegate.domain.quality import QualityGap
-                import uuid
-                gap = QualityGap(
-                    gap_id=str(uuid.uuid4()),
-                    scope=target,
-                    first_known_event_time=observation.event_time,
-                    last_known_event_time=observation.event_time,
-                    detection_time=observation.ingest_time,
-                    count=1,
-                    gap_types=("QUEUE_SATURATION",),
-                    reason="Lane ingress queue full"
-                )
-                pass
+                await dispatcher.handle_ingress_saturation(observation)
