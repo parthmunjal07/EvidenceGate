@@ -35,6 +35,7 @@ from evidencegate.results.types import (
     ThreatAlert, ResultDraft, AnalyticUnavailable, ReviewFinding, ResultStatusSnapshot,
 )
 from evidencegate.results.validator import ResultValidator
+from evidencegate.results.finalizer import result_id_for
 from evidencegate.runtime.shard import compute_shard, LaneShard, ShardKeyState
 from evidencegate.runtime.state import StateOperation, StateStore
 from evidencegate.persistence.sqlite import SqliteWriter
@@ -373,7 +374,7 @@ async def test_ic_11_sqlite_idempotence(tmp_path):
     writer.connect()
 
     result = ReviewFinding(
-        result_id="r_idempotent",
+        result_id="",
         schema_version="2.0",
         result_type=ResultType.REVIEW_FINDING,
         created_time=_now(),
@@ -383,7 +384,7 @@ async def test_ic_11_sqlite_idempotence(tmp_path):
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot={},  # SQLite v1 compatibility coverage; M5-02 persists typed snapshots.
+        status_snapshot=ResultStatusSnapshot(ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
         governance_version="gov",
         claim_ceiling="REVIEW_ONLY",
         quality_refs=("q",),
@@ -392,15 +393,16 @@ async def test_ic_11_sqlite_idempotence(tmp_path):
         missing_prerequisites=(),
         governing_ids=(),
     )
+    result = dataclasses.replace(result, result_id=result_id_for(result))
 
     await writer.write_result(result)
     await writer.write_result(result)  # second write must be a no-op
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM results WHERE result_id='r_idempotent'")
+    cursor.execute("SELECT COUNT(*) FROM results WHERE result_id=?", (result.result_id,))
     assert cursor.fetchone()[0] == 1, "Duplicate write must result in exactly 1 row"
-    cursor.execute("SELECT COUNT(*) FROM evidence_items WHERE result_id='r_idempotent'")
+    cursor.execute("SELECT COUNT(*) FROM evidence_items WHERE result_id=?", (result.result_id,))
     assert cursor.fetchone()[0] == 1, "Evidence items must not be duplicated"
     conn.close()
     writer.close()
@@ -451,6 +453,7 @@ async def test_ic_13_sqlite_wal(tmp_path):
     
     # Test concurrent reader while writer has uncommitted transaction
     writer._conn.execute("BEGIN")
+    cursor.execute("INSERT INTO results (result_id, result_type, created_time, entity_reference, plugin_version, analytic_version) VALUES ('r1', 'REVIEW_FINDING', '2020-01-01T00:00:00+00:00', 'e', '1', '1')")
     cursor.execute("INSERT INTO missing_prerequisites (result_id, prerequisite) VALUES ('r1', 'p1')")
     
     # Concurrent reader
@@ -713,7 +716,7 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
     writer.connect()
 
     result = ReviewFinding(
-        result_id="r_atomic",
+        result_id="",
         schema_version="2.0",
         result_type=ResultType.REVIEW_FINDING,
         created_time=_now(),
@@ -723,7 +726,7 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot={},  # SQLite v1 compatibility coverage; M5-02 persists typed snapshots.
+        status_snapshot=ResultStatusSnapshot(ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
         governance_version="gov",
         claim_ceiling="REVIEW_ONLY",
         quality_refs=("q",),
@@ -732,6 +735,7 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
         missing_prerequisites=(),
         governing_ids=(),
     )
+    result = dataclasses.replace(result, result_id=result_id_for(result))
 
     # ── Part A: inject failure in evidence_items INSERT → must rollback ─────
     original_write = writer._write_result_sync
@@ -759,7 +763,7 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
                     r.entity_reference,
                     r.taxonomy[0], r.taxonomy[1], r.taxonomy[2],
                     r.plugin_version, r.analytic_version,
-                    "{}", r.claim_ceiling, r.quality_ref, r.provenance_ref,
+                    "{}", r.claim_ceiling, None, None,
                     None, None, None, None, None,
                 ),
             )
@@ -777,7 +781,7 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
     # Verify COMPLETE rollback: result row must NOT exist
     conn_check = sqlite3.connect(db_path)
     cur = conn_check.cursor()
-    cur.execute("SELECT COUNT(*) FROM results WHERE result_id='r_atomic'")
+    cur.execute("SELECT COUNT(*) FROM results WHERE result_id=?", (result.result_id,))
     count = cur.fetchone()[0]
     conn_check.close()
     assert count == 0, (
@@ -794,9 +798,9 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
 
     conn_check = sqlite3.connect(db_path)
     cur = conn_check.cursor()
-    cur.execute("SELECT COUNT(*) FROM results WHERE result_id='r_atomic'")
+    cur.execute("SELECT COUNT(*) FROM results WHERE result_id=?", (result.result_id,))
     assert cur.fetchone()[0] == 1, "Idempotent write must yield exactly 1 result row"
-    cur.execute("SELECT COUNT(*) FROM evidence_items WHERE result_id='r_atomic'")
+    cur.execute("SELECT COUNT(*) FROM evidence_items WHERE result_id=?", (result.result_id,))
     assert cur.fetchone()[0] == 1, "Idempotent write must yield exactly 1 evidence item"
     conn_check.close()
     writer.close()

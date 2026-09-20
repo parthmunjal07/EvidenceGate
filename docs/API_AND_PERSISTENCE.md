@@ -1,29 +1,11 @@
-# API and Persistence Reference
+# Persistence Reference
 
-## FastAPI and WebSocket Endpoints
+EvidenceGate’s SQLite repository stores only finalized immutable `Result` objects. It validates that `result_id` equals the M5-01 canonical identity before beginning a write, then stores the matching SHA-256 content digest alongside structured v2 result fields.
 
-EvidenceGate exposes generic REST and WebSocket endpoints for reading results.
+Writes are a single transaction covering the result parent and its ordered evidence, provenance, quality, governing, prerequisite, and correlation-link children. A duplicate ID is a no-op only when its stored content hash matches. A different or hashless legacy row raises `ResultIdentityConflict` without mutation.
 
-### `GET /results`
-Provides durable cursor-based polling for historical and active `Result` records.
-- **Use case**: Reliable UI dashboards and asynchronous metric aggregation.
+Connections enable WAL, foreign keys, and `synchronous=NORMAL`. Schema migration 2 is additive and idempotent: it upgrades v1 databases without resetting rows, assigns deterministic positions to legacy children, and records version 2 once in `schema_migrations`.
 
-### `WS /live`
-Provides an ephemeral real-time feed of analytic updates.
-- **Slow Client Protection**: The WebSocket endpoint utilizes a bounded `asyncio.Queue` per client. If a client is too slow to process messages, the queue will saturate (`QueueFull`), and the server will **silently drop real-time updates** for that client.
-- **Recovery**: Slow clients must rely on durable cursor queries (`GET /results`) to recover dropped sequences.
+`get_result(result_id)` reconstructs the exact v2 final subtype; legacy hashless rows deliberately raise a clear legacy-read limitation. `list_results()` supports bounded (1–1000) cursor pagination and optional lane/type filters. Ordering is `created_time DESC, result_id DESC`; cursors encode the final pair and avoid offset instability.
 
-## SQLite Persistence
-
-The runtime uses an application-owned SQLite writer bound to a single thread.
-
-### WAL Mode
-The database operates in **WAL (Write-Ahead Logging)** mode (`PRAGMA journal_mode=WAL`). This permits multiple concurrent readers (e.g., UI queries) without blocking the primary writer thread.
-
-### Idempotence and Replay
-- The `SqliteWriter` executes writes using `INSERT OR IGNORE`.
-- Because observations and results are immutable (IC-11), replays of historical PCAP data will seamlessly skip duplicate `result_id` keys without crashing or corrupting the database.
-
-### Partial Commits
-- The `SqliteWriter.write_result` method wraps the parent `Result` and its associated `evidence_items` and `missing_prerequisites` in a single atomic transaction. 
-- If the parent `Result` is ignored (duplicate), the child relationships are aggressively skipped to maintain referential integrity.
+No HTTP, WebSocket, or other API surface is implemented by this persistence loop.

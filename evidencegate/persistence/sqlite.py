@@ -1,163 +1,199 @@
-"""
-persistence/sqlite.py — Atomic SQLite persistence for EvidenceGate results.
+"""SQLite repository for immutable, finalized EvidenceGate results."""
+from __future__ import annotations
 
-IC-18 / contract §9:
-  result row + mandatory evidence items + provenance references + result links
-  are written atomically in ONE transaction.
-
-  On any child-write failure:
-    - ROLLBACK the complete transaction
-    - Leave no partial result row in the database
-
-  For a repeated immutable result_id: idempotent no-op (INSERT OR IGNORE +
-  rowcount check). Never allow divergent records.
-
-WAL mode (IC-13): journal_mode=WAL is set on every connection before schema load.
-"""
-import sqlite3
-import json
 import asyncio
+import base64
+import hashlib
+import sqlite3
+from datetime import datetime
 from pathlib import Path
-from evidencegate.results.types import Result, ThreatAlert, AnalyticUnavailable, CorrelationFinding
+
+from evidencegate.domain.enums import AnalyticUnavailableReason, EvidenceReadiness, IntegrationStatus, ResultType, ScientificStatus
+from evidencegate.results.finalizer import canonical_result_content, result_id_for
+from evidencegate.results.types import AnalyticUnavailable, CorrelationFinding, InsufficientEvidence, PluginStatus, PrerequisiteMissing, QualityDegraded, Result, ResultDraft, ResultStatusSnapshot, ReviewFinding, ThreatAlert
+
+
+class PersistenceError(RuntimeError):
+    """Base class for repository-level persistence failures."""
+
+
+class ResultIdentityConflict(PersistenceError):
+    """A result ID is already associated with unverifiable or different content."""
+
+
+class SchemaMigrationError(PersistenceError):
+    """The database could not be brought to the supported schema version."""
+
+
+_RESULT_CLASSES = {
+    ResultType.THREAT_ALERT: ThreatAlert, ResultType.REVIEW_FINDING: ReviewFinding,
+    ResultType.ANALYTIC_UNAVAILABLE: AnalyticUnavailable, ResultType.PREREQUISITE_MISSING: PrerequisiteMissing,
+    ResultType.INSUFFICIENT_EVIDENCE: InsufficientEvidence, ResultType.QUALITY_DEGRADED: QualityDegraded,
+    ResultType.PLUGIN_STATUS: PluginStatus, ResultType.CORRELATION_FINDING: CorrelationFinding,
+}
+
+
+def _time_text(value: datetime) -> str:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise PersistenceError("result datetimes must be timezone-aware")
+    return value.isoformat(timespec="microseconds")
 
 
 class SqliteWriter:
-    """
-    Single application-owned SQLite writer in WAL mode.
-    All writes use a single asyncio lock to serialise access from
-    the async runtime.
-    """
+    """Application-owned, locked SQLite repository with explicit migrations."""
 
     def __init__(self, db_path: str | Path, schema_path: str | Path):
-        self.db_path = str(db_path)
-        self.schema_path = str(schema_path)
+        self.db_path, self.schema_path = str(db_path), str(schema_path)
         self._conn: sqlite3.Connection | None = None
         self._lock = asyncio.Lock()
 
     def connect(self) -> None:
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        # IC-13: WAL mode must be enabled on every new connection
-        self._conn.execute("PRAGMA journal_mode=WAL;")
-        self._conn.execute("PRAGMA synchronous=NORMAL;")
-        with open(self.schema_path, "r") as f:
-            self._conn.executescript(f.read())
-        self._conn.commit()
+        if self._conn is not None:
+            raise PersistenceError("Database is already connected.")
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.executescript(Path(self.schema_path).read_text(encoding="utf-8"))
+            self._apply_migrations(conn)
+            conn.commit()
+        except Exception as exc:
+            conn.close()
+            raise SchemaMigrationError("SQLite schema migration failed") from exc
+        self._conn = conn
+
+    def _apply_migrations(self, conn: sqlite3.Connection) -> None:
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE version = 2").fetchone():
+            return
+        migration = Path(__file__).with_name("migrations") / "002_results_v2.sql"
+        try:
+            conn.executescript(
+                "BEGIN;\n" + migration.read_text(encoding="utf-8")
+                + "\nINSERT INTO schema_migrations (version, applied_at) VALUES (2, CURRENT_TIMESTAMP);\nCOMMIT;"
+            )
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
 
     async def write_result(self, result: Result) -> None:
-        """
-        IC-18: Write result + evidence_items + provenance_references + result_links
-        atomically in one transaction.
-
-        If the result_id already exists: idempotent no-op (INSERT OR IGNORE).
-        If any child-write fails: ROLLBACK everything — no partial row left.
-        """
+        if isinstance(result, ResultDraft) or not isinstance(result, Result):
+            raise TypeError("write_result requires a finalized Result")
+        if result.result_id != result_id_for(result):
+            raise ResultIdentityConflict("result_id does not match canonical result content")
         async with self._lock:
-            if not self._conn:
-                raise RuntimeError("Database not connected. Call connect() first.")
             self._write_result_sync(result)
 
     def _write_result_sync(self, result: Result) -> None:
-        """
-        Synchronous inner write wrapped in a single SQLite transaction.
-        Raises on failure after rolling back.
-        """
-        conn = self._conn
-        assert conn is not None
-
-        # Disable autocommit by using explicit BEGIN
+        conn = self._require_connection()
+        content_hash = hashlib.sha256(canonical_result_content(result).encode()).hexdigest()
         conn.execute("BEGIN")
         try:
             cursor = conn.cursor()
-
-            # ── Parent row (result) ─────────────────────────────────────────
-            cursor.execute(
-                """
-                INSERT OR IGNORE INTO results (
-                    result_id, result_type, created_time, entity_reference,
-                    taxonomy_1, taxonomy_2, taxonomy_3,
-                    plugin_version, analytic_version,
-                    status_snapshot, claim_ceiling, quality_ref, provenance_ref,
-                    confidence, severity, reason_code,
-                    evidence_interval_start, evidence_interval_end
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    result.result_id,
-                    result.result_type.value,
-                    result.created_time.isoformat(),
-                    result.entity_reference,
-                    result.taxonomy[0] if result.taxonomy else None,
-                    result.taxonomy[1] if len(result.taxonomy) > 1 else None if result.taxonomy else None,
-                    result.taxonomy[2] if len(result.taxonomy) > 2 else None if result.taxonomy else None,
-                    result.plugin_version,
-                    result.analytic_version,
-                    json.dumps(result.status_snapshot),
-                    result.claim_ceiling,
-                    result.quality_ref,
-                    result.provenance_ref,
-                    getattr(result, "confidence", None),
-                    getattr(result, "severity", None),
-                    getattr(result, "reason_code", None).value
-                    if getattr(result, "reason_code", None) is not None
-                    else None,
-                    result.evidence_interval[0].isoformat()
-                    if result.evidence_interval
-                    else None,
-                    result.evidence_interval[1].isoformat()
-                    if result.evidence_interval
-                    else None,
-                ),
-            )
-
-            # If INSERT OR IGNORE fired (row already exists), rowcount == 0 →
-            # idempotent no-op: skip children, commit, done.
-            if cursor.rowcount == 0:
-                conn.execute("COMMIT")
-                return
-
-            # ── Mandatory child: evidence_items ─────────────────────────────
-            # Any exception here triggers full rollback (no partial result).
-            for item in result.evidence_items:
-                cursor.execute(
-                    "INSERT INTO evidence_items (result_id, evidence_ref) VALUES (?, ?)",
-                    (result.result_id, item),
-                )
-
-            # ── Mandatory child: provenance_references ──────────────────────
-            if result.provenance_ref:
-                cursor.execute(
-                    """
-                    INSERT OR IGNORE INTO provenance_references
-                        (result_id, provenance_ref)
-                    VALUES (?, ?)
-                    """,
-                    (result.result_id, result.provenance_ref),
-                )
-
-            # ── Mandatory child: missing_prerequisites ──────────────────────
-            for prereq in result.missing_prerequisites:
-                cursor.execute(
-                    "INSERT INTO missing_prerequisites (result_id, prerequisite) VALUES (?, ?)",
-                    (result.result_id, prereq),
-                )
-
-            # ── Optional child: result_links (CorrelationFinding only) ──────
-            if isinstance(result, CorrelationFinding):
-                for linked_id in result.linked_result_ids:
-                    cursor.execute(
-                        "INSERT INTO result_links (source_result_id, linked_result_id) VALUES (?, ?)",
-                        (result.result_id, linked_id),
-                    )
-
+            existing = cursor.execute("SELECT content_hash FROM results WHERE result_id = ?", (result.result_id,)).fetchone()
+            if existing is not None:
+                if existing[0] == content_hash:
+                    conn.execute("COMMIT")
+                    return
+                raise ResultIdentityConflict(f"result_id {result.result_id!r} already has different or unverifiable content")
+            interval_start, interval_end = result.evidence_interval or (None, None)
+            cursor.execute("""INSERT INTO results (
+                result_id, content_hash, schema_version, result_type, created_time,
+                lane_id, plugin_id, plugin_version, analytic_version, governance_version,
+                entity_reference, taxonomy_1, taxonomy_2, taxonomy_3,
+                scientific_status, integration_status, readiness, quality_degraded,
+                claim_ceiling, confidence, severity, reason_code, evidence_interval_start, evidence_interval_end
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (result.result_id, content_hash, result.schema_version, result.result_type.value, _time_text(result.created_time),
+                 result.lane_id, result.plugin_id, result.plugin_version, result.analytic_version, result.governance_version,
+                 result.entity_reference, *result.taxonomy, result.status_snapshot.scientific_status.value,
+                 result.status_snapshot.integration_status.value, result.status_snapshot.readiness.value,
+                 int(result.status_snapshot.quality_degraded), result.claim_ceiling, getattr(result, "confidence", None),
+                 getattr(result, "severity", None), result.reason_code.value if isinstance(result, AnalyticUnavailable) else None,
+                 _time_text(interval_start) if interval_start else None, _time_text(interval_end) if interval_end else None))
+            self._insert_children(cursor, result)
             conn.execute("COMMIT")
-
         except Exception:
-            # IC-18: On any child-write failure, ROLLBACK completely.
-            # No partial result row remains.
-            conn.execute("ROLLBACK")
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
             raise
 
+    @staticmethod
+    def _insert_children(cursor: sqlite3.Cursor, result: Result) -> None:
+        for table, column, values in (
+            ("evidence_items", "evidence_ref", result.evidence_items),
+            ("provenance_references", "provenance_ref", result.provenance_refs),
+            ("quality_references", "quality_ref", result.quality_refs),
+            ("governing_references", "governing_id", result.governing_ids),
+            ("missing_prerequisites", "prerequisite", result.missing_prerequisites),
+        ):
+            for position, value in enumerate(values):
+                cursor.execute(f"INSERT INTO {table} (result_id, {column}, position) VALUES (?, ?, ?)", (result.result_id, value, position))
+        if isinstance(result, CorrelationFinding):
+            for position, linked_id in enumerate(result.linked_result_ids):
+                cursor.execute("INSERT INTO result_links (source_result_id, linked_result_id, position) VALUES (?, ?, ?)", (result.result_id, linked_id, position))
+
+    async def get_result(self, result_id: str) -> Result | None:
+        async with self._lock:
+            conn = self._require_connection()
+            row = conn.execute("SELECT * FROM results WHERE result_id = ?", (result_id,)).fetchone()
+            return None if row is None else self._read_result(conn, row)
+
+    async def list_results(self, *, limit: int = 100, cursor: str | None = None, lane_id: str | None = None, result_type: ResultType | None = None) -> tuple[Result, ...]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        clauses, params = ["content_hash IS NOT NULL"], []
+        if cursor:
+            created_time, result_id = self._decode_cursor(cursor)
+            clauses.append("(created_time < ? OR (created_time = ? AND result_id < ?))")
+            params.extend((created_time, created_time, result_id))
+        if lane_id:
+            clauses.append("lane_id = ?"); params.append(lane_id)
+        if result_type:
+            clauses.append("result_type = ?"); params.append(result_type.value)
+        params.append(limit)
+        sql = "SELECT * FROM results WHERE " + " AND ".join(clauses) + " ORDER BY created_time DESC, result_id DESC LIMIT ?"
+        async with self._lock:
+            conn = self._require_connection()
+            return tuple(self._read_result(conn, row) for row in conn.execute(sql, params).fetchall())
+
+    @staticmethod
+    def cursor_for(result: Result) -> str:
+        return base64.urlsafe_b64encode(f"{_time_text(result.created_time)}\0{result.result_id}".encode()).decode()
+
+    @staticmethod
+    def _decode_cursor(cursor: str) -> tuple[str, str]:
+        try:
+            return tuple(base64.urlsafe_b64decode(cursor.encode()).decode().split("\0", 1))  # type: ignore[return-value]
+        except Exception as exc:
+            raise ValueError("invalid result cursor") from exc
+
+    def _read_result(self, conn: sqlite3.Connection, row: tuple) -> Result:
+        columns = [item[0] for item in conn.execute("SELECT * FROM results LIMIT 0").description]
+        values = dict(zip(columns, row))
+        if values["content_hash"] is None:
+            raise PersistenceError("legacy v1 result cannot be reconstructed as a v2 Result")
+        result_id = values["result_id"]
+        def children(table: str, column: str, id_column: str = "result_id") -> tuple[str, ...]:
+            return tuple(item[0] for item in conn.execute(f"SELECT {column} FROM {table} WHERE {id_column} = ? ORDER BY position", (result_id,)))
+        status = ResultStatusSnapshot(ScientificStatus(values["scientific_status"]), IntegrationStatus(values["integration_status"]), values["governance_version"], EvidenceReadiness(values["readiness"]), bool(values["quality_degraded"]))
+        interval = ((datetime.fromisoformat(values["evidence_interval_start"]), datetime.fromisoformat(values["evidence_interval_end"])) if values["evidence_interval_start"] else None)
+        common = dict(result_id=result_id, schema_version=values["schema_version"], result_type=ResultType(values["result_type"]), created_time=datetime.fromisoformat(values["created_time"]), lane_id=values["lane_id"], plugin_id=values["plugin_id"], plugin_version=values["plugin_version"], analytic_version=values["analytic_version"], governance_version=values["governance_version"], entity_reference=values["entity_reference"], taxonomy=(values["taxonomy_1"], values["taxonomy_2"], values["taxonomy_3"]), status_snapshot=status, claim_ceiling=values["claim_ceiling"], evidence_items=children("evidence_items", "evidence_ref"), provenance_refs=children("provenance_references", "provenance_ref"), quality_refs=children("quality_references", "quality_ref"), governing_ids=children("governing_references", "governing_id"), missing_prerequisites=children("missing_prerequisites", "prerequisite"), evidence_interval=interval)
+        if common["result_type"] is ResultType.THREAT_ALERT:
+            return ThreatAlert(**common, confidence=values["confidence"], severity=values["severity"])
+        if common["result_type"] is ResultType.ANALYTIC_UNAVAILABLE:
+            return AnalyticUnavailable(**common, reason_code=AnalyticUnavailableReason(values["reason_code"]))
+        if common["result_type"] is ResultType.CORRELATION_FINDING:
+            return CorrelationFinding(**common, linked_result_ids=children("result_links", "linked_result_id", "source_result_id"))
+        return _RESULT_CLASSES[common["result_type"]](**common)
+
+    def _require_connection(self) -> sqlite3.Connection:
+        if self._conn is None:
+            raise PersistenceError("Database not connected. Call connect() first.")
+        return self._conn
+
     def close(self) -> None:
-        if self._conn:
+        if self._conn is not None:
             self._conn.close()
             self._conn = None

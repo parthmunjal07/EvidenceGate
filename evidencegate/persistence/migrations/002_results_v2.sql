@@ -1,0 +1,30 @@
+-- M5-02: durable storage for immutable M5-01 final results.
+-- This migration is additive: v1 rows stay in place and remain legacy.
+ALTER TABLE results ADD COLUMN content_hash TEXT;
+ALTER TABLE results ADD COLUMN schema_version TEXT;
+ALTER TABLE results ADD COLUMN lane_id TEXT;
+ALTER TABLE results ADD COLUMN plugin_id TEXT;
+ALTER TABLE results ADD COLUMN governance_version TEXT;
+ALTER TABLE results ADD COLUMN scientific_status TEXT;
+ALTER TABLE results ADD COLUMN integration_status TEXT;
+ALTER TABLE results ADD COLUMN readiness TEXT;
+ALTER TABLE results ADD COLUMN quality_degraded INTEGER;
+ALTER TABLE evidence_items ADD COLUMN position INTEGER;
+ALTER TABLE provenance_references ADD COLUMN position INTEGER;
+ALTER TABLE missing_prerequisites ADD COLUMN position INTEGER;
+ALTER TABLE result_links ADD COLUMN position INTEGER;
+UPDATE evidence_items AS current SET position = (SELECT COUNT(*) FROM evidence_items AS prior WHERE prior.result_id = current.result_id AND prior.id <= current.id) WHERE position IS NULL;
+UPDATE provenance_references AS current SET position = (SELECT COUNT(*) FROM provenance_references AS prior WHERE prior.result_id = current.result_id AND prior.id <= current.id) WHERE position IS NULL;
+UPDATE missing_prerequisites AS current SET position = (SELECT COUNT(*) FROM missing_prerequisites AS prior WHERE prior.result_id = current.result_id AND prior.id <= current.id) WHERE position IS NULL;
+UPDATE result_links AS current SET position = (SELECT COUNT(*) FROM result_links AS prior WHERE prior.source_result_id = current.source_result_id AND prior.id <= current.id) WHERE position IS NULL;
+CREATE TABLE IF NOT EXISTS quality_references (id INTEGER PRIMARY KEY AUTOINCREMENT, result_id TEXT NOT NULL, quality_ref TEXT NOT NULL, position INTEGER NOT NULL, UNIQUE(result_id, position), UNIQUE(result_id, quality_ref), FOREIGN KEY(result_id) REFERENCES results(result_id));
+CREATE TABLE IF NOT EXISTS governing_references (id INTEGER PRIMARY KEY AUTOINCREMENT, result_id TEXT NOT NULL, governing_id TEXT NOT NULL, position INTEGER NOT NULL, UNIQUE(result_id, position), UNIQUE(result_id, governing_id), FOREIGN KEY(result_id) REFERENCES results(result_id));
+CREATE UNIQUE INDEX IF NOT EXISTS ux_evidence_items_result_position ON evidence_items(result_id, position);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_provenance_references_result_position ON provenance_references(result_id, position);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_missing_prerequisites_result_position ON missing_prerequisites(result_id, position);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_result_links_source_position ON result_links(source_result_id, position);
+CREATE INDEX IF NOT EXISTS ix_results_created_result ON results(created_time, result_id);
+CREATE INDEX IF NOT EXISTS ix_results_lane_created_result ON results(lane_id, created_time, result_id);
+CREATE INDEX IF NOT EXISTS ix_results_type_created_result ON results(result_type, created_time, result_id);
+CREATE INDEX IF NOT EXISTS ix_results_plugin_created_result ON results(plugin_id, created_time, result_id);
+CREATE INDEX IF NOT EXISTS ix_results_entity_created_result ON results(entity_reference, created_time, result_id);

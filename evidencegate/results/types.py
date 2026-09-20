@@ -47,16 +47,6 @@ class Result:
     provenance_refs: tuple[str, ...]
     evidence_interval: tuple[datetime, datetime] | None = None
 
-    # M5-01 leaves persistence v1 untouched. These compatibility views let
-    # the existing writer consume a final result until M5-02.
-    @property
-    def quality_ref(self) -> str | None:
-        return self.quality_refs[0] if self.quality_refs else None
-
-    @property
-    def provenance_ref(self) -> str | None:
-        return self.provenance_refs[0] if self.provenance_refs else None
-
 
 @dataclass(frozen=True, slots=True)
 class ThreatAlert(Result):
