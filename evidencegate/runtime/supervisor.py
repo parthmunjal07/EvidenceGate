@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, Awaitable, Callable
@@ -15,6 +16,8 @@ from evidencegate.runtime.dispatcher import LaneDispatcher
 from evidencegate.results.types import ResultDraft
 from evidencegate.domain.enums import ControlType
 from evidencegate.metrics.registry import registry
+
+logger = logging.getLogger(__name__)
 
 class RuntimeSupervisor:
     """
@@ -130,7 +133,10 @@ class RuntimeSupervisor:
                 await self.control_sink(event)
             except Exception:
                 # Diagnostic delivery must not interfere with unrelated routing.
-                pass
+                logger.exception(
+                    "Router control sink failed for event %s; event will not be retried",
+                    event.control_event_id,
+                )
 
     async def advance_watermark(self, target: LaneTarget, watermark) -> bool:
         """Advance one lane's explicit event-time boundary."""

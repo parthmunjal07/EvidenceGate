@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import datetime, timezone
+import logging
 
 import pytest
 
@@ -56,6 +57,10 @@ class Plugin(BasicScaffoldPlugin):
 def plugin(name, **changes):
     changes.setdefault("accepted_observation_types", (ObservationType.PACKET,))
     return Plugin(plugin_id=name, **changes)
+
+
+async def collect(target, value):
+    target.append(value)
 
 
 def test_zero_one_many_and_deterministic_registration_order():
@@ -128,7 +133,7 @@ async def test_supervisor_emits_router_error_routes_independent_lane_and_counts_
     bad.error = ValueError("bad route")
     controls, delivered = [], []
     governance = LaneGovernance("good", ScientificStatus.EVIDENCE_CONSTRUCTION, "test", (), "REVIEW", "v1", NOW, (ResultType.REVIEW_FINDING,), True)
-    supervisor = RuntimeSupervisor({LaneTarget("bad"): bad, LaneTarget("good"): good}, {LaneTarget("good"): governance}, lambda result, target: delivered.append((result, target)), shard_count=1, control_sink=lambda event: controls.append(event))
+    supervisor = RuntimeSupervisor({LaneTarget("bad"): bad, LaneTarget("good"): good}, {LaneTarget("good"): governance}, lambda result, target: collect(delivered, (result, target)), shard_count=1, control_sink=lambda event: collect(controls, event))
     # The router metric is incremented at selection, before dispatch work.
     metric = registry.routed_rate.labels(lane="good", observation_type="PACKET")
     before = metric._value.get()
@@ -138,3 +143,28 @@ async def test_supervisor_emits_router_error_routes_independent_lane_and_counts_
     assert controls[0].typed_payload["component"] == "router"
     assert controls[0].typed_payload["plugin_id"] == "bad"
     assert supervisor.dispatchers[LaneTarget("good")].queue.qsize() == 1
+
+
+@pytest.mark.asyncio
+async def test_router_sink_failure_is_logged_and_does_not_block_unrelated_routing(caplog):
+    bad, good = plugin("bad-sink"), plugin("good-sink")
+    bad.error = ValueError("bad route")
+
+    async def failing_sink(event):
+        raise RuntimeError("sink unavailable")
+
+    governance = LaneGovernance("good-sink", ScientificStatus.EVIDENCE_CONSTRUCTION, "test", (), "REVIEW", "v1", NOW, (ResultType.REVIEW_FINDING,), True)
+    supervisor = RuntimeSupervisor(
+        {LaneTarget("bad"): bad, LaneTarget("good"): good},
+        {LaneTarget("good"): governance},
+        lambda result, target: collect([], (result, target)),
+        shard_count=1,
+        control_sink=failing_sink,
+    )
+    caplog.set_level(logging.ERROR, logger="evidencegate.runtime.supervisor")
+
+    plan = await supervisor.ingest_observation(observation())
+
+    assert plan.selected_targets == (LaneTarget("good"),)
+    assert supervisor.dispatchers[LaneTarget("good")].queue.qsize() == 1
+    assert "Router control sink failed" in caplog.text
