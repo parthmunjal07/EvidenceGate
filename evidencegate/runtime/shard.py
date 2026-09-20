@@ -30,6 +30,7 @@ from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
 from evidencegate.domain.enums import ControlType, EvidenceReadiness, GapAction
 from evidencegate.metrics.registry import registry
 from evidencegate.runtime.state import StateEntry, StateOperation, StateStore
+from evidencegate.runtime.provenance import parser_refs_from_observation
 from evidencegate.results.types import ResultDraft, Result_T
 from evidencegate.results.finalizer import ResultEmissionContext
 from evidencegate.admission.evaluator import (
@@ -380,6 +381,7 @@ class LaneShard:
                                 quality_snapshot=observation.quality,
                                 visibility_snapshot=observation.visibility,
                                 state_version=state.version if state is not None else None,
+                                parser_refs=parser_refs_from_observation(observation),
                             ),
                         )
 

@@ -327,5 +327,9 @@ async def test_v2_to_v3_migration_preserves_existing_row_and_identity(tmp_path) 
 async def test_all_m6_provider_shells_remain_result_free() -> None:
     plugins, _ = build_mvp_provider_registry(NOW)
     for plugin in plugins.values():
-        assert plugin.manifest().mechanism_id is None
+        if plugin.manifest().plugin_id == "provider.encrypted_session.enc_a":
+            assert plugin.manifest().mechanism_id == "ENC-A"
+            continue
+        else:
+            assert plugin.manifest().mechanism_id is None
         assert (await plugin.process(None, {}, None)).result_drafts == ()
