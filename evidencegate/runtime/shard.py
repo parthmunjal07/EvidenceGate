@@ -169,7 +169,8 @@ class LaneShard:
                 entry.key, context, PluginStateSnapshot.from_entry(entry)
             )
             await self._deliver_lifecycle_outcome(
-                outcome, watermark, "on_expire", entry.key, publish_results
+                outcome, watermark, "on_expire", entry.key, publish_results,
+                state_version=entry.version,
             )
         except Exception as exc:
             await self._emit_lifecycle_error("on_expire", watermark, exc)
@@ -186,7 +187,8 @@ class LaneShard:
         try:
             outcome = await self.plugin.on_watermark(watermark, context)
             await self._deliver_lifecycle_outcome(
-                outcome, watermark, "on_watermark", None, publish_results
+                outcome, watermark, "on_watermark", None, publish_results,
+                state_version=None,
             )
         except Exception as exc:
             await self._emit_lifecycle_error("on_watermark", watermark, exc)
@@ -198,6 +200,7 @@ class LaneShard:
         callback: str,
         state_key: StateKey | None,
         publish_results: bool,
+        state_version: int | None = None,
     ) -> None:
         if not isinstance(outcome, PluginProcessOutcome):
             raise TypeError(f"plugin {callback} must return PluginProcessOutcome")
@@ -223,6 +226,7 @@ class LaneShard:
                         readiness=EvidenceReadiness.READY,
                         quality_degraded=self._quality_degraded,
                         trigger_reference=trigger,
+                        state_version=state_version,
                     ),
                 )
 
@@ -371,6 +375,11 @@ class LaneShard:
                                 readiness=readiness_decision.readiness,
                                 quality_degraded=self._quality_degraded,
                                 trigger_reference=observation.observation_id,
+                                source_observation_ids=(observation.observation_id,),
+                                source_ids=(observation.source_id,),
+                                quality_snapshot=observation.quality,
+                                visibility_snapshot=observation.visibility,
+                                state_version=state.version if state is not None else None,
                             ),
                         )
 

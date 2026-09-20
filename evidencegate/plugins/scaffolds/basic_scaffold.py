@@ -44,7 +44,8 @@ class BasicScaffoldPlugin(AnalyticPlugin):
             integration_status=IntegrationStatus.RUNTIME_SCAFFOLD_READY,
             profiling_hooks_enabled=False,
             governing_claim_ids=(),
-            governing_decision_ids=()
+            governing_decision_ids=(),
+            mechanism_id="scaffold.basic.unavailable",
         )
         
     def route(self, observation: NetworkObservation) -> bool:

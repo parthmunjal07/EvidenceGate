@@ -9,7 +9,9 @@ allowed_result_types is now tuple[ResultType, ...] (enum values), so we
 compare result.result_type (a ResultType enum) directly against the tuple,
 never against string representations.
 """
-from evidencegate.results.types import Result, ResultStatusSnapshot, ThreatAlert
+from evidencegate.results.types import EvidencePayload, Result, ResultStatusSnapshot, ThreatAlert
+from evidencegate.domain.events import VisibilityProfile
+from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.domain.enums import ResultType, ScientificStatus
 from evidencegate.domain.governance import LaneGovernance
 
@@ -51,6 +53,21 @@ class ResultValidator:
             raise ValueError(f"Result {result.result_id} has invalid status snapshot.")
         if result.status_snapshot.governance_version != result.governance_version:
             raise ValueError(f"Result {result.result_id} has inconsistent governance version.")
+        if result.schema_version != "2.0":
+            if not result.mechanism_id or not result.mechanism_id.strip():
+                raise ValueError(f"Result {result.result_id} missing mechanism id.")
+            if not isinstance(result.evidence, EvidencePayload):
+                raise ValueError(f"Result {result.result_id} has invalid evidence payload.")
+            if not isinstance(result.quality_snapshot, EvidenceQuality):
+                raise ValueError(f"Result {result.result_id} has invalid quality snapshot.")
+            if not isinstance(result.visibility_snapshot, VisibilityProfile):
+                raise ValueError(f"Result {result.result_id} has invalid visibility snapshot.")
+            if result.state_version is not None and (
+                isinstance(result.state_version, bool)
+                or not isinstance(result.state_version, int)
+                or result.state_version < 1
+            ):
+                raise ValueError(f"Result {result.result_id} has invalid state version.")
 
         # ── IC-17: Governance explicitly owns allowed_result_types ──────────
         # Compare ResultType enum value directly — never infer from status names.

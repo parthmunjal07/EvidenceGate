@@ -33,7 +33,7 @@ class PluginManifest:
     profiling_hooks_enabled: bool
     governing_claim_ids: tuple[str, ...]
     governing_decision_ids: tuple[str, ...]
-    # Optional for compatibility with legacy scaffolds; required by real providers.
+    # Shells that emit no results may omit this; finalization requires it.
     official_ps_category: OfficialPsCategory | None = None
     analytic_family: AnalyticFamily | None = None
     mechanism_id: str | None = None

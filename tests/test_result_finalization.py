@@ -14,6 +14,8 @@ from evidencegate.domain.enums import (
     ScientificStatus,
 )
 from evidencegate.domain.governance import LaneGovernance
+from evidencegate.domain.events import VisibilityProfile
+from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.registry.plugin import PluginProcessOutcome, StateKey
 from evidencegate.results.finalizer import ResultEmissionContext, ResultFinalizer
@@ -118,7 +120,7 @@ def test_runtime_owns_metadata_and_references() -> None:
         manifest(), governance(),
         context(refs=("quality-1", "quality-2", "quality-1"), provenance=("prov-1", "prov-2", "prov-1")),
     )
-    assert result.schema_version == "2.0"
+    assert result.schema_version == "3.0"
     assert (result.lane_id, result.plugin_id, result.plugin_version, result.analytic_version) == (
         "m5-lane", "m5-plugin", "plugin-1", "analytic-1"
     )
@@ -202,12 +204,19 @@ async def test_shard_finalizes_normal_and_lifecycle_results_and_suppresses_abste
         quality_ref="normal-quality",
         provenance_ref="normal-provenance",
         source_id="source",
+        quality=EvidenceQuality(),
+        visibility=VisibilityProfile(),
     )
     await shard.put(observation)
     await asyncio.wait_for(shard.queue.join(), timeout=1)
     await shard.stop()
     assert emitted[-1].created_time == NOW + timedelta(seconds=2)
     assert emitted[-1].evidence_items[-1] == "normal-observation"
+    assert emitted[-1].source_observation_ids == ("normal-observation",)
+    assert emitted[-1].source_ids == ("source",)
+    assert emitted[-1].quality_snapshot == EvidenceQuality()
+    assert emitted[-1].visibility_snapshot == VisibilityProfile()
+    assert emitted[-1].state_version is None
     assert emitted[-1].quality_refs == ("normal-quality",)
     assert emitted[-1].provenance_refs == ("normal-provenance",)
 
