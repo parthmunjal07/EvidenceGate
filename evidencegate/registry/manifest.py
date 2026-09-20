@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from evidencegate.domain.enums import (
     AvailabilityBasis, Finality, GapAction, IntegrationStatus, ObservationType,
-    ResultType, VisibilityCapability,
+    ResultType, VisibilityCapability, OfficialPsCategory, AnalyticFamily,
 )
 from evidencegate.domain.quality import QualityRequirement
 
@@ -33,3 +33,7 @@ class PluginManifest:
     profiling_hooks_enabled: bool
     governing_claim_ids: tuple[str, ...]
     governing_decision_ids: tuple[str, ...]
+    # Optional for compatibility with legacy scaffolds; required by real providers.
+    official_ps_category: OfficialPsCategory | None = None
+    analytic_family: AnalyticFamily | None = None
+    mechanism_id: str | None = None
