@@ -30,7 +30,8 @@ from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
 from evidencegate.domain.enums import ControlType, EvidenceReadiness, GapAction
 from evidencegate.metrics.registry import registry
 from evidencegate.runtime.state import StateEntry, StateOperation, StateStore
-from evidencegate.results.types import ResultDraft
+from evidencegate.results.types import ResultDraft, Result_T
+from evidencegate.results.finalizer import ResultEmissionContext
 from evidencegate.admission.evaluator import (
     EvaluationReadinessEvaluator,
     EvaluationReadinessDecision,
@@ -80,10 +81,11 @@ class LaneShard:
         shard_id: int,
         plugin: AnalyticPlugin,
         state_store: StateStore,
-        result_callback: Callable[[ResultDraft], Awaitable[None]],
+        result_callback: Callable[[Result_T | ResultDraft], Awaitable[None]],
         max_size: int = 1000,
         control_sink: ControlSink | None = None,
         lane_id: str | None = None,
+        result_finalizer: Callable[[ResultDraft, ResultEmissionContext], Result_T] | None = None,
     ):
         self.shard_id = shard_id
         self.plugin = plugin
@@ -91,6 +93,7 @@ class LaneShard:
         self.result_callback = result_callback
         self.control_sink = control_sink
         self.lane_id = lane_id
+        self.result_finalizer = result_finalizer
         self.queue: asyncio.Queue[NetworkObservation] = asyncio.Queue(maxsize=max_size)
         self._task: asyncio.Task | None = None
         # Readiness tracking per state_key (no threat science)
@@ -205,7 +208,23 @@ class LaneShard:
         ).abstaining
         if publish_results and not abstaining:
             for draft in outcome.result_drafts:
-                await self.result_callback(draft)
+                trigger = (
+                    f"state:{self._plugin_id()}:{state_key}"
+                    if state_key is not None
+                    else f"watermark:{watermark.isoformat()}"
+                )
+                await self._deliver_draft(
+                    draft,
+                    ResultEmissionContext(
+                        lane_id=self.lane_id or "unassigned",
+                        causal_result_time=watermark,
+                        quality_refs=(),
+                        provenance_refs=(),
+                        readiness=EvidenceReadiness.READY,
+                        quality_degraded=self._quality_degraded,
+                        trigger_reference=trigger,
+                    ),
+                )
 
     async def _emit_lifecycle_error(
         self, callback: str, watermark: datetime, exc: Exception
@@ -341,8 +360,19 @@ class LaneShard:
 
                 abstaining = key_str is not None and self._key_states[key_str].abstaining
                 if not abstaining:
-                    for res in outcome.result_drafts:
-                        await self.result_callback(res)
+                    for draft in outcome.result_drafts:
+                        await self._deliver_draft(
+                            draft,
+                            ResultEmissionContext(
+                                lane_id=self.lane_id or "unassigned",
+                                causal_result_time=observation.causal_available_time,
+                                quality_refs=(observation.quality_ref,),
+                                provenance_refs=(observation.provenance_ref,),
+                                readiness=readiness_decision.readiness,
+                                quality_degraded=self._quality_degraded,
+                                trigger_reference=observation.observation_id,
+                            ),
+                        )
 
             except Exception as exc:
                 plugin_id = self._plugin_id()
@@ -385,6 +415,19 @@ class LaneShard:
             return self.plugin.manifest().plugin_id
         except Exception:
             return type(self.plugin).__name__
+
+    async def _deliver_draft(
+        self, draft: ResultDraft, context: ResultEmissionContext
+    ) -> None:
+        """Finalize before delivery when this shard is runtime-wired.
+
+        The ``None`` compatibility mode is retained for isolated M1–M4 shard
+        unit tests; production supervisor wiring always supplies a finalizer.
+        """
+        if self.result_finalizer is None:
+            await self.result_callback(draft)
+            return
+        await self.result_callback(self.result_finalizer(draft, context))
 
     async def _emit_control(self, event: RuntimeControlEvent) -> None:
         if self.control_sink is None:

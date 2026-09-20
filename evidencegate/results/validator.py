@@ -9,7 +9,7 @@ allowed_result_types is now tuple[ResultType, ...] (enum values), so we
 compare result.result_type (a ResultType enum) directly against the tuple,
 never against string representations.
 """
-from evidencegate.results.types import Result, ThreatAlert, AnalyticUnavailable
+from evidencegate.results.types import Result, ResultStatusSnapshot, ThreatAlert
 from evidencegate.domain.enums import ResultType, ScientificStatus
 from evidencegate.domain.governance import LaneGovernance
 
@@ -33,10 +33,24 @@ class ResultValidator:
             raise ValueError(
                 f"Result {result.result_id} missing valid 3-level taxonomy."
             )
+        if not result.schema_version:
+            raise ValueError(f"Result {result.result_id} missing schema version.")
+        if not result.lane_id:
+            raise ValueError(f"Result {result.result_id} missing lane id.")
+        if not result.plugin_id:
+            raise ValueError(f"Result {result.result_id} missing plugin id.")
         if not result.plugin_version or not result.analytic_version:
             raise ValueError(
                 f"Result {result.result_id} missing plugin/analytic version."
             )
+        if not result.governance_version:
+            raise ValueError(f"Result {result.result_id} missing governance version.")
+        if not result.claim_ceiling:
+            raise ValueError(f"Result {result.result_id} missing claim ceiling.")
+        if not isinstance(result.status_snapshot, ResultStatusSnapshot):
+            raise ValueError(f"Result {result.result_id} has invalid status snapshot.")
+        if result.status_snapshot.governance_version != result.governance_version:
+            raise ValueError(f"Result {result.result_id} has inconsistent governance version.")
 
         # ── IC-17: Governance explicitly owns allowed_result_types ──────────
         # Compare ResultType enum value directly — never infer from status names.

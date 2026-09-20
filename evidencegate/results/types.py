@@ -1,33 +1,65 @@
+"""Immutable result contracts and plugin-owned result drafts."""
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Sequence, Any, Optional
-from evidencegate.domain.enums import ResultType, AnalyticUnavailableReason
+from typing import Optional
+
+from evidencegate.domain.enums import (
+    AnalyticUnavailableReason,
+    EvidenceReadiness,
+    IntegrationStatus,
+    ResultType,
+    ScientificStatus,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ResultStatusSnapshot:
+    """Runtime-known governance and operational facts at result emission."""
+
+    scientific_status: ScientificStatus
+    integration_status: IntegrationStatus
+    governance_version: str
+    readiness: EvidenceReadiness
+    quality_degraded: bool
 
 
 @dataclass(frozen=True, slots=True)
 class Result:
+    """Runtime-finalized, immutable scientific result."""
+
     result_id: str
+    schema_version: str
     result_type: ResultType
     created_time: datetime
-    entity_reference: str
+    lane_id: str
+    plugin_id: str
     plugin_version: str
     analytic_version: str
-    status_snapshot: dict[str, Any]
+    governance_version: str
+    entity_reference: str
+    taxonomy: tuple[str, str, str]
+    status_snapshot: ResultStatusSnapshot
     claim_ceiling: str
     evidence_items: tuple[str, ...]
     missing_prerequisites: tuple[str, ...]
     governing_ids: tuple[str, ...]
-
-    taxonomy: tuple[str, str, str] | None = None
-    quality_ref: str | None = None
-    provenance_ref: str | None = None
+    quality_refs: tuple[str, ...]
+    provenance_refs: tuple[str, ...]
     evidence_interval: tuple[datetime, datetime] | None = None
+
+    # M5-01 leaves persistence v1 untouched. These compatibility views let
+    # the existing writer consume a final result until M5-02.
+    @property
+    def quality_ref(self) -> str | None:
+        return self.quality_refs[0] if self.quality_refs else None
+
+    @property
+    def provenance_ref(self) -> str | None:
+        return self.provenance_refs[0] if self.provenance_refs else None
 
 
 @dataclass(frozen=True, slots=True)
 class ThreatAlert(Result):
-    # confidence must be explicitly supplied; no default — prevents accidentally emitting
-    # a zero-confidence alert. Per IC-08 scaffolds cannot persist ThreatAlert at all.
     confidence: str | None = None
     severity: str | None = None
 
@@ -69,11 +101,8 @@ class CorrelationFinding(Result):
 
 @dataclass(frozen=True, slots=True)
 class ResultDraft:
-    """
-    Mutable-ish staging object that a plugin returns before the runtime
-    promotes it to a persisted, immutable Result.  Uses AnalyticUnavailableReason
-    for the reason_code field (previously referenced an undefined 'ReasonCode').
-    """
+    """Small plugin-owned request for runtime result finalization."""
+
     result_type: ResultType
     entity_reference: str
     evidence_items: tuple[str, ...]
@@ -85,7 +114,6 @@ class ResultDraft:
     linked_result_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
-# Union alias used throughout the runtime
 Result_T = (
     ThreatAlert | ReviewFinding | AnalyticUnavailable | PrerequisiteMissing
     | InsufficientEvidence | QualityDegraded | PluginStatus | CorrelationFinding

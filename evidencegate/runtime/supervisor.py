@@ -13,7 +13,8 @@ from evidencegate.admission.evaluator import AdmissionEvaluator
 from evidencegate.runtime.state import StateStore
 from evidencegate.runtime.shard import LaneShard, compute_shard
 from evidencegate.runtime.dispatcher import LaneDispatcher
-from evidencegate.results.types import ResultDraft
+from evidencegate.results.types import Result_T
+from evidencegate.results.finalizer import ResultEmissionContext, ResultFinalizer
 from evidencegate.domain.enums import ControlType
 from evidencegate.metrics.registry import registry
 
@@ -28,7 +29,7 @@ class RuntimeSupervisor:
         self,
         plugins: Dict[LaneTarget, AnalyticPlugin],
         governances: Dict[LaneTarget, LaneGovernance],
-        result_writer: Callable[[ResultDraft, LaneTarget], Awaitable[None]],
+        result_writer: Callable[[Result_T, LaneTarget], Awaitable[None]],
         shard_count: int = 4,
         control_sink: Callable[[RuntimeControlEvent], Awaitable[None]] | None = None,
         gap_sink: Callable[[QualityGap], Awaitable[None]] | None = None,
@@ -49,10 +50,20 @@ class RuntimeSupervisor:
         self.shards: Dict[LaneTarget, list[LaneShard]] = {}
         self.dispatchers: Dict[LaneTarget, LaneDispatcher] = {}
         for target, plugin in plugins.items():
+            gov = self.governances.get(target)
+            manifest = plugin.manifest()
             lane_shards = []
             for i in range(shard_count):
-                async def bound_writer(res: ResultDraft, t=target):
+                async def bound_writer(res: Result_T, t=target):
                     await self.result_writer(res, t)
+
+                def finalize(
+                    draft, context: ResultEmissionContext,
+                    m=manifest, g=gov,
+                ) -> Result_T:
+                    if g is None:
+                        raise RuntimeError(f"lane {target} has no governance snapshot")
+                    return ResultFinalizer.finalize(draft, m, g, context)
                 
                 shard = LaneShard(
                     shard_id=i,
@@ -61,12 +72,12 @@ class RuntimeSupervisor:
                     result_callback=bound_writer,
                     control_sink=control_sink,
                     lane_id=str(target),
+                    result_finalizer=finalize,
                 )
                 lane_shards.append(shard)
             self.shards[target] = lane_shards
             
             # Create dispatcher for this lane
-            gov = self.governances.get(target)
             if gov:
                 self.dispatchers[target] = LaneDispatcher(
                     target=target,

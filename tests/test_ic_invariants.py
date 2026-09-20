@@ -17,7 +17,7 @@ from evidencegate.domain.events import NetworkObservationEnvelope, RuntimeContro
 from evidencegate.domain.payloads import PacketObservation, FlowObservation
 from evidencegate.domain.enums import (
     AvailabilityBasis, DirectionBasis, Finality, ObservationType, ControlType,
-    ScientificStatus, ResultType, AnalyticUnavailableReason, EvidenceReadiness,
+    ScientificStatus, ResultType, AnalyticUnavailableReason, EvidenceReadiness, IntegrationStatus,
     SourceKind, TimestampSemantics, VisibilityCapability, WireDirection,
 )
 from evidencegate.domain.governance import LaneGovernance
@@ -32,7 +32,7 @@ from evidencegate.admission.evaluator import (
 )
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.results.types import (
-    ThreatAlert, ResultDraft, AnalyticUnavailable, ReviewFinding,
+    ThreatAlert, ResultDraft, AnalyticUnavailable, ReviewFinding, ResultStatusSnapshot,
 )
 from evidencegate.results.validator import ResultValidator
 from evidencegate.runtime.shard import compute_shard, LaneShard, ShardKeyState
@@ -295,16 +295,20 @@ def test_ic_08_scaffold_no_threat_alert():
     )
     alert = ThreatAlert(
         result_id="r1",
+        schema_version="2.0",
         result_type=ResultType.THREAT_ALERT,
         created_time=_now(),
+        lane_id="lane",
+        plugin_id="plugin",
         entity_reference="e",
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot={},
+        status_snapshot=ResultStatusSnapshot(ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
+        governance_version="gov",
         claim_ceiling="1",
-        quality_ref="q",
-        provenance_ref="p",
+        quality_refs=("q",),
+        provenance_refs=("p",),
         evidence_items=(),
         missing_prerequisites=(),
         governing_ids=(),
@@ -330,16 +334,20 @@ def test_ic_10_unavailable_implications():
     never carry confidence or severity — cannot imply no-threat."""
     res = AnalyticUnavailable(
         result_id="r1",
+        schema_version="2.0",
         result_type=ResultType.ANALYTIC_UNAVAILABLE,
         created_time=_now(),
+        lane_id="lane",
+        plugin_id="plugin",
         entity_reference="e",
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot={},
+        status_snapshot=ResultStatusSnapshot(ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
+        governance_version="gov",
         claim_ceiling="1",
-        quality_ref="q",
-        provenance_ref="p",
+        quality_refs=("q",),
+        provenance_refs=("p",),
         evidence_items=(),
         missing_prerequisites=(),
         governing_ids=(),
@@ -366,16 +374,20 @@ async def test_ic_11_sqlite_idempotence(tmp_path):
 
     result = ReviewFinding(
         result_id="r_idempotent",
+        schema_version="2.0",
         result_type=ResultType.REVIEW_FINDING,
         created_time=_now(),
+        lane_id="lane",
+        plugin_id="plugin",
         entity_reference="e",
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot={},
+        status_snapshot={},  # SQLite v1 compatibility coverage; M5-02 persists typed snapshots.
+        governance_version="gov",
         claim_ceiling="REVIEW_ONLY",
-        quality_ref="q",
-        provenance_ref="p",
+        quality_refs=("q",),
+        provenance_refs=("p",),
         evidence_items=("ev1",),
         missing_prerequisites=(),
         governing_ids=(),
@@ -656,16 +668,20 @@ def test_ic_17_governance_owns_result_permissions(test_observation):
     )
     alert = ThreatAlert(
         result_id="r1",
+        schema_version="2.0",
         result_type=ResultType.THREAT_ALERT,
         created_time=_now(),
+        lane_id="lane",
+        plugin_id="plugin",
         entity_reference="e",
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot={},
+        status_snapshot=ResultStatusSnapshot(ScientificStatus.MODEL_VALIDATED, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
+        governance_version="gov",
         claim_ceiling="1",
-        quality_ref="q",
-        provenance_ref="p",
+        quality_refs=("q",),
+        provenance_refs=("p",),
         evidence_items=(),
         missing_prerequisites=(),
         governing_ids=(),
@@ -698,16 +714,20 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
 
     result = ReviewFinding(
         result_id="r_atomic",
+        schema_version="2.0",
         result_type=ResultType.REVIEW_FINDING,
         created_time=_now(),
+        lane_id="lane",
+        plugin_id="plugin",
         entity_reference="e",
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot={},
+        status_snapshot={},  # SQLite v1 compatibility coverage; M5-02 persists typed snapshots.
+        governance_version="gov",
         claim_ceiling="REVIEW_ONLY",
-        quality_ref="q",
-        provenance_ref="p_ref",
+        quality_refs=("q",),
+        provenance_refs=("p_ref",),
         evidence_items=("mandatory_ev1",),   # mandatory child
         missing_prerequisites=(),
         governing_ids=(),
