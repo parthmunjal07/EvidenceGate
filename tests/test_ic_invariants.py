@@ -128,7 +128,10 @@ def test_ic_01_router_typing():
 def test_ic_02_routing_zero_to_many(test_observation):
     """IC-02: One observation can be delivered to zero, one, or several lanes."""
     plugin1 = BasicScaffoldPlugin()
-    router = RelevanceRouter({"lane1": plugin1, "lane2": plugin1})
+    class SecondScaffoldPlugin(BasicScaffoldPlugin):
+        def manifest(self):
+            return dataclasses.replace(super().manifest(), plugin_id="scaffold_02")
+    router = RelevanceRouter({"lane1": plugin1, "lane2": SecondScaffoldPlugin()})
     targets = router.route(test_observation)
     # Both lanes accept PACKET — should get 2
     assert len(targets) == 2, f"Expected 2 lanes, got {len(targets)}"

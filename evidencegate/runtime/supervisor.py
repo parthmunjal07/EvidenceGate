@@ -1,4 +1,6 @@
 import asyncio
+import uuid
+from datetime import datetime, timezone
 from typing import Dict, Awaitable, Callable
 from evidencegate.registry.plugin import AnalyticPlugin
 from evidencegate.registry.manifest import PluginManifest
@@ -11,6 +13,8 @@ from evidencegate.runtime.state import StateStore
 from evidencegate.runtime.shard import LaneShard, compute_shard
 from evidencegate.runtime.dispatcher import LaneDispatcher
 from evidencegate.results.types import ResultDraft
+from evidencegate.domain.enums import ControlType
+from evidencegate.metrics.registry import registry
 
 class RuntimeSupervisor:
     """
@@ -86,8 +90,12 @@ class RuntimeSupervisor:
                 await shard.stop()
 
     async def ingest_observation(self, observation: NetworkObservation):
-        relevant_targets = self.router.route(observation)
-        for target in relevant_targets:
+        plan = self.router.plan(observation)
+        await self._emit_router_predicate_errors(observation, plan)
+        for target in plan.selected_targets:
+            registry.routed_rate.labels(
+                lane=str(target), observation_type=observation.observation_type.value
+            ).inc()
             dispatcher = self.dispatchers.get(target)
             if not dispatcher:
                 continue
@@ -96,6 +104,33 @@ class RuntimeSupervisor:
                 dispatcher.put_nowait(observation)
             except asyncio.QueueFull:
                 await dispatcher.handle_ingress_saturation(observation)
+        return plan
+
+    async def _emit_router_predicate_errors(self, observation, plan) -> None:
+        if self.control_sink is None:
+            return
+        for decision in plan.decisions:
+            if decision.predicate_exception_type is None:
+                continue
+            event = RuntimeControlEvent(
+                control_event_id=str(uuid.uuid4()), schema_version="1.0",
+                control_type=ControlType.ERROR, ingest_time=datetime.now(timezone.utc),
+                event_time=observation.event_time, source_id=observation.source_id,
+                lane_id=str(decision.target), provenance_ref=observation.provenance_ref,
+                quality_ref=observation.quality_ref,
+                typed_payload={
+                    "component": "router", "lane": str(decision.target),
+                    "plugin_id": self.router.plugin_id_for(decision.target),
+                    "observation_id": observation.observation_id,
+                    "exception_type": decision.predicate_exception_type,
+                    "error": decision.predicate_error,
+                },
+            )
+            try:
+                await self.control_sink(event)
+            except Exception:
+                # Diagnostic delivery must not interfere with unrelated routing.
+                pass
 
     async def advance_watermark(self, target: LaneTarget, watermark) -> bool:
         """Advance one lane's explicit event-time boundary."""
