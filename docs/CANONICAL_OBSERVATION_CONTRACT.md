@@ -43,3 +43,7 @@ All three timestamps are timezone-aware.
 ## Validation and admission
 
 Envelope construction rejects naive timestamps, contradictory direction/basis, type mismatches, causal time before event time, payload/type mismatch, impossible present-field names, and present fields whose value is `None`. Plugin admission evaluates typed visibility capabilities and typed quality requirements; it does not use `quality_ref` as a proxy. Routing remains observation-type candidate routing.
+
+## Canonical builders
+
+`evidencegate.ingest.builders` is the single construction path for parsed packet, flow, DNS, TLS, and QUIC facts. Adapters explicitly declare observed payload fields; the builder validates those declarations rather than treating every non-`None` value as observed. It deterministically derives observation IDs and provenance from source ID and source position, carries explicit ingest time, propagates source quality unchanged, and rejects contradictory source and parsed visibility or quality declarations. Endpoint addresses create neutral observed identifiers only; roles require explicit trusted assignments.
