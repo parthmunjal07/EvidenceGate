@@ -16,8 +16,9 @@ from unittest.mock import MagicMock, patch
 from evidencegate.domain.events import NetworkObservationEnvelope, RuntimeControlEvent
 from evidencegate.domain.payloads import PacketObservation, FlowObservation
 from evidencegate.domain.enums import (
-    ObservationType, ControlType, ScientificStatus,
-    ResultType, AnalyticUnavailableReason, EvidenceReadiness,
+    AvailabilityBasis, DirectionBasis, Finality, ObservationType, ControlType,
+    ScientificStatus, ResultType, AnalyticUnavailableReason, EvidenceReadiness,
+    SourceKind, TimestampSemantics, VisibilityCapability, WireDirection,
 )
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.routing.router import RelevanceRouter
@@ -94,13 +95,13 @@ def test_observation() -> NetworkObservationEnvelope:
         causal_available_time=_now(),
         ingest_time=_now(),
         source_id="test_src",
-        source_kind="PCAP",
+        source_kind=SourceKind.PCAP,
         source_position="0",
         observation_contract="packet_v1",
-        wire_direction="UNKNOWN",
-        direction_basis="test",
-        finality=True,
-        availability_basis="IMMEDIATE",
+        wire_direction=WireDirection.UNKNOWN,
+        direction_basis=DirectionBasis.UNKNOWN,
+        finality=Finality.TERMINAL,
+        availability_basis=AvailabilityBasis.IMMEDIATE,
         provenance_ref="prov:test",
         quality_ref="q:test",
         present_fields=frozenset({"src_address", "dst_address"}),
@@ -168,21 +169,25 @@ def test_ic_04_causal_availability():
         end_time=event_time,
         export_time=export_time,
         supplied_directional_counters={"fwd_pkts": 10},
-        finality=True,
         exporter_semantics="netflow_v9",
         sampling=None,
         documented_end_state="FIN",
     )
 
-    record = RawSourceRecord(raw_data=flow_obs, timestamp=event_time, position="1")
+    record = RawSourceRecord(
+        raw_data=flow_obs, timestamp=event_time, position="1",
+        finality=Finality.TERMINAL,
+    )
     manifest = SourceManifest(
         source_id="s1",
-        source_kind="FLOW_EXPORT",
+        source_kind=SourceKind.FLOW_EXPORT,
         capture_start=None,
         capture_end=None,
+        timestamp_semantics=TimestampSemantics.SOURCE_EVENT_TIME,
+        input_observation_contract="flow_v1",
     )
 
-    result = canonicalizer.canonicalize(record, manifest, "q1")
+    result = canonicalizer.canonicalize(record, manifest, "q1", export_time + timedelta(seconds=1))
     obs = result.observations[0]
 
     assert obs.causal_available_time >= flow_obs.export_time, (
@@ -474,20 +479,25 @@ def test_ic_15_pure_canonicalization():
         end_time=_now(),
         export_time=_now(),
         supplied_directional_counters={"fwd_pkts": 5},
-        finality=True,
         exporter_semantics="netflow_v5",
         sampling=None,
         documented_end_state=None,
     )
-    rec = RawSourceRecord(raw_data=flow, timestamp=_now(), position="42")
+    rec = RawSourceRecord(
+        raw_data=flow, timestamp=_now(), position="42",
+        finality=Finality.TERMINAL,
+    )
     manifest = SourceManifest(
         source_id="s1",
-        source_kind="FLOW_EXPORT",
+        source_kind=SourceKind.FLOW_EXPORT,
         capture_start=_now(),
         capture_end=_now(),
+        timestamp_semantics=TimestampSemantics.SOURCE_EVENT_TIME,
+        input_observation_contract="flow_v1",
     )
 
-    result = can.canonicalize(rec, manifest, "q1")
+    ingest_time = _now()
+    result = can.canonicalize(rec, manifest, "q1", ingest_time)
 
     # Verify both fields are tuples (not list, Sequence, or other mutable type)
     assert isinstance(result.observations, tuple), (
@@ -500,7 +510,7 @@ def test_ic_15_pure_canonicalization():
     obs = result.observations[0]
 
     # Verify determinism: same inputs → same observation_id
-    result2 = can.canonicalize(rec, manifest, "q1")
+    result2 = can.canonicalize(rec, manifest, "q1", ingest_time)
     assert result2.observations[0].observation_id == obs.observation_id, (
         "Canonicalization must be deterministic"
     )
@@ -550,13 +560,13 @@ async def test_ic_16_ingest_admission_states():
         causal_available_time=_now(),
         ingest_time=_now(),
         source_id="src_ic16",
-        source_kind="PCAP",
+        source_kind=SourceKind.PCAP,
         source_position="0",
         observation_contract="packet_v1",
-        wire_direction="UNKNOWN",
-        direction_basis="test",
-        finality=True,
-        availability_basis="IMMEDIATE",
+        wire_direction=WireDirection.UNKNOWN,
+        direction_basis=DirectionBasis.UNKNOWN,
+        finality=Finality.TERMINAL,
+        availability_basis=AvailabilityBasis.IMMEDIATE,
         provenance_ref="prov:ic16",
         quality_ref="q:ic16",
         present_fields=frozenset({"src_address", "dst_address"}),
@@ -784,16 +794,16 @@ def test_missing_required_fields(test_observation):
     assert AdmissionReason.PREREQUISITE_MISSING in decision.reasons
 
 def test_insufficient_visibility(test_observation):
-    """Test admission rejection when minimum visibility/quality is not met."""
+    """Test admission rejection when a factual capability is not available."""
     plugin = BasicScaffoldPlugin()
     import dataclasses
-    manifest = dataclasses.replace(plugin.manifest(), minimum_visibility="HIGH_VISIBILITY")
+    manifest = dataclasses.replace(
+        plugin.manifest(),
+        required_visibility_capabilities=frozenset({VisibilityCapability.PACKET_FACTS}),
+    )
     gov = _make_governance()
     
-    # test_observation has quality_ref="q:test", which isn't sufficient for our strict check
-    # Let's remove quality_ref to trigger rejection
-    obs = dataclasses.replace(test_observation, quality_ref="")
-    decision = AdmissionEvaluator.evaluate(obs, manifest, gov)
+    decision = AdmissionEvaluator.evaluate(test_observation, manifest, gov)
     assert not decision.admitted
     assert AdmissionReason.INSUFFICIENT_VISIBILITY in decision.reasons
 
@@ -801,10 +811,10 @@ def test_unsupported_finality(test_observation):
     """Test admission rejection when finality is not supported."""
     plugin = BasicScaffoldPlugin()
     import dataclasses
-    manifest = dataclasses.replace(plugin.manifest(), allowed_finality=(False,))
+    manifest = dataclasses.replace(plugin.manifest(), allowed_finality=(Finality.CURRENT,))
     gov = _make_governance()
     
-    # test_observation has finality=True
+    # test_observation is terminal
     decision = AdmissionEvaluator.evaluate(test_observation, manifest, gov)
     assert not decision.admitted
     assert AdmissionReason.UNSUPPORTED_FINALITY in decision.reasons

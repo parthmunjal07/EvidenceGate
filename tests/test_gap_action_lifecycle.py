@@ -7,8 +7,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from evidencegate.domain.enums import (
-    ControlType, EvidenceReadiness, GapAction, ObservationType, ResultType,
-    ScientificStatus,
+    AvailabilityBasis, ControlType, DirectionBasis, EvidenceReadiness, Finality,
+    GapAction, ObservationType, ResultType, ScientificStatus, SourceKind,
+    WireDirection,
 )
 from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.governance import LaneGovernance
@@ -30,9 +31,10 @@ def obs(number: int, key: str = "a") -> NetworkObservationEnvelope:
         observation_id=f"gap-{key}-{number}", schema_version="1.1",
         observation_type=ObservationType.PACKET, event_time=NOW + timedelta(seconds=number),
         causal_available_time=NOW + timedelta(seconds=number), ingest_time=NOW + timedelta(seconds=number),
-        source_id="test", source_kind="PCAP", source_position=str(number),
-        observation_contract="packet_v1", wire_direction="UNKNOWN", direction_basis="test",
-        finality=True, availability_basis="IMMEDIATE", provenance_ref="prov", quality_ref="quality",
+        source_id="test", source_kind=SourceKind.PCAP, source_position=str(number),
+        observation_contract="packet_v1", wire_direction=WireDirection.UNKNOWN,
+        direction_basis=DirectionBasis.UNKNOWN, finality=Finality.TERMINAL,
+        availability_basis=AvailabilityBasis.IMMEDIATE, provenance_ref="prov", quality_ref="quality",
         present_fields=frozenset({"src_address", "dst_address"}),
         typed_payload=PacketObservation(lengths={"ip": 20}, observed_l2_facts={}, observed_l3_facts={},
             observed_l4_facts={}, src_address="10.0.0.1", dst_address="10.0.0.2", src_port=None,

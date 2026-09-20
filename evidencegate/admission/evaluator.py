@@ -13,7 +13,9 @@ Phase 2 — EvaluationReadinessDecision (runs AFTER factual state update):
 """
 from dataclasses import dataclass
 from typing import Optional
-from evidencegate.domain.enums import AdmissionReason, ScientificStatus, EvidenceReadiness
+from evidencegate.domain.enums import (
+    AdmissionReason, CapabilityState, ScientificStatus, EvidenceReadiness,
+)
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.registry.manifest import PluginManifest
@@ -110,17 +112,16 @@ class AdmissionEvaluator:
             reasons.append(AdmissionReason.UNSUPPORTED_FINALITY)
 
         # Check availability basis
-        if manifest.allowed_availability_basis and manifest.allowed_availability_basis[0] not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
-            if observation.availability_basis not in manifest.allowed_availability_basis:
-                reasons.append(AdmissionReason.UNSUPPORTED_AVAILABILITY)
+        if manifest.allowed_availability_basis and observation.availability_basis not in manifest.allowed_availability_basis:
+            reasons.append(AdmissionReason.UNSUPPORTED_AVAILABILITY)
 
-        # Check minimum quality / visibility (placeholder logic for MVP as these are strings)
-        if manifest.minimum_quality not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
-            if not observation.quality_ref:
+        # Typed factual capability and quality checks. quality_ref is provenance,
+        # never a proxy for sufficiency.
+        for capability in manifest.required_visibility_capabilities:
+            if observation.visibility.state(capability) is not CapabilityState.AVAILABLE:
                 reasons.append(AdmissionReason.INSUFFICIENT_VISIBILITY)
-        if manifest.minimum_visibility not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
-            # Real logic would compare visibility tiers, for now just ensure it's not silently ignored
-            if not observation.quality_ref:
+        for requirement in manifest.required_quality:
+            if observation.quality.state(requirement.fact) not in requirement.allowed_states:
                 reasons.append(AdmissionReason.INSUFFICIENT_VISIBILITY)
 
         admitted = len(reasons) == 0

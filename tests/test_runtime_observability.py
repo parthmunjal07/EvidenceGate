@@ -7,12 +7,12 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from evidencegate.domain.enums import (
-    AdmissionReason,
+    AdmissionReason, AvailabilityBasis,
     ControlType,
-    ObservationType,
+    DirectionBasis, Finality, ObservationType,
     OperationalHealth,
     ResultType,
-    ScientificStatus,
+    ScientificStatus, SourceKind, WireDirection,
 )
 from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.governance import LaneGovernance
@@ -43,13 +43,13 @@ def observation(number: int = 1) -> NetworkObservationEnvelope:
         causal_available_time=NOW + timedelta(seconds=number),
         ingest_time=NOW + timedelta(seconds=number),
         source_id="test-source",
-        source_kind="PCAP",
+        source_kind=SourceKind.PCAP,
         source_position=str(number),
         observation_contract="packet_v1",
-        wire_direction="UNKNOWN",
-        direction_basis="test",
-        finality=True,
-        availability_basis="IMMEDIATE",
+        wire_direction=WireDirection.UNKNOWN,
+        direction_basis=DirectionBasis.UNKNOWN,
+        finality=Finality.TERMINAL,
+        availability_basis=AvailabilityBasis.IMMEDIATE,
         provenance_ref="prov:test",
         quality_ref="quality:test",
         present_fields=frozenset({"src_address", "dst_address"}),

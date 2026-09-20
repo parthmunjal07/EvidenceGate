@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 from datetime import datetime
-from evidencegate.domain.enums import ObservationType, ControlType
 
 @dataclass(frozen=True, slots=True)
 class PacketObservation:
@@ -20,6 +19,7 @@ class PacketObservation:
 
 @dataclass(frozen=True, slots=True)
 class FlowObservation:
+    """Endpoints preserve source ordering only; tuple position assigns no role."""
     flow_id_basis: str
     endpoints: tuple[str, str]
     protocol: int
@@ -27,7 +27,6 @@ class FlowObservation:
     end_time: datetime
     export_time: datetime
     supplied_directional_counters: dict[str, int]
-    finality: bool
     exporter_semantics: str
     sampling: Optional[dict[str, Any]]
     documented_end_state: Optional[str]
@@ -35,7 +34,6 @@ class FlowObservation:
 @dataclass(frozen=True, slots=True)
 class DNSObservation:
     flow_reference: str
-    observed_direction: str
     qr_state_decoded: bool
     transaction_id: int
     qname: Optional[str]
@@ -45,12 +43,10 @@ class DNSObservation:
     answers: Optional[list[Any]]
     transport: str
     truncation: bool
-    clear_dns_visibility: bool
 
 @dataclass(frozen=True, slots=True)
 class TLSObservation:
     flow_reference: str
-    observed_direction: str
     tcp_reassembly_state: str
     parser_version: str
     parsed_handshake_metadata: Optional[dict[str, Any]]
@@ -62,7 +58,6 @@ class TLSObservation:
 @dataclass(frozen=True, slots=True)
 class QUICObservation:
     flow_reference: str
-    direction: str
     version: str
     header_type: str
     length: int

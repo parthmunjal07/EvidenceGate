@@ -7,7 +7,10 @@ from typing import Any
 
 import pytest
 
-from evidencegate.domain.enums import EvidenceReadiness, ResultType
+from evidencegate.domain.enums import (
+    AvailabilityBasis, DirectionBasis, EvidenceReadiness, Finality, ResultType,
+    SourceKind, WireDirection,
+)
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.payloads import PacketObservation
 from evidencegate.domain.events import NetworkObservationEnvelope
@@ -51,13 +54,13 @@ def observation(number: int) -> NetworkObservationEnvelope:
         causal_available_time=NOW + timedelta(seconds=number),
         ingest_time=NOW + timedelta(seconds=number),
         source_id="test-source",
-        source_kind="PCAP",
+        source_kind=SourceKind.PCAP,
         source_position=str(number),
         observation_contract="packet_v1",
-        wire_direction="UNKNOWN",
-        direction_basis="test",
-        finality=True,
-        availability_basis="IMMEDIATE",
+        wire_direction=WireDirection.UNKNOWN,
+        direction_basis=DirectionBasis.UNKNOWN,
+        finality=Finality.TERMINAL,
+        availability_basis=AvailabilityBasis.IMMEDIATE,
         provenance_ref="prov:test",
         quality_ref="q:test",
         present_fields=frozenset({"src_address", "dst_address"}),

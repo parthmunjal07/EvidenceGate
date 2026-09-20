@@ -9,7 +9,10 @@ from evidencegate.registry.plugin import (
 )
 from evidencegate.registry.manifest import PluginManifest
 from evidencegate.domain.events import NetworkObservation
-from evidencegate.domain.enums import ObservationType, GapAction, ResultType, IntegrationStatus
+from evidencegate.domain.enums import (
+    AvailabilityBasis, Finality, ObservationType, GapAction, ResultType,
+    IntegrationStatus,
+)
 from evidencegate.domain.quality import QualityGap
 from evidencegate.results.types import ResultDraft
 
@@ -29,10 +32,10 @@ class BasicScaffoldPlugin(AnalyticPlugin):
             admission_requirements=("NOT_YET_GOVERNED",),
             required_fields=(),
             required_observation_contracts=("NOT_YET_GOVERNED",),
-            minimum_quality="NOT_YET_GOVERNED",
-            minimum_visibility="NOT_YET_GOVERNED",
-            allowed_finality=(True, False),
-            allowed_availability_basis=("NOT_YET_GOVERNED",),
+            required_visibility_capabilities=frozenset(),
+            required_quality=(),
+            allowed_finality=tuple(Finality),
+            allowed_availability_basis=tuple(AvailabilityBasis),
             state_key_declaration="NOT_APPLICABLE",
             scientific_history_duration="NOT_APPLICABLE",
             resource_retention_duration="NOT_APPLICABLE",

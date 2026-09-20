@@ -3,12 +3,15 @@ import time
 import psutil
 import json
 import statistics
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import deque
 
 from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.payloads import PacketObservation
-from evidencegate.domain.enums import ObservationType, ScientificStatus
+from evidencegate.domain.enums import (
+    AvailabilityBasis, DirectionBasis, Finality, ObservationType,
+    ScientificStatus, SourceKind, WireDirection,
+)
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.runtime.supervisor import RuntimeSupervisor
@@ -125,10 +128,12 @@ async def benchmark_run():
     fixtures = [
         NetworkObservationEnvelope(
             observation_id=f"obs_{i}", schema_version="1", observation_type=ObservationType.PACKET,
-            event_time=datetime.now(), causal_available_time=datetime.now(), ingest_time=datetime.now(),
-            source_id="s", source_kind="k", source_position=str(i), observation_contract="c",
-            wire_direction="fwd", direction_basis="b", finality=True, availability_basis="e",
-            provenance_ref="p", quality_ref="q", present_fields=set(), typed_payload=payload
+            event_time=datetime.now(timezone.utc), causal_available_time=datetime.now(timezone.utc),
+            ingest_time=datetime.now(timezone.utc), source_id="s", source_kind=SourceKind.LIVE,
+            source_position=str(i), observation_contract="packet_v1",
+            wire_direction=WireDirection.UNKNOWN, direction_basis=DirectionBasis.UNKNOWN,
+            finality=Finality.CURRENT, availability_basis=AvailabilityBasis.IMMEDIATE,
+            provenance_ref="p", quality_ref="q", present_fields=frozenset(), typed_payload=payload
         ) for i in range(TOTAL_ITEMS)
     ]
     

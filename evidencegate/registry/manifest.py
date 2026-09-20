@@ -1,6 +1,9 @@
-from dataclasses import dataclass, field
-from typing import Sequence
-from evidencegate.domain.enums import ObservationType, GapAction, ResultType, IntegrationStatus
+from dataclasses import dataclass
+from evidencegate.domain.enums import (
+    AvailabilityBasis, Finality, GapAction, IntegrationStatus, ObservationType,
+    ResultType, VisibilityCapability,
+)
+from evidencegate.domain.quality import QualityRequirement
 
 @dataclass(frozen=True, slots=True)
 class PluginManifest:
@@ -15,10 +18,10 @@ class PluginManifest:
     admission_requirements: tuple[str, ...]
     required_fields: tuple[str, ...]
     required_observation_contracts: tuple[str, ...]
-    minimum_quality: str | None
-    minimum_visibility: str | None
-    allowed_finality: tuple[bool, ...]
-    allowed_availability_basis: tuple[str, ...]
+    required_visibility_capabilities: frozenset[VisibilityCapability]
+    required_quality: tuple[QualityRequirement, ...]
+    allowed_finality: tuple[Finality, ...]
+    allowed_availability_basis: tuple[AvailabilityBasis, ...]
     state_key_declaration: str | None
     scientific_history_duration: str | None
     resource_retention_duration: str | None
