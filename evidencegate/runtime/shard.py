@@ -315,7 +315,6 @@ class LaneShard:
                         )
                     else:
                         readiness_decision = outcome.evaluation_readiness
-                        self._key_states[key_str].readiness = readiness_decision
                 elif outcome.evaluation_readiness is not None:
                     if not isinstance(outcome.evaluation_readiness, EvaluationReadinessDecision):
                         raise TypeError("evaluation_readiness must be EvaluationReadinessDecision")
@@ -359,6 +358,18 @@ class LaneShard:
 
                 if readiness_error is not None:
                     raise readiness_error
+
+                # Readiness is committed only once the requested transition
+                # succeeds. RESET/REENTER deliberately retain their neutral
+                # runtime warm-up lifecycle decision.
+                if state_key is not None and (
+                    transition is None
+                    or transition.operation not in (
+                        StateOperation.RESET,
+                        StateOperation.REENTER_WARMUP,
+                    )
+                ):
+                    self._key_states[key_str].readiness = readiness_decision
 
                 abstaining = key_str is not None and self._key_states[key_str].abstaining
                 if not abstaining:
