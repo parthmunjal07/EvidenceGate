@@ -19,7 +19,9 @@ from evidencegate.registry.plugin import PluginProcessOutcome, StateKey, StateTr
 from evidencegate.registry.manifest import StateResourcePolicy
 from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.results.types import ResultDraft
-from evidencegate.runtime.dispatcher import LaneDispatcher, WatermarkError
+from evidencegate.runtime.dispatcher import (
+    EventTimeReorderPolicy, LaneDispatcher, WatermarkError,
+)
 from evidencegate.runtime.shard import LaneShard
 from evidencegate.runtime.state import StateOperation, StateStore
 
@@ -88,7 +90,9 @@ async def fixture(shards=2):
     plugin, controls, results = LifecyclePlugin(), [], []
     store = StateStore(expire_on_access=False)
     lane_shards = [LaneShard(i, plugin, store, lambda draft: collect(results, draft), control_sink=lambda event: collect(controls, event), lane_id="lane") for i in range(shards)]
-    dispatcher = LaneDispatcher("lane", plugin, governance(), lane_shards, shards, control_sink=lambda event: collect(controls, event))
+    dispatcher = LaneDispatcher("lane", plugin, governance(), lane_shards, shards,
+        control_sink=lambda event: collect(controls, event),
+        reorder_policy=EventTimeReorderPolicy(10))
     for shard in lane_shards:
         shard.start()
     dispatcher.start()
@@ -133,6 +137,7 @@ async def test_watermark_expiry_order_readiness_and_monotonicity():
             await dispatcher.advance_watermark(NOW)
         assert dispatcher.watermark == expiry
         await ingest(dispatcher, shards, observation(12, "a"))
+        await dispatcher.advance_watermark(NOW + timedelta(seconds=13))
         owning_shard = next(shard for shard in shards if "a" in shard._key_states)
         assert owning_shard.get_readiness("a").readiness is EvidenceReadiness.READY
     finally:
@@ -149,6 +154,8 @@ async def test_late_event_is_observable_and_event_at_watermark_is_admitted():
         assert plugin.process_calls == 0 and len(store) == 0
         assert controls[-1].control_type is ControlType.LATE_EVENT_OBSERVED
         await ingest(dispatcher, shards, observation(5, "a"))
+        assert plugin.process_calls == 0 and dispatcher.pending_reorder_count == 1
+        await dispatcher.advance_watermark(watermark + timedelta(microseconds=1))
         assert plugin.process_calls == 1
     finally:
         await close(dispatcher, shards)

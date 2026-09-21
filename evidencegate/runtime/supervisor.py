@@ -2,7 +2,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Awaitable, Callable
+from typing import Dict, Awaitable, Callable, Mapping
 from evidencegate.registry.plugin import AnalyticPlugin
 from evidencegate.registry.manifest import PluginManifest
 from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
@@ -12,7 +12,7 @@ from evidencegate.routing.router import RelevanceRouter, LaneTarget
 from evidencegate.admission.evaluator import AdmissionEvaluator
 from evidencegate.runtime.state import StateStore
 from evidencegate.runtime.shard import LaneShard, compute_shard
-from evidencegate.runtime.dispatcher import LaneDispatcher
+from evidencegate.runtime.dispatcher import EventTimeReorderPolicy, LaneDispatcher
 from evidencegate.results.types import Result_T
 from evidencegate.results.finalizer import ResultEmissionContext, ResultFinalizer
 from evidencegate.domain.enums import ControlType
@@ -33,6 +33,7 @@ class RuntimeSupervisor:
         shard_count: int = 4,
         control_sink: Callable[[RuntimeControlEvent], Awaitable[None]] | None = None,
         gap_sink: Callable[[QualityGap], Awaitable[None]] | None = None,
+        reorder_policies: Mapping[LaneTarget, EventTimeReorderPolicy] | None = None,
     ):
         self.plugins = plugins
         self.governances = governances
@@ -40,6 +41,14 @@ class RuntimeSupervisor:
         self.shard_count = shard_count
         self.control_sink = control_sink
         self.gap_sink = gap_sink
+        self.reorder_policies = dict(reorder_policies or {})
+
+        for target, plugin in plugins.items():
+            if (plugin.manifest().state_resource_policy is not None
+                    and target not in self.reorder_policies):
+                raise ValueError(
+                    f"stateful lane {target} requires an explicit event-time reorder policy"
+                )
         
         self.router = RelevanceRouter(plugins)
         self.state_stores: Dict[LaneTarget, StateStore] = {
@@ -94,6 +103,7 @@ class RuntimeSupervisor:
                     shard_count=shard_count,
                     control_sink=control_sink,
                     gap_sink=gap_sink,
+                    reorder_policy=self.reorder_policies.get(target),
                 )
 
     def start_all(self):

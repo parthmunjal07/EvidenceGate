@@ -1,16 +1,8 @@
-"""
-runtime/shard.py — FIFO lane shard with real EvaluationReadiness lifecycle.
+"""FIFO lane shard with mechanism-owned evaluation readiness.
 
-Contract §7 + IC-16:
-  - State update always happens (admissible observations are never blocked by readiness).
-  - EvaluationReadinessDecision is computed AFTER state update.
-  - Hardcoded "READY" is replaced by a genuine minimal readiness lifecycle.
-  - No threat-specific thresholds, windows, or science.
-
-Lifecycle (per state_key):
-  1st observation  → state updated → readiness = WARMING_UP
-  2nd+ observation → state updated → readiness = READY
-  State eviction   → readiness = STATE_EVICTED
+Admissible observations always reach the mechanism. Stateful mechanisms derive
+readiness from the prior immutable state snapshot plus the current causally
+ordered observation; the runtime only validates and commits that decision.
 """
 import asyncio
 import hashlib
@@ -43,7 +35,7 @@ ControlSink = Callable[[RuntimeControlEvent], Awaitable[None]]
 class ShardKeyState:
     """
     Per-state-key metadata tracked by the shard for readiness lifecycle.
-    No threat science here — only counts to determine warm-up progression.
+    No threat science or generic observation-count readiness is inferred here.
     """
     __slots__ = ("readiness", "abstaining_gap_ids")
 
@@ -89,10 +81,15 @@ class LaneShard:
         # Readiness tracking per state_key (no threat science)
         self._key_states: dict[str, ShardKeyState] = {}
         self._quality_degraded = False
+        self._publication_enabled = True
 
     def set_quality_degraded(self, value: bool) -> None:
         """Set immutable-at-use lane quality context supplied to plugins."""
         self._quality_degraded = value
+
+    def set_publication_enabled(self, value: bool) -> None:
+        """Apply the dispatcher-owned operational publication gate."""
+        self._publication_enabled = value
 
     def apply_gap_action(
         self,
@@ -372,7 +369,7 @@ class LaneShard:
                     self._key_states[key_str].readiness = readiness_decision
 
                 abstaining = key_str is not None and self._key_states[key_str].abstaining
-                if not abstaining:
+                if self._publication_enabled and not abstaining:
                     for draft in outcome.result_drafts:
                         await self._deliver_draft(
                             draft,

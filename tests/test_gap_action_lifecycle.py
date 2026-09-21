@@ -19,7 +19,7 @@ from evidencegate.registry.plugin import PluginProcessOutcome, StateKey, StateTr
 from evidencegate.registry.manifest import StateResourcePolicy
 from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.results.types import ResultDraft
-from evidencegate.runtime.dispatcher import LaneDispatcher
+from evidencegate.runtime.dispatcher import EventTimeReorderPolicy, LaneDispatcher
 from evidencegate.runtime.shard import LaneShard
 from evidencegate.runtime.state import StateOperation, StateStore
 from evidencegate.runtime.state import StateVersionConflict
@@ -82,7 +82,8 @@ async def run_shard(shard, item):
 
 def dispatcher(plugin, shard, controls):
     return LaneDispatcher("lane", plugin, gov(), [shard], 1,
-        control_sink=lambda event: emit(controls, event))
+        control_sink=lambda event: emit(controls, event),
+        reorder_policy=EventTimeReorderPolicy(10))
 
 
 @pytest.mark.asyncio
@@ -176,7 +177,7 @@ async def test_disable_skips_visibly_without_mutating_governance_then_reenables(
         assert (d.governance.scientific_status, d.governance.ingest_permitted, d.governance.allowed_result_types) == original
         d.enable_lane()
         d.put_nowait(obs(3)); await asyncio.wait_for(d.queue.join(), 1)
-        await asyncio.wait_for(shard.queue.join(), 1)
+        await d.advance_watermark(NOW + timedelta(seconds=4))
         assert plugin.calls == 1
     finally:
         await d.stop(); await shard.stop()

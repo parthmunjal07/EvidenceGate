@@ -1,8 +1,11 @@
 """Lane ingress, admission, and deterministic shard dispatch."""
 
 import asyncio
+import heapq
 import logging
+import re
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Awaitable, Callable, List
 
@@ -24,6 +27,31 @@ GapSink = Callable[[QualityGap], Awaitable[None]]
 
 class WatermarkError(ValueError):
     """An invalid lane watermark request."""
+
+
+@dataclass(frozen=True, slots=True)
+class EventTimeReorderPolicy:
+    """Engineering memory bound for one state key's reorder buffer."""
+
+    max_buffered_events_per_key: int
+
+    def __post_init__(self) -> None:
+        value = self.max_buffered_events_per_key
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError("max_buffered_events_per_key must be a non-bool integer")
+        if value <= 0:
+            raise ValueError("max_buffered_events_per_key must be greater than zero")
+
+
+def source_position_order(source_position: str) -> tuple[int, int | str]:
+    """Return a protocol-neutral order: ASCII decimal numerically, else lexical.
+
+    Numeric positions sort before non-numeric positions when the two forms are
+    mixed. No protocol-specific meaning is inferred from the string.
+    """
+    if re.fullmatch(r"[0-9]+", source_position):
+        return (0, int(source_position))
+    return (1, source_position)
 
 
 class LaneHealthRecord:
@@ -61,6 +89,7 @@ class LaneDispatcher:
         max_size: int = 2000,
         gap_sink: GapSink | None = None,
         control_sink: ControlSink | None = None,
+        reorder_policy: EventTimeReorderPolicy | None = None,
     ):
         self.target = target
         self.plugin = plugin
@@ -76,10 +105,21 @@ class LaneDispatcher:
         self._disabled = False
         self._watermark: datetime | None = None
         self._watermark_lock = asyncio.Lock()
+        self._reorder_policy = reorder_policy
+        self._reorder_buffers: dict[
+            StateKey,
+            list[tuple[datetime, tuple[int, int | str], str, int, NetworkObservation]],
+        ] = {}
+        self._reorder_sequence = 0
 
     @property
     def watermark(self) -> datetime | None:
         return self._watermark
+
+    @property
+    def pending_reorder_count(self) -> int:
+        """Number of admitted stateful observations awaiting a watermark."""
+        return sum(len(buffer) for buffer in self._reorder_buffers.values())
 
     def start(self) -> None:
         if self._task is None:
@@ -100,28 +140,29 @@ class LaneDispatcher:
         while True:
             observation = await self.queue.get()
             try:
-                if self._disabled:
-                    await self._emit_disabled_skip(observation)
-                    continue
-                if self._watermark is not None and observation.event_time < self._watermark:
-                    await self._emit_late_event(observation)
-                    continue
-                manifest = self.plugin.manifest()
-                decision = AdmissionEvaluator.evaluate(
-                    observation, manifest, self.governance
-                )
-                if not decision.admitted:
-                    await self._emit_admission_rejection(observation, decision)
-                    continue
+                async with self._watermark_lock:
+                    if self._disabled:
+                        await self._emit_disabled_skip(observation)
+                        continue
+                    if self._watermark is not None and observation.event_time < self._watermark:
+                        await self._emit_late_event(observation)
+                        continue
+                    manifest = self.plugin.manifest()
+                    decision = AdmissionEvaluator.evaluate(
+                        observation, manifest, self.governance
+                    )
+                    if not decision.admitted:
+                        await self._emit_admission_rejection(observation, decision)
+                        continue
 
-                state_key = self.plugin.state_key(observation)
-                shard_idx = compute_shard(
-                    manifest.plugin_id, state_key, self.shard_count
-                )
-                try:
-                    self.shards[shard_idx].put_nowait(observation)
-                except asyncio.QueueFull:
-                    await self._handle_queue_saturation(observation, shard_idx, state_key)
+                    state_key = self.plugin.state_key(observation)
+                    shard_idx = compute_shard(
+                        manifest.plugin_id, state_key, self.shard_count
+                    )
+                    if state_key is None:
+                        await self._dispatch_to_shard(observation, shard_idx, state_key)
+                    else:
+                        await self._buffer_stateful(observation, state_key, shard_idx)
 
             except Exception as exc:
                 plugin_id = self._plugin_id()
@@ -135,6 +176,43 @@ class LaneDispatcher:
                 await self._emit_control(self._error_event(observation, plugin_id, exc))
             finally:
                 self.queue.task_done()
+
+    async def _dispatch_to_shard(
+        self,
+        observation: NetworkObservation,
+        shard_idx: int,
+        state_key: StateKey | None,
+    ) -> bool:
+        try:
+            self.shards[shard_idx].put_nowait(observation)
+            return True
+        except asyncio.QueueFull:
+            await self._handle_queue_saturation(observation, shard_idx, state_key)
+            return False
+
+    async def _buffer_stateful(
+        self, observation: NetworkObservation, state_key: StateKey, shard_idx: int
+    ) -> None:
+        policy = self._reorder_policy
+        if policy is None:
+            raise RuntimeError(
+                "stateful lane requires an explicit EventTimeReorderPolicy"
+            )
+        buffer = self._reorder_buffers.setdefault(state_key, [])
+        if len(buffer) >= policy.max_buffered_events_per_key:
+            await self._handle_reorder_saturation(observation, state_key, shard_idx)
+            return
+        self._reorder_sequence += 1
+        heapq.heappush(
+            buffer,
+            (
+                observation.event_time,
+                source_position_order(observation.source_position),
+                observation.observation_id,
+                self._reorder_sequence,
+                observation,
+            ),
+        )
 
     def _plugin_id(self) -> str:
         try:
@@ -233,6 +311,26 @@ class LaneDispatcher:
                 if watermark == previous:
                     return False
 
+            released_shards: set[int] = set()
+            for state_key in sorted(self._reorder_buffers, key=str):
+                buffer = self._reorder_buffers[state_key]
+                shard_idx = compute_shard(
+                    self._plugin_id(), state_key, self.shard_count
+                )
+                while buffer and buffer[0][0] < watermark:
+                    observation = heapq.heappop(buffer)[-1]
+                    if await self._dispatch_to_shard(
+                        observation, shard_idx, state_key
+                    ):
+                        released_shards.add(shard_idx)
+                if not buffer:
+                    del self._reorder_buffers[state_key]
+
+            # Complete released work before expiry at this boundary. Dispatcher
+            # reorder mutation stays frozen while independent shard workers drain.
+            for shard_idx in sorted(released_shards):
+                await self.shards[shard_idx].queue.join()
+
             # All shards share this store, so expiry is owned and invoked once here.
             expired = self.shards[0].state_store.expire(watermark)
             self._watermark = watermark
@@ -313,6 +411,36 @@ class LaneDispatcher:
             state_key=state_key, shard_id=shard_id,
         )
 
+    async def _handle_reorder_saturation(
+        self,
+        observation: NetworkObservation,
+        state_key: StateKey,
+        shard_id: int,
+    ) -> QualityGap:
+        """Record admitted evidence that cannot fit its bounded reorder buffer."""
+        gap = QualityGap(
+            gap_id=str(uuid.uuid4()),
+            scope=str(self.target),
+            first_known_event_time=observation.event_time,
+            last_known_event_time=observation.event_time,
+            detection_time=observation.ingest_time,
+            count=1,
+            gap_types=("REORDER_BUFFER_SATURATION",),
+            reason=(
+                "Per-key event-time reorder buffer full; admitted observation "
+                f"could not be retained safely for state key {state_key!s}."
+            ),
+        )
+        self.health.record_gap(gap)
+        registry.queue_full_events.labels(
+            lane=str(self.target), shard_id="reorder"
+        ).inc()
+        await self._emit_gap(gap)
+        await self._invoke_gap_action(
+            self.plugin.manifest().gap_action, gap, state_key, shard_id
+        )
+        return gap
+
     async def _record_queue_saturation(
         self,
         observation: NetworkObservation,
@@ -349,6 +477,8 @@ class LaneDispatcher:
             if action is GapAction.DISABLE_LANE:
                 self._disabled = True
                 self.health.health = OperationalHealth.DISABLED
+                for shard in self.shards:
+                    shard.set_publication_enabled(False)
             elif action is not GapAction.CONTINUE_WITH_QUALITY_FLAG:
                 if state_key is None or shard_id is None:
                     status, reason = "BLOCKED_NO_STATE_KEY", "no safe affected state key"
@@ -389,6 +519,8 @@ class LaneDispatcher:
 
     def enable_lane(self) -> None:
         self._disabled = False
+        for shard in self.shards:
+            shard.set_publication_enabled(True)
         self.health.health = (
             OperationalHealth.BACKPRESSURED if self.health.active_gaps else OperationalHealth.HEALTHY
         )
