@@ -126,6 +126,8 @@ class LaneDispatcher:
             list[tuple[datetime, tuple[int, int | str], str, int, NetworkObservation]],
         ] = {}
         self._reorder_sequence = 0
+        self._peak_pending_reorder_total = 0
+        self._peak_pending_reorder_per_key = 0
 
     @property
     def watermark(self) -> datetime | None:
@@ -135,6 +137,26 @@ class LaneDispatcher:
     def pending_reorder_count(self) -> int:
         """Number of admitted stateful observations awaiting a watermark."""
         return sum(len(buffer) for buffer in self._reorder_buffers.values())
+
+    @property
+    def max_pending_reorder_per_key(self) -> int:
+        """Largest current per-key reorder occupancy, without exposing keys."""
+        return max((len(buffer) for buffer in self._reorder_buffers.values()), default=0)
+
+    @property
+    def peak_pending_reorder_total(self) -> int:
+        """High-water mark for total reorder occupancy since the last reset."""
+        return self._peak_pending_reorder_total
+
+    @property
+    def peak_pending_reorder_per_key(self) -> int:
+        """Privacy-safe per-key occupancy high-water mark since reset."""
+        return self._peak_pending_reorder_per_key
+
+    def reset_reorder_peaks(self) -> None:
+        """Reset high-water marks to current occupancy for a measurement run."""
+        self._peak_pending_reorder_total = self.pending_reorder_count
+        self._peak_pending_reorder_per_key = self.max_pending_reorder_per_key
 
     def start(self) -> None:
         if self._task is None:
@@ -269,6 +291,12 @@ class LaneDispatcher:
                 self._reorder_sequence,
                 observation,
             ),
+        )
+        self._peak_pending_reorder_per_key = max(
+            self._peak_pending_reorder_per_key, len(buffer)
+        )
+        self._peak_pending_reorder_total = max(
+            self._peak_pending_reorder_total, self.pending_reorder_count
         )
 
     def _plugin_id(self) -> str:
