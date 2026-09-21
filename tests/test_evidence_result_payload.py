@@ -324,13 +324,14 @@ async def test_v2_to_v3_migration_preserves_existing_row_and_identity(tmp_path) 
 
 
 @pytest.mark.asyncio
-async def test_all_m6_provider_shells_remain_result_free() -> None:
+async def test_unimplemented_m6_provider_shells_remain_result_free() -> None:
     plugins, _ = build_mvp_provider_registry(NOW)
     for plugin in plugins.values():
         if plugin.manifest().plugin_id in (
             "provider.encrypted_session.enc_a", "provider.unusual_transfer.m1",
+            "provider.dns_tunnelling.t1",
         ):
-            assert plugin.manifest().mechanism_id in ("ENC-A", "CAT6-EX-M1")
+            assert plugin.manifest().mechanism_id in ("ENC-A", "CAT6-EX-M1", "DNS-T1")
             continue
         else:
             assert plugin.manifest().mechanism_id is None

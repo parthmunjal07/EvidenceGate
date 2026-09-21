@@ -41,8 +41,14 @@ def flow():
 
 
 def dns():
-    value = observation(ObservationType.DNS, DNSObservation("f", True, 1, "example.test", None, None, None, None, "udp", False), {VisibilityCapability.CLEAR_DNS_FIELDS})
-    return replace(value, present_fields=frozenset({"qname"}))
+    value = observation(ObservationType.DNS, DNSObservation(
+        "f", True, 1, "example.test", None, None, None, None, "udp", False,
+        qname_rendered="example.test", qname_canonical="example.test",
+        labels=("example", "test"), representation_version="DNS_NAME_REPRESENTATION_V1",
+    ), {VisibilityCapability.CLEAR_DNS_FIELDS})
+    return replace(value, present_fields=frozenset({
+        "qname", "qname_rendered", "qname_canonical", "labels", "representation_version",
+    }))
 
 
 def tls():
@@ -60,7 +66,7 @@ def registry():
 
 def test_exact_packages_lanes_mappings_and_governance():
     plugins, governances = registry()
-    assert set(plugins) == {"ddos", "c2", "dga", "dns_tunnelling", "encrypted_session.enc_a", "recon", "unusual_transfer.m1"}
+    assert set(plugins) == {"ddos", "c2", "dga", "dns_tunnelling.t1", "encrypted_session.enc_a", "recon", "unusual_transfer.m1"}
     manifests = [plugin.manifest() for plugin in plugins.values()]
     assert len({m.plugin_id for m in manifests}) == 7
     assert {m.official_ps_category for m in manifests} == set(OfficialPsCategory)
@@ -75,13 +81,16 @@ def test_exact_packages_lanes_mappings_and_governance():
     enc_a = plugins["encrypted_session.enc_a"].manifest()
     assert enc_a.integration_status is IntegrationStatus.BASELINE_IMPLEMENTED
     assert enc_a.mechanism_id == "ENC-A"
+    dns_t1 = plugins["dns_tunnelling.t1"].manifest()
+    assert dns_t1.integration_status is IntegrationStatus.BASELINE_IMPLEMENTED
+    assert dns_t1.mechanism_id == "DNS-T1"
 
 
 def test_structural_zero_to_many_and_protocol_distinction():
     plugins, _ = registry()
     router = RelevanceRouter(plugins)
     assert set(router.route(flow())) == {"ddos", "c2", "recon"}
-    assert set(router.route(dns())) == {"dga", "dns_tunnelling"}
+    assert set(router.route(dns())) == {"dga", "dns_tunnelling.t1"}
     assert router.route(tls()) == ("encrypted_session.enc_a",)
     assert router.route(quic()) == ()
 
@@ -99,7 +108,7 @@ async def test_shells_remain_stateless_and_enc_a_only_emits_factual_review_conte
         value = next(v for v in candidates if plugin.route(v))
         assert plugin.state_key(value) is None
         outcome = await plugin.process(value, None, None)
-        if plugin.manifest().mechanism_id in ("ENC-A", "CAT6-EX-M1"):
+        if plugin.manifest().mechanism_id in ("ENC-A", "CAT6-EX-M1", "DNS-T1"):
             assert len(outcome.result_drafts) == 1
             assert outcome.state_transition is None
         else:
@@ -110,7 +119,7 @@ async def test_shells_remain_stateless_and_enc_a_only_emits_factual_review_conte
 
 
 @pytest.mark.asyncio
-async def test_runtime_constructs_every_provider_lane_with_only_enc_a_results():
+async def test_runtime_constructs_every_provider_lane_with_implemented_results():
     plugins, governances = registry()
     results = []
     async def collector(result, lane):

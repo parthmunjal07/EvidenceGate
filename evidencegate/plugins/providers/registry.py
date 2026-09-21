@@ -7,7 +7,7 @@ from evidencegate.registry.plugin import AnalyticPlugin
 from evidencegate.routing.router import LaneTarget
 from .c2 import C2ShellPlugin
 from .ddos import DdosShellPlugin
-from .dns_dga import DgaShellPlugin, DnsTunnellingShellPlugin
+from .dns_dga import DgaShellPlugin, DnsT1StructuralPlugin
 from .encrypted import EncAHandshakePlugin
 from .exfil import ExfilM1TransferPlugin
 from .recon import ReconShellPlugin
@@ -19,7 +19,7 @@ def build_mvp_provider_registry(effective_at: datetime) -> tuple[dict[LaneTarget
         LaneTarget("ddos"): DdosShellPlugin(),
         LaneTarget("c2"): C2ShellPlugin(),
         LaneTarget("dga"): DgaShellPlugin(),
-        LaneTarget("dns_tunnelling"): DnsTunnellingShellPlugin(),
+        LaneTarget("dns_tunnelling.t1"): DnsT1StructuralPlugin(),
         LaneTarget("encrypted_session.enc_a"): EncAHandshakePlugin(),
         LaneTarget("recon"): ReconShellPlugin(),
         LaneTarget("unusual_transfer.m1"): ExfilM1TransferPlugin(),
@@ -54,6 +54,15 @@ def build_mvp_provider_registry(effective_at: datetime) -> tuple[dict[LaneTarget
         claim_ceiling=("TRANSFER_MAGNITUDE_ONLY; NO_UNUSUALNESS; NO_AUTHORIZATION_INFERENCE; "
                        "NO_DATA_SENSITIVITY; NO_EXFILTRATION_CONFIRMED; NO_THEFT"),
         governance_version="cat6-ex-m1-0.1.0", effective_at=effective_at,
+        allowed_result_types=(ResultType.REVIEW_FINDING,), ingest_permitted=True,
+    )
+    dns_t1_lane = LaneTarget("dns_tunnelling.t1")
+    governances[dns_t1_lane] = LaneGovernance(
+        analytic_lane=str(dns_t1_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="factual DNS name structure evidence", scientific_blockers=(),
+        claim_ceiling=("RAW_OBSERVATION_ONLY; NO_DNS_TUNNEL_VERDICT; NO_EXFILTRATION; "
+                       "NO_C2; NO_MALWARE"),
+        governance_version="dns-t1-0.1.0", effective_at=effective_at,
         allowed_result_types=(ResultType.REVIEW_FINDING,), ingest_permitted=True,
     )
     return plugins, governances

@@ -43,6 +43,18 @@ class DNSObservation:
     answers: Optional[list[Any]]
     transport: str
     truncation: bool
+    # Parser/source facts and shared DNS_NAME_REPRESENTATION_V1 derivations.
+    # These are tail defaults so existing positional adapters remain compatible.
+    raw_qname_ref: Optional[str] = None
+    qname_rendered: Optional[str] = None
+    qname_canonical: Optional[str] = None
+    labels: Optional[tuple[str, ...]] = None
+    parser_version: Optional[str] = None
+    parser_status: Optional[str] = None
+    message_length: Optional[int] = None
+    representation_version: Optional[str] = None
+    registrable_domain_ref: Optional[str] = None
+    canonicalization_failure_reason: Optional[str] = None
 
 @dataclass(frozen=True, slots=True)
 class TLSObservation:

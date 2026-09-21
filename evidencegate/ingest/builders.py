@@ -1,5 +1,5 @@
 """Shared, factual construction of canonical network observations."""
-from dataclasses import fields
+from dataclasses import fields, replace
 from datetime import datetime
 from typing import Iterable
 
@@ -17,6 +17,7 @@ from evidencegate.domain.payloads import (
 )
 from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
+from evidencegate.ingest.dns_name import canonicalize_dns_name
 
 
 def present_fields_from_payload(
@@ -214,10 +215,38 @@ class DNSCanonicalBuilder(_PayloadBuilder):
     def canonicalize(self, *args: object, clear_dns_fields: bool = False, **kwargs: object) -> NetworkObservationEnvelope:
         visibility = kwargs.pop("visibility", VisibilityProfile())
         if clear_dns_fields:
-            declared = frozenset(kwargs["declared_observed_fields"])
+            declared = frozenset(kwargs["declared_observed_fields"] if "declared_observed_fields" in kwargs else args[4])
             payload = args[0].raw_data if args else kwargs["record"].raw_data
             if "qname" not in declared or payload.qname is None:
                 raise ValueError("clear DNS availability requires an observed qname")
+            canonicalization = canonicalize_dns_name(payload.qname)
+            payload = replace(
+                payload,
+                qname_rendered=canonicalization.rendered,
+                qname_canonical=canonicalization.canonical,
+                labels=canonicalization.labels,
+                representation_version=canonicalization.representation_version,
+                canonicalization_failure_reason=canonicalization.failure_reason,
+            )
+            derived = {"qname_rendered"}
+            if canonicalization.succeeded:
+                derived.update({"qname_canonical", "labels", "representation_version"})
+            else:
+                derived.add("canonicalization_failure_reason")
+            declared = declared | derived
+            record = args[0] if args else kwargs["record"]
+            derived_record = replace(record, raw_data=payload)
+            if args:
+                mutable_args = list(args)
+                mutable_args[0] = derived_record
+                if len(mutable_args) > 4:
+                    mutable_args[4] = declared
+                else:
+                    kwargs["declared_observed_fields"] = declared
+                args = tuple(mutable_args)
+            else:
+                kwargs["record"] = derived_record
+                kwargs["declared_observed_fields"] = declared
             visibility = merge_visibility(
                 visibility,
                 VisibilityProfile(available=frozenset({VisibilityCapability.CLEAR_DNS_FIELDS})),

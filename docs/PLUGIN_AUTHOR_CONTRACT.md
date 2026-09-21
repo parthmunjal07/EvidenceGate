@@ -23,6 +23,8 @@ A draft may name additional `source_observation_ids` only when they are causal o
 
 Plugins do not own or set `plugin_id`, `mechanism_id`, plugin/analytic/governance versions, taxonomy, claim ceiling, source IDs, quality, visibility, state version, or config/parser/model provenance. The runtime injects these facts from the manifest, governance snapshot, observation, and state boundary. Finalization deep-freezes evidence into canonical `EvidencePayload`; later mutation of draft input cannot alter the final result.
 
+DNS plugins consume the shared canonical observation and must not recanonicalize QNAMEs. `DNSCanonicalBuilder` owns `DNS_NAME_REPRESENTATION_V1`: it preserves the parser-rendered value, lowercases without IDNA conversion, removes exactly one terminal root dot, and derives ordered labels only when the input is valid. Derived fields are present only after successful derivation; PSL/eTLD+1 is not part of this representation.
+
 ## Governance and allowed results
 
 The runtime validates every finalized result against a read-only `LaneGovernance` snapshot. A lane governed under `EVIDENCE_CONSTRUCTION` or analytic unavailability cannot emit `ThreatAlert`. Plugins may emit only explicitly allowed result types, and only the runtime supplies the governance-owned claim ceiling.
