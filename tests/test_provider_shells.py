@@ -60,7 +60,7 @@ def registry():
 
 def test_exact_packages_lanes_mappings_and_governance():
     plugins, governances = registry()
-    assert set(plugins) == {"ddos", "c2", "dga", "dns_tunnelling", "encrypted_session.enc_a", "recon", "unusual_transfer"}
+    assert set(plugins) == {"ddos", "c2", "dga", "dns_tunnelling", "encrypted_session.enc_a", "recon", "unusual_transfer.m1"}
     manifests = [plugin.manifest() for plugin in plugins.values()]
     assert len({m.plugin_id for m in manifests}) == 7
     assert {m.official_ps_category for m in manifests} == set(OfficialPsCategory)
@@ -80,7 +80,7 @@ def test_exact_packages_lanes_mappings_and_governance():
 def test_structural_zero_to_many_and_protocol_distinction():
     plugins, _ = registry()
     router = RelevanceRouter(plugins)
-    assert set(router.route(flow())) == {"ddos", "c2", "recon", "unusual_transfer"}
+    assert set(router.route(flow())) == {"ddos", "c2", "recon"}
     assert set(router.route(dns())) == {"dga", "dns_tunnelling"}
     assert router.route(tls()) == ("encrypted_session.enc_a",)
     assert router.route(quic()) == ()
@@ -90,10 +90,16 @@ def test_structural_zero_to_many_and_protocol_distinction():
 async def test_shells_remain_stateless_and_enc_a_only_emits_factual_review_context():
     plugins, _ = registry()
     for plugin in plugins.values():
-        value = next(v for v in (flow(), dns(), tls(), quic()) if plugin.route(v))
+        candidates = (flow(), dns(), tls(), quic())
+        if plugin.manifest().mechanism_id == "CAT6-EX-M1":
+            candidates = (replace(
+                flow(), present_fields=frozenset({"flow_id_basis", "endpoints", "protocol", "start_time", "end_time", "supplied_directional_counters", "exporter_semantics"}),
+                typed_payload=FlowObservation("source-order", ("a", "b"), 6, NOW, NOW, NOW, {"bytes_c2s": 1}, "factual", None, None),
+            ),)
+        value = next(v for v in candidates if plugin.route(v))
         assert plugin.state_key(value) is None
         outcome = await plugin.process(value, None, None)
-        if plugin.manifest().mechanism_id == "ENC-A":
+        if plugin.manifest().mechanism_id in ("ENC-A", "CAT6-EX-M1"):
             assert len(outcome.result_drafts) == 1
             assert outcome.state_transition is None
         else:
@@ -113,8 +119,8 @@ async def test_runtime_constructs_every_provider_lane_with_only_enc_a_results():
     assert set(supervisor.dispatchers) == set(plugins) == set(supervisor.state_stores)
     supervisor.start_all()
     try:
-        assert set((await supervisor.ingest_observation(flow())).selected_targets) == {"ddos", "c2", "recon", "unusual_transfer"}
-        for lane in ("ddos", "c2", "recon", "unusual_transfer"):
+        assert set((await supervisor.ingest_observation(flow())).selected_targets) == {"ddos", "c2", "recon"}
+        for lane in ("ddos", "c2", "recon"):
             await supervisor.dispatchers[lane].queue.join()
         assert all(len(store) == 0 for store in supervisor.state_stores.values())
         await supervisor.ingest_observation(tls())

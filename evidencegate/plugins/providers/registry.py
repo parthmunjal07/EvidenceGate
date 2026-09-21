@@ -9,7 +9,7 @@ from .c2 import C2ShellPlugin
 from .ddos import DdosShellPlugin
 from .dns_dga import DgaShellPlugin, DnsTunnellingShellPlugin
 from .encrypted import EncAHandshakePlugin
-from .exfil import UnusualTransferShellPlugin
+from .exfil import ExfilM1TransferPlugin
 from .recon import ReconShellPlugin
 
 
@@ -22,7 +22,7 @@ def build_mvp_provider_registry(effective_at: datetime) -> tuple[dict[LaneTarget
         LaneTarget("dns_tunnelling"): DnsTunnellingShellPlugin(),
         LaneTarget("encrypted_session.enc_a"): EncAHandshakePlugin(),
         LaneTarget("recon"): ReconShellPlugin(),
-        LaneTarget("unusual_transfer"): UnusualTransferShellPlugin(),
+        LaneTarget("unusual_transfer.m1"): ExfilM1TransferPlugin(),
     }
     governances = {
         lane: LaneGovernance(
@@ -46,5 +46,14 @@ def build_mvp_provider_registry(effective_at: datetime) -> tuple[dict[LaneTarget
             ResultType.REVIEW_FINDING, ResultType.PREREQUISITE_MISSING,
             ResultType.QUALITY_DEGRADED, ResultType.ANALYTIC_UNAVAILABLE,
         ), ingest_permitted=True,
+    )
+    exfil_m1_lane = LaneTarget("unusual_transfer.m1")
+    governances[exfil_m1_lane] = LaneGovernance(
+        analytic_lane=str(exfil_m1_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="factual directional transfer magnitude measurement", scientific_blockers=(),
+        claim_ceiling=("TRANSFER_MAGNITUDE_ONLY; NO_UNUSUALNESS; NO_AUTHORIZATION_INFERENCE; "
+                       "NO_DATA_SENSITIVITY; NO_EXFILTRATION_CONFIRMED; NO_THEFT"),
+        governance_version="cat6-ex-m1-0.1.0", effective_at=effective_at,
+        allowed_result_types=(ResultType.REVIEW_FINDING,), ingest_permitted=True,
     )
     return plugins, governances
