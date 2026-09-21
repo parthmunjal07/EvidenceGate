@@ -29,6 +29,18 @@ class WatermarkError(ValueError):
     """An invalid lane watermark request."""
 
 
+class DispatcherStoppedError(RuntimeError):
+    """A dispatcher stopped before a requested boundary could complete."""
+
+
+@dataclass(frozen=True, slots=True)
+class _WatermarkRequest:
+    """Private queue marker that serializes one lane watermark with ingress."""
+
+    watermark: datetime
+    completion: asyncio.Future[bool]
+
+
 @dataclass(frozen=True, slots=True)
 class EventTimeReorderPolicy:
     """Engineering memory bound for one state key's reorder buffer."""
@@ -96,15 +108,18 @@ class LaneDispatcher:
         self.governance = governance
         self.shards = shards
         self.shard_count = shard_count
-        self.queue: asyncio.Queue[NetworkObservation] = asyncio.Queue(maxsize=max_size)
+        self.queue: asyncio.Queue[NetworkObservation | _WatermarkRequest] = (
+            asyncio.Queue(maxsize=max_size)
+        )
         self._task: asyncio.Task | None = None
+        self._stopping = False
+        self._watermark_put_tasks: set[asyncio.Task[None]] = set()
         self.health = LaneHealthRecord(lane_id=str(target))
         self._gap_sink = gap_sink
         self._control_sink = control_sink
         self._gap_context: dict[str, tuple[GapAction, StateKey | None, int | None]] = {}
         self._disabled = False
         self._watermark: datetime | None = None
-        self._watermark_lock = asyncio.Lock()
         self._reorder_policy = reorder_policy
         self._reorder_buffers: dict[
             StateKey,
@@ -126,6 +141,13 @@ class LaneDispatcher:
             self._task = asyncio.create_task(self._consume())
 
     async def stop(self) -> None:
+        self._stopping = True
+        put_tasks = tuple(self._watermark_put_tasks)
+        for task in put_tasks:
+            task.cancel()
+        if put_tasks:
+            await asyncio.gather(*put_tasks, return_exceptions=True)
+
         if self._task:
             self._task.cancel()
             try:
@@ -133,36 +155,71 @@ class LaneDispatcher:
             except asyncio.CancelledError:
                 pass
 
+        error = DispatcherStoppedError(
+            "dispatcher stopped before watermark boundary completed"
+        )
+        while True:
+            try:
+                item = self.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            try:
+                if isinstance(item, _WatermarkRequest) and not item.completion.done():
+                    item.completion.set_exception(error)
+            finally:
+                self.queue.task_done()
+
     def put_nowait(self, observation: NetworkObservation) -> None:
+        if self._stopping:
+            raise DispatcherStoppedError("dispatcher is stopped")
         self.queue.put_nowait(observation)
 
     async def _consume(self) -> None:
         while True:
-            observation = await self.queue.get()
+            item = await self.queue.get()
             try:
-                async with self._watermark_lock:
-                    if self._disabled:
-                        await self._emit_disabled_skip(observation)
-                        continue
-                    if self._watermark is not None and observation.event_time < self._watermark:
-                        await self._emit_late_event(observation)
-                        continue
-                    manifest = self.plugin.manifest()
-                    decision = AdmissionEvaluator.evaluate(
-                        observation, manifest, self.governance
-                    )
-                    if not decision.admitted:
-                        await self._emit_admission_rejection(observation, decision)
-                        continue
-
-                    state_key = self.plugin.state_key(observation)
-                    shard_idx = compute_shard(
-                        manifest.plugin_id, state_key, self.shard_count
-                    )
-                    if state_key is None:
-                        await self._dispatch_to_shard(observation, shard_idx, state_key)
+                if isinstance(item, _WatermarkRequest):
+                    try:
+                        advanced = await self._advance_watermark_serialized(
+                            item.watermark
+                        )
+                    except asyncio.CancelledError:
+                        if not item.completion.done():
+                            item.completion.set_exception(DispatcherStoppedError(
+                                "dispatcher stopped during watermark boundary"
+                            ))
+                        raise
+                    except Exception as exc:
+                        if not item.completion.done():
+                            item.completion.set_exception(exc)
                     else:
-                        await self._buffer_stateful(observation, state_key, shard_idx)
+                        if not item.completion.done():
+                            item.completion.set_result(advanced)
+                    continue
+
+                observation = item
+                if self._disabled:
+                    await self._emit_disabled_skip(observation)
+                    continue
+                if self._watermark is not None and observation.event_time < self._watermark:
+                    await self._emit_late_event(observation)
+                    continue
+                manifest = self.plugin.manifest()
+                decision = AdmissionEvaluator.evaluate(
+                    observation, manifest, self.governance
+                )
+                if not decision.admitted:
+                    await self._emit_admission_rejection(observation, decision)
+                    continue
+
+                state_key = self.plugin.state_key(observation)
+                shard_idx = compute_shard(
+                    manifest.plugin_id, state_key, self.shard_count
+                )
+                if state_key is None:
+                    await self._dispatch_to_shard(observation, shard_idx, state_key)
+                else:
+                    await self._buffer_stateful(observation, state_key, shard_idx)
 
             except Exception as exc:
                 plugin_id = self._plugin_id()
@@ -173,7 +230,7 @@ class LaneDispatcher:
                 registry.processing_errors.labels(
                     lane=str(self.target), plugin_id=plugin_id
                 ).inc()
-                await self._emit_control(self._error_event(observation, plugin_id, exc))
+                await self._emit_control(self._error_event(item, plugin_id, exc))
             finally:
                 self.queue.task_done()
 
@@ -298,64 +355,78 @@ class LaneDispatcher:
         ))
 
     async def advance_watermark(self, watermark: datetime) -> bool:
-        """Advance the one lane-owned event-time boundary and run lifecycle work."""
+        """Enqueue and await a lane watermark serialized with observation ingress."""
         if not isinstance(watermark, datetime):
             raise TypeError("watermark must be a datetime")
         if watermark.tzinfo is None or watermark.utcoffset() is None:
             raise WatermarkError("watermark must be timezone-aware")
-        async with self._watermark_lock:
-            previous = self._watermark
-            if previous is not None:
-                if watermark < previous:
-                    raise WatermarkError("watermark must not move backward")
-                if watermark == previous:
-                    return False
+        if self._stopping or self._task is None or self._task.done():
+            raise DispatcherStoppedError("dispatcher is not running")
+        if asyncio.current_task() is self._task:
+            raise RuntimeError("dispatcher consumer cannot await its own watermark")
 
-            released_shards: set[int] = set()
-            for state_key in sorted(self._reorder_buffers, key=str):
-                buffer = self._reorder_buffers[state_key]
-                shard_idx = compute_shard(
-                    self._plugin_id(), state_key, self.shard_count
-                )
-                while buffer and buffer[0][0] < watermark:
-                    observation = heapq.heappop(buffer)[-1]
-                    if await self._dispatch_to_shard(
-                        observation, shard_idx, state_key
-                    ):
-                        released_shards.add(shard_idx)
-                if not buffer:
-                    del self._reorder_buffers[state_key]
+        loop = asyncio.get_running_loop()
+        completion: asyncio.Future[bool] = loop.create_future()
+        request = _WatermarkRequest(watermark, completion)
+        put_task = asyncio.create_task(self.queue.put(request))
+        self._watermark_put_tasks.add(put_task)
+        try:
+            await put_task
+        finally:
+            self._watermark_put_tasks.discard(put_task)
+        return await completion
 
-            # Complete released work before expiry at this boundary. Dispatcher
-            # reorder mutation stays frozen while independent shard workers drain.
-            for shard_idx in sorted(released_shards):
-                await self.shards[shard_idx].queue.join()
+    async def _advance_watermark_serialized(self, watermark: datetime) -> bool:
+        """Execute one watermark marker inside the sole dispatcher consumer."""
+        previous = self._watermark
+        if previous is not None:
+            if watermark < previous:
+                raise WatermarkError("watermark must not move backward")
+            if watermark == previous:
+                return False
 
-            # All shards share this store, so expiry is owned and invoked once here.
-            expired = self.shards[0].state_store.expire(watermark)
-            self._watermark = watermark
-            plugin_id = self._plugin_id()
-            for entry in expired:
-                shard_id = compute_shard(plugin_id, entry.key, self.shard_count)
-                await self.shards[shard_id].handle_expiry(
-                    entry, watermark, publish_results=not self._disabled
-                )
-            # One plugin callback per real lane advancement, after all expiries.
-            await self.shards[0].handle_watermark(
-                watermark, len(expired), publish_results=not self._disabled
+        for state_key in sorted(self._reorder_buffers, key=str):
+            buffer = self._reorder_buffers[state_key]
+            shard_idx = compute_shard(
+                self._plugin_id(), state_key, self.shard_count
             )
-            await self._emit_control(RuntimeControlEvent(
-                control_event_id=str(uuid.uuid4()), schema_version="1.0",
-                control_type=ControlType.WATERMARK_ADVANCED,
-                ingest_time=datetime.now(timezone.utc), event_time=watermark,
-                lane_id=str(self.target),
-                typed_payload={"component": "lifecycle", "lane_id": str(self.target),
-                    "plugin_id": plugin_id,
-                    "previous_watermark": previous.isoformat() if previous else None,
-                    "new_watermark": watermark.isoformat(),
-                    "expired_state_count": len(expired)},
-            ))
-            return True
+            while buffer and buffer[0][0] < watermark:
+                observation = heapq.heappop(buffer)[-1]
+                await self._dispatch_to_shard(observation, shard_idx, state_key)
+            if not buffer:
+                del self._reorder_buffers[state_key]
+
+        # Every shard item ahead of this marker must finish before lifecycle work.
+        # Later observations remain behind the marker in this same lane queue.
+        for shard in self.shards:
+            await shard.queue.join()
+
+        # All shards share this store, so expiry is owned and invoked once here.
+        expired = self.shards[0].state_store.expire(watermark)
+        plugin_id = self._plugin_id()
+        for entry in expired:
+            shard_id = compute_shard(plugin_id, entry.key, self.shard_count)
+            await self.shards[shard_id].handle_expiry(
+                entry, watermark, publish_results=not self._disabled
+            )
+        await self.shards[0].handle_watermark(
+            watermark, len(expired), publish_results=not self._disabled
+        )
+
+        # Commit only after all pre-boundary work and lifecycle callbacks finish.
+        self._watermark = watermark
+        await self._emit_control(RuntimeControlEvent(
+            control_event_id=str(uuid.uuid4()), schema_version="1.0",
+            control_type=ControlType.WATERMARK_ADVANCED,
+            ingest_time=datetime.now(timezone.utc), event_time=watermark,
+            lane_id=str(self.target),
+            typed_payload={"component": "lifecycle", "lane_id": str(self.target),
+                "plugin_id": plugin_id,
+                "previous_watermark": previous.isoformat() if previous else None,
+                "new_watermark": watermark.isoformat(),
+                "expired_state_count": len(expired)},
+        ))
+        return True
 
     async def _emit_control(self, event: RuntimeControlEvent) -> None:
         if self._control_sink is None:

@@ -24,7 +24,7 @@ from evidencegate.registry.plugin import (
 from evidencegate.results.types import ResultDraft
 from evidencegate.routing.router import LaneTarget
 from evidencegate.runtime.dispatcher import (
-    EventTimeReorderPolicy, LaneDispatcher, WatermarkError,
+    DispatcherStoppedError, EventTimeReorderPolicy, LaneDispatcher, WatermarkError,
     source_position_order,
 )
 from evidencegate.runtime.shard import LaneShard
@@ -360,3 +360,223 @@ async def test_buffered_event_processes_without_publication_after_lane_disable()
         assert results == []
     finally:
         await close(dispatcher, shards)
+
+
+@pytest.mark.asyncio
+async def test_watermark_cannot_overtake_observation_already_in_ingress_queue():
+    plugin, store, shards, dispatcher, _, controls, _ = await dispatcher_fixture()
+    try:
+        dispatcher.put_nowait(observation(9))
+        assert await dispatcher.advance_watermark(NOW + timedelta(seconds=10))
+        entry = store.read("reorder-fixture", StateKey("a"), NOW + timedelta(seconds=10))
+        assert entry is not None and entry.payload == {"count": 1}
+        assert [item[1] for item in plugin.processed] == [9]
+        assert not any(event.control_type is ControlType.LATE_EVENT_OBSERVED for event in controls)
+    finally:
+        await close(dispatcher, shards)
+
+
+@pytest.mark.asyncio
+async def test_observation_queued_after_marker_sees_committed_watermark():
+    plugin, store, shards, dispatcher, _, controls, _ = await dispatcher_fixture()
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def blocked_watermark(watermark, context):
+        entered.set()
+        await release.wait()
+        return PluginProcessOutcome()
+
+    plugin.on_watermark = blocked_watermark
+    try:
+        dispatcher.put_nowait(observation(9))
+        boundary = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=10))
+        )
+        await asyncio.wait_for(entered.wait(), 1)
+        dispatcher.put_nowait(observation(8))
+        release.set()
+        assert await boundary
+        await asyncio.wait_for(dispatcher.queue.join(), 1)
+        entry = store.read("reorder-fixture", StateKey("a"), NOW + timedelta(seconds=10))
+        assert entry is not None and entry.payload == {"count": 1}
+        assert [item[1] for item in plugin.processed] == [9]
+        late = [event for event in controls if event.control_type is ControlType.LATE_EVENT_OBSERVED]
+        assert len(late) == 1 and late[0].typed_payload["observation_id"] == "event-a-8"
+    finally:
+        release.set()
+        await close(dispatcher, shards)
+
+
+@pytest.mark.asyncio
+async def test_equal_event_ahead_of_marker_waits_for_later_watermark():
+    plugin, _, shards, dispatcher, *_ = await dispatcher_fixture()
+    try:
+        dispatcher.put_nowait(observation(10))
+        assert await dispatcher.advance_watermark(NOW + timedelta(seconds=10))
+        assert plugin.processed == [] and dispatcher.pending_reorder_count == 1
+        assert await dispatcher.advance_watermark(NOW + timedelta(seconds=11))
+        assert [item[1] for item in plugin.processed] == [10]
+    finally:
+        await close(dispatcher, shards)
+
+
+@pytest.mark.asyncio
+async def test_watermark_joins_pre_marker_stateless_shard_work():
+    timeline = []
+    process_entered, process_release = asyncio.Event(), asyncio.Event()
+
+    class BlockingStatelessPlugin(BasicScaffoldPlugin):
+        async def process(self, item, context, state):
+            process_entered.set()
+            await process_release.wait()
+            timeline.append("process")
+            return PluginProcessOutcome()
+
+        async def on_watermark(self, watermark, context):
+            timeline.append("watermark")
+            return PluginProcessOutcome()
+
+    plugin = BlockingStatelessPlugin()
+    shard = LaneShard(0, plugin, StateStore(), lambda item: collect([], item))
+    dispatcher = LaneDispatcher("stateless", plugin, governance("stateless"), [shard], 1)
+    shard.start()
+    dispatcher.start()
+    try:
+        dispatcher.put_nowait(observation(1))
+        boundary = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=2))
+        )
+        await asyncio.wait_for(process_entered.wait(), 1)
+        assert not boundary.done()
+        process_release.set()
+        assert await boundary
+        assert timeline == ["process", "watermark"]
+    finally:
+        process_release.set()
+        await close(dispatcher, [shard])
+
+
+@pytest.mark.asyncio
+async def test_concurrent_watermarks_and_duplicates_are_queue_ordered():
+    plugin, _, shards, dispatcher, _, controls, _ = await dispatcher_fixture()
+    try:
+        first = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=10))
+        )
+        second = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=20))
+        )
+        assert await asyncio.gather(first, second) == [True, True]
+        assert dispatcher.watermark == NOW + timedelta(seconds=20)
+        assert [item for item in plugin.timeline if item == "watermark"] == [
+            "watermark", "watermark"
+        ]
+
+        duplicate_one = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=30))
+        )
+        duplicate_two = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=30))
+        )
+        assert await asyncio.gather(duplicate_one, duplicate_two) == [True, False]
+        advanced = [event for event in controls if event.control_type is ControlType.WATERMARK_ADVANCED]
+        assert len(advanced) == 3
+    finally:
+        await close(dispatcher, shards)
+
+
+@pytest.mark.asyncio
+async def test_backward_watermark_reaches_caller_and_dispatcher_stays_usable():
+    _, _, shards, dispatcher, *_ = await dispatcher_fixture()
+    try:
+        forward = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=20))
+        )
+        backward = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=10))
+        )
+        assert await forward is True
+        with pytest.raises(WatermarkError):
+            await backward
+        assert dispatcher._task is not None and not dispatcher._task.done()
+        assert await dispatcher.advance_watermark(NOW + timedelta(seconds=30))
+    finally:
+        await close(dispatcher, shards)
+
+
+@pytest.mark.asyncio
+async def test_stop_fails_active_and_queued_watermark_requests():
+    plugin, _, shards, dispatcher, *_ = await dispatcher_fixture()
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def blocked_watermark(watermark, context):
+        entered.set()
+        await release.wait()
+        return PluginProcessOutcome()
+
+    plugin.on_watermark = blocked_watermark
+    first = asyncio.create_task(
+        dispatcher.advance_watermark(NOW + timedelta(seconds=10))
+    )
+    await asyncio.wait_for(entered.wait(), 1)
+    second = asyncio.create_task(
+        dispatcher.advance_watermark(NOW + timedelta(seconds=20))
+    )
+
+    async def marker_is_queued():
+        while dispatcher.queue.qsize() == 0:
+            await asyncio.sleep(0)
+
+    await asyncio.wait_for(marker_is_queued(), 1)
+    await dispatcher.stop()
+    outcomes = await asyncio.gather(first, second, return_exceptions=True)
+    assert all(isinstance(item, DispatcherStoppedError) for item in outcomes)
+    assert dispatcher.queue.empty()
+    release.set()
+    for shard in shards:
+        await shard.stop()
+
+
+@pytest.mark.asyncio
+async def test_watermark_marker_backpressures_instead_of_dropping_on_full_ingress():
+    plugin = RecordingStatefulPlugin()
+    store = StateStore(expire_on_access=False)
+    shard = LaneShard(0, plugin, store, lambda item: collect([], item))
+    dispatcher = LaneDispatcher(
+        LANE, plugin, governance(), [shard], 1, max_size=1,
+        reorder_policy=EventTimeReorderPolicy(10),
+    )
+    entered, release = asyncio.Event(), asyncio.Event()
+    original_buffer = dispatcher._buffer_stateful
+
+    async def blocking_first_buffer(item, state_key, shard_idx):
+        if item.observation_id == "event-a-1":
+            entered.set()
+            await release.wait()
+        await original_buffer(item, state_key, shard_idx)
+
+    dispatcher._buffer_stateful = blocking_first_buffer
+    shard.start()
+    dispatcher.start()
+    try:
+        dispatcher.put_nowait(observation(1))
+        await asyncio.wait_for(entered.wait(), 1)
+        dispatcher.put_nowait(observation(2))
+        boundary = asyncio.create_task(
+            dispatcher.advance_watermark(NOW + timedelta(seconds=3))
+        )
+
+        async def marker_is_backpressured():
+            while not dispatcher._watermark_put_tasks:
+                await asyncio.sleep(0)
+            while all(task.done() for task in dispatcher._watermark_put_tasks):
+                await asyncio.sleep(0)
+
+        await asyncio.wait_for(marker_is_backpressured(), 1)
+        assert not boundary.done() and dispatcher.watermark is None
+        release.set()
+        assert await boundary
+        assert [item[1] for item in plugin.processed] == [1, 2]
+    finally:
+        release.set()
+        await close(dispatcher, [shard])
