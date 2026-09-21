@@ -29,6 +29,7 @@ class ExfilM1TransferPlugin:
     """Measure exporter-declared C-to-S flow counters without interpreting risk."""
     _recognized = ("bytes_c2s", "packets_c2s", "bytes_s2c", "packets_s2c")
     _forward = ("bytes_c2s", "packets_c2s")
+    _reverse = ("bytes_s2c", "packets_s2c")
     _manifest = PluginManifest(
         plugin_id="provider.unusual_transfer.m1", plugin_version="0.1.0", analytic_version="cat6-ex-m1-0.1.0",
         taxonomy=("Network", "Data Exfiltration", "Transfer Magnitude Measurement"),
@@ -73,7 +74,19 @@ class ExfilM1TransferPlugin:
             raise ValueError("exporter_semantics must be non-empty")
         if payload.end_time < payload.start_time:
             raise ValueError("end_time cannot precede start_time")
-        counters = {name: value for name in self._recognized if (value := self._counter(name, payload.supplied_directional_counters)) is not None}
+        forward_observed = observation.visibility.state(
+            VisibilityCapability.FORWARD_FACTS,
+        ) in (CapabilityState.AVAILABLE, CapabilityState.DEGRADED)
+        reverse_observed = observation.visibility.state(
+            VisibilityCapability.REVERSE_FACTS,
+        ) in (CapabilityState.AVAILABLE, CapabilityState.DEGRADED)
+        counters = {
+            name: value
+            for name in self._recognized
+            if ((name in self._forward and forward_observed)
+                or (name in self._reverse and reverse_observed))
+            and (value := self._counter(name, payload.supplied_directional_counters)) is not None
+        }
         if not any(name in counters for name in self._forward):
             raise ValueError("CAT6-EX-M1 requires an observed client-to-server counter")
         duration = (payload.end_time - payload.start_time).total_seconds()
@@ -81,7 +94,9 @@ class ExfilM1TransferPlugin:
             "evidence_kind": "TRANSFER_MAGNITUDE_MEASUREMENT", "flow_id_basis": payload.flow_id_basis,
             "protocol": payload.protocol, "exporter_semantics": payload.exporter_semantics,
             "start_time": payload.start_time, "end_time": payload.end_time, "duration_seconds": duration,
-            "direction_scope": "CLIENT_TO_SERVER_MAGNITUDE", "recognized_directional_counters": counters,
+            "direction_scope": ("BIDIRECTIONAL_COUNTERS" if any(name in counters for name in self._reverse)
+                                else "CLIENT_TO_SERVER_ONLY"),
+            "recognized_directional_counters": counters,
         }
         if "endpoints" in observation.present_fields:
             evidence["endpoints_source_order"] = payload.endpoints
