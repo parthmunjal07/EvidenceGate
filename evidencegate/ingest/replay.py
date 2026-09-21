@@ -23,6 +23,11 @@ from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 
 
+def utc_now() -> datetime:
+    """Return the replay process's current timezone-aware UTC wall time."""
+    return datetime.now(timezone.utc)
+
+
 class NdjsonReplaySource:
     """Read one typed record at a time from an immutable finite bundle."""
 
@@ -122,6 +127,8 @@ class ReplayCanonicalizer:
 
 @dataclass(frozen=True, slots=True)
 class ReplaySummary:
+    """Replay counts; ``control_events`` counts replay and canonicalizer events forwarded by replay, not supervisor-generated events."""
+
     records_read: int
     observations_emitted: int
     control_events: int
@@ -136,19 +143,32 @@ class ReplayRunner:
         speed: float = 0,
         control_sink: Callable[[RuntimeControlEvent], Awaitable[None]] | None = None,
         canonicalizer: ReplayCanonicalizer | None = None,
+        clock: Callable[[], datetime] = utc_now,
     ) -> None:
         if isinstance(speed, bool) or not isinstance(speed, (int, float)) or speed < 0:
             raise ValueError("speed must be a non-negative number")
+        if not callable(clock):
+            raise TypeError("clock must be callable")
         self.source, self.supervisor, self.speed = source, supervisor, float(speed)
         self.control_sink = control_sink
         self.canonicalizer = canonicalizer or ReplayCanonicalizer()
+        self.clock = clock
         self._control_count = 0
+
+    def _clock_now(self) -> datetime:
+        """Acquire and validate one replay-arrival timestamp."""
+        value = self.clock()
+        if not isinstance(value, datetime):
+            raise TypeError("clock must return a datetime")
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("clock must return a timezone-aware datetime")
+        return value
 
     async def _control(self, control_type: ControlType, *, event_time=None, payload=None) -> None:
         event = RuntimeControlEvent(
             control_event_id=f"replay:{self.source.source_id}:{control_type.value}:{self._control_count + 1}",
             schema_version="1.1", control_type=control_type,
-            ingest_time=datetime.now(timezone.utc), event_time=event_time,
+            ingest_time=self._clock_now(), event_time=event_time,
             source_id=self.source.source_id,
             typed_payload=payload or {"component": "replay"},
         )
@@ -192,7 +212,7 @@ class ReplayRunner:
                     await self._watermark(record.timestamp)
                 result = self.canonicalizer.canonicalize(
                     record, manifest, f"quality:{manifest.source_id}:{record.position}",
-                    record.timestamp,
+                    self._clock_now(),
                 )
                 for event in result.control_events:
                     self._control_count += 1

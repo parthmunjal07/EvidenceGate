@@ -7,7 +7,7 @@ import pytest
 
 from evidencegate.domain.enums import ControlType, ResultType, ScientificStatus
 from evidencegate.domain.governance import LaneGovernance
-from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner
+from evidencegate.ingest.replay import NdjsonReplaySource, ReplayCanonicalizer, ReplayRunner
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.c2 import C2R1Plugin
 from evidencegate.plugins.providers.c2_config import C2R1Config
@@ -22,7 +22,7 @@ NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 SCHEMA = Path("evidencegate/persistence/schema.sql")
 
 
-async def run_default(bundle, database):
+async def run_default(bundle, database, *, clock=None, canonicalizer=None):
     sqlite = SqliteWriter(database, SCHEMA)
     sqlite.connect()
     results, controls = [], []
@@ -40,6 +40,7 @@ async def run_default(bundle, database):
     )
     summary = await ReplayRunner(
         NdjsonReplaySource(bundle), supervisor, control_sink=control,
+        clock=clock or (lambda: NOW), canonicalizer=canonicalizer,
     ).run()
     persisted = await sqlite.list_results(limit=100)
     sqlite.close()
@@ -65,10 +66,43 @@ async def test_real_mechanism_end_to_end_through_sqlite(tmp_path, fixture, mecha
 
 
 async def test_repeated_replay_has_deterministic_scientific_ids(tmp_path):
-    first = await run_default(FIXTURES / "dns_forward", tmp_path / "one.sqlite")
-    second = await run_default(FIXTURES / "dns_forward", tmp_path / "two.sqlite")
+    first = await run_default(
+        FIXTURES / "dns_forward", tmp_path / "one.sqlite",
+        clock=lambda: datetime(2026, 9, 21, 12, tzinfo=timezone.utc),
+    )
+    second = await run_default(
+        FIXTURES / "dns_forward", tmp_path / "two.sqlite",
+        clock=lambda: datetime(2026, 9, 22, 12, tzinfo=timezone.utc),
+    )
     assert first[1][0].result_id == second[1][0].result_id
     assert first[1][0].evidence == second[1][0].evidence
+
+
+class RecordingCanonicalizer(ReplayCanonicalizer):
+    def __init__(self):
+        super().__init__()
+        self.observations = []
+
+    def canonicalize(self, *args, **kwargs):
+        result = super().canonicalize(*args, **kwargs)
+        self.observations.extend(result.observations)
+        return result
+
+
+async def test_replay_ingest_clock_does_not_change_observation_identity(tmp_path):
+    first_canonicalizer = RecordingCanonicalizer()
+    second_canonicalizer = RecordingCanonicalizer()
+    await run_default(
+        FIXTURES / "dns_forward", tmp_path / "first.sqlite",
+        clock=lambda: datetime(2026, 9, 21, 12, tzinfo=timezone.utc),
+        canonicalizer=first_canonicalizer,
+    )
+    await run_default(
+        FIXTURES / "dns_forward", tmp_path / "second.sqlite",
+        clock=lambda: datetime(2026, 9, 22, 12, tzinfo=timezone.utc),
+        canonicalizer=second_canonicalizer,
+    )
+    assert first_canonicalizer.observations[0].observation_id == second_canonicalizer.observations[0].observation_id
 
 
 def c2_governance():
@@ -83,7 +117,7 @@ def c2_governance():
     )
 
 
-async def run_c2(bundle):
+async def run_c2(bundle, *, clock=None, canonicalizer=None, speed=0):
     # TEST CONFIGURATION ONLY: these are not production capacity defaults.
     lane = LaneTarget("c2.r1")
     plugin = C2R1Plugin(C2R1Config.reference_engine_v1(), max_state_entries=20)
@@ -102,6 +136,7 @@ async def run_c2(bundle):
     )
     summary = await ReplayRunner(
         NdjsonReplaySource(bundle), supervisor, control_sink=control,
+        clock=clock or (lambda: NOW), canonicalizer=canonicalizer, speed=speed,
     ).run()
     return summary, results, controls, supervisor, lane
 
@@ -117,6 +152,59 @@ async def test_c2_stateful_replay_watermarks_and_eof_flush():
         "2026-01-01T00:02:00.000001+00:00",
     ]
     assert supervisor.dispatchers[lane].pending_reorder_count == 0
+
+
+async def test_replay_separates_per_record_ingest_clock_from_source_event_time():
+    arrivals = iter([
+        datetime(2026, 9, 21, 12, 0, 0, tzinfo=timezone.utc),  # SOURCE_STARTED
+        datetime(2026, 9, 21, 12, 0, 0, 5000, tzinfo=timezone.utc),
+        datetime(2026, 9, 21, 12, 0, 0, 9000, tzinfo=timezone.utc),
+        datetime(2026, 9, 21, 12, 0, 0, 12000, tzinfo=timezone.utc),
+        datetime(2026, 9, 21, 12, 0, 1, tzinfo=timezone.utc),  # SOURCE_ENDED
+    ])
+    canonicalizer = RecordingCanonicalizer()
+    _, _, controls, _, _ = await run_c2(
+        FIXTURES / "c2_r1", clock=lambda: next(arrivals), canonicalizer=canonicalizer,
+    )
+    assert [item.ingest_time for item in canonicalizer.observations] == [
+        datetime(2026, 9, 21, 12, 0, 0, 5000, tzinfo=timezone.utc),
+        datetime(2026, 9, 21, 12, 0, 0, 9000, tzinfo=timezone.utc),
+        datetime(2026, 9, 21, 12, 0, 0, 12000, tzinfo=timezone.utc),
+    ]
+    assert [item.event_time for item in canonicalizer.observations] == [
+        datetime(2026, 1, 1, 0, minute, tzinfo=timezone.utc) for minute in range(3)
+    ]
+    source_controls = [item for item in controls if item.control_type in {
+        ControlType.SOURCE_STARTED, ControlType.SOURCE_ENDED,
+    }]
+    assert [item.ingest_time for item in source_controls] == [
+        datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc),
+        datetime(2026, 9, 21, 12, 0, 1, tzinfo=timezone.utc),
+    ]
+    assert source_controls[1].event_time == datetime(2026, 1, 1, 0, 2, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("clock,exception", [
+    (lambda: datetime(2026, 9, 21, 12), ValueError),
+    (lambda: "2026-09-21T12:00:00Z", TypeError),
+])
+async def test_replay_rejects_invalid_clock_output(clock, exception):
+    with pytest.raises(exception, match="clock must return"):
+        await run_c2(FIXTURES / "c2_r1", clock=clock)
+
+
+async def test_replay_pacing_remains_based_on_source_event_time(monkeypatch):
+    sleeps = []
+
+    async def record_sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr("evidencegate.ingest.replay.asyncio.sleep", record_sleep)
+    await run_c2(
+        FIXTURES / "c2_r1", speed=60,
+        clock=lambda: datetime(2026, 9, 21, 12, tzinfo=timezone.utc),
+    )
+    assert sleeps == [1.0, 1.0]
 
 
 async def test_same_time_records_are_admitted_before_next_boundary(tmp_path):
