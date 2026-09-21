@@ -1,8 +1,13 @@
 # SIH26145 EvidenceGate Runtime (MVP)
 
-EvidenceGate is a strictly-bounded, single-host Python runtime application designed to broker, route, admit, and persist immutable network observations for analytic lanes. 
+EvidenceGate is a strictly-bounded, single-host Python runtime application that
+incrementally ingests, canonicalizes, routes, and persists immutable network
+observations and factual analytic results.
 
-**This repository represents the shared runtime infrastructure only. It does not contain an active scientific threat detector.**
+The implemented mechanisms are DNS-T1, ENC-A, and CAT6-EX-M1. C2-R1 is
+implemented, but its default activation remains gated pending measured capacity
+values. Structured typed-NDJSON replay ingest is implemented; raw-PCAP ingest and
+live capture are not.
 
 ## Setup, Run, and Test Instructions
 
@@ -27,6 +32,17 @@ EvidenceGate exposes a FastAPI interface and internal SQLite persistence.
 uvicorn evidencegate.api.app:app --host 0.0.0.1 --port 8000
 ```
 *Note: The MVP runs using an in-memory or generic SQLite file database. Ensure the SQLite schema is initialized via `evidencegate/persistence/schema.sql`.*
+
+Replay a versioned finite bundle through the same streaming runtime:
+
+```bash
+python scripts/replay.py --bundle tests/fixtures/replay/dns_forward --database evidencegate.db --speed 0
+```
+
+Replay bundles contain a `manifest.json` plus line-oriented `records.ndjson`.
+They are opened read-only and contain source/network facts only, never analytic
+results. `--speed 0` disables pacing; a positive value replays event-time spacing
+at that multiplier. Use `--validate-only` to validate without running analytics.
 
 ### Testing the System
 The system is protected by a suite of invariants derived directly from the Implementation Contract.

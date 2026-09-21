@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidencegate-replay-manifest-v1",
+  "source_id": "fixture-c2-r1-test-only",
+  "source_kind": "DERIVED",
+  "input_observation_contract": "REPLAY_TYPED_V1",
+  "timestamp_semantics": "FLOW_START",
+  "direction_basis": "CLIENT_SERVER_ROLE",
+  "wire_direction": "FORWARD",
+  "visibility": {"available": [], "unavailable": ["REVERSE_FACTS"], "degraded": []},
+  "quality": {"packet_loss": "UNKNOWN", "sampling": "UNKNOWN", "parser": "UNKNOWN", "capture_gap": "UNKNOWN"},
+  "event_time_order": "NONDECREASING",
+  "record_count": 3
+}

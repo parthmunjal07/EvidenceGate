@@ -15,7 +15,9 @@ from dataclasses import dataclass, fields
 from datetime import datetime
 
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
-from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent, VisibilityProfile
+from evidencegate.domain.events import (
+    NetworkObservation, RoleAssignment, RuntimeControlEvent, VisibilityProfile,
+)
 from evidencegate.domain.payloads import FlowObservation
 from evidencegate.domain.enums import AvailabilityBasis, Finality, ObservationType, VisibilityCapability
 from evidencegate.ingest.builders import CanonicalObservationBuilder, identity_from_identifiers
@@ -43,6 +45,8 @@ class Canonicalizer(Protocol):
         manifest: SourceManifest,
         quality_ref: str,
         ingest_time: datetime,
+        declared_observed_fields: tuple[str, ...] | None = None,
+        role_assignments: tuple[RoleAssignment, ...] = (),
     ) -> CanonicalizationResult:
         ...
 
@@ -60,6 +64,8 @@ class FlowCanonicalizer:
         manifest: SourceManifest,
         quality_ref: str,
         ingest_time: datetime,
+        declared_observed_fields: tuple[str, ...] | None = None,
+        role_assignments: tuple[RoleAssignment, ...] = (),
     ) -> CanonicalizationResult:
         flow_obs: FlowObservation = record.raw_data
 
@@ -74,8 +80,9 @@ class FlowCanonicalizer:
             VisibilityCapability.TLS_RECORD_METADATA,
             VisibilityCapability.QUIC_OUTER_METADATA,
         })
-        present = (field.name for field in fields(flow_obs)
-                   if getattr(flow_obs, field.name) is not None)
+        present = (declared_observed_fields if declared_observed_fields is not None else
+                   tuple(field.name for field in fields(flow_obs)
+                         if getattr(flow_obs, field.name) is not None))
         envelope = CanonicalObservationBuilder().build(
             observation_type=ObservationType.FLOW, payload=flow_obs, record=record,
             manifest=manifest, quality_ref=quality_ref, ingest_time=ingest_time,
@@ -87,7 +94,7 @@ class FlowCanonicalizer:
                 available=frozenset({VisibilityCapability.FLOW_FACTS}),
                 unavailable=unavailable_protocol_facts,
             ),
-            identity=identity_from_identifiers(flow_obs.endpoints),
+            identity=identity_from_identifiers(flow_obs.endpoints, role_assignments),
         )
 
         # Pure result: tuple of observations and tuple of control_events.

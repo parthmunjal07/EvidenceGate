@@ -1,0 +1,15 @@
+{
+  "schema_version": "evidencegate-replay-manifest-v1",
+  "source_id": "fixture-dns-forward",
+  "source_kind": "DERIVED",
+  "input_observation_contract": "REPLAY_TYPED_V1",
+  "timestamp_semantics": "SOURCE_EVENT_TIME",
+  "direction_basis": "CLIENT_SERVER_ROLE",
+  "wire_direction": "FORWARD",
+  "visibility": {"available": [], "unavailable": [], "degraded": []},
+  "quality": {"packet_loss": "UNKNOWN", "sampling": "UNKNOWN", "parser": "CLEAR", "capture_gap": "UNKNOWN"},
+  "event_time_order": "NONDECREASING",
+  "record_count": 1,
+  "capture_start": "2026-01-01T00:00:00Z",
+  "capture_end": "2026-01-01T00:00:00Z"
+}
