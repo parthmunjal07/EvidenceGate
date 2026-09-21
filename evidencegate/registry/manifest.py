@@ -58,3 +58,11 @@ class PluginManifest:
     mechanism_id: str | None = None
     # Engineering capacity/retention limits; never a scientific window.
     state_resource_policy: StateResourcePolicy | None = None
+    # Immutable runtime-owned configuration provenance for result finalization.
+    config_hash: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.config_hash is not None and (
+            not isinstance(self.config_hash, str) or not self.config_hash.strip()
+        ):
+            raise ValueError("config_hash must be a non-empty string or None")

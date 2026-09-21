@@ -214,6 +214,7 @@ class LaneShard:
                         quality_degraded=self._quality_degraded,
                         trigger_reference=trigger,
                         state_version=state_version,
+                        config_hash=self.plugin.manifest().config_hash,
                     ),
                 )
 
@@ -386,6 +387,7 @@ class LaneShard:
                                 quality_snapshot=observation.quality,
                                 visibility_snapshot=observation.visibility,
                                 state_version=state.version if state is not None else None,
+                                config_hash=self.plugin.manifest().config_hash,
                                 parser_refs=parser_refs_from_observation(observation),
                             ),
                         )
