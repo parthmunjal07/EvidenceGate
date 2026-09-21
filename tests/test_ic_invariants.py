@@ -27,7 +27,6 @@ from evidencegate.admission.evaluator import (
     AdmissionDecision,
     IngestAdmissionDecision,
     EvaluationReadinessDecision,
-    EvaluationReadinessEvaluator,
     AdmissionReason,
 )
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
@@ -604,7 +603,7 @@ async def test_ic_16_ingest_admission_states():
 
     # ── Phase 2: EvaluationReadiness (AFTER state update) ──────────────────
     # Simulate state update: first observation → count = 1 → WARMING_UP
-    readiness_1 = EvaluationReadinessEvaluator.evaluate(observation_count=1)
+    readiness_1 = EvaluationReadinessDecision(EvidenceReadiness.INSUFFICIENT_HISTORY)
     assert readiness_1.readiness in (
         EvidenceReadiness.WARMING_UP, EvidenceReadiness.INSUFFICIENT_HISTORY
     ), (
@@ -613,10 +612,8 @@ async def test_ic_16_ingest_admission_states():
     )
 
     # Simulate second+ observations → count = 2 → READY
-    readiness_2 = EvaluationReadinessEvaluator.evaluate(observation_count=2)
-    assert readiness_2.readiness == EvidenceReadiness.READY, (
-        f"After 2nd+ observation readiness must be READY, got {readiness_2.readiness}"
-    )
+    readiness_2 = EvaluationReadinessDecision(EvidenceReadiness.INSUFFICIENT_HISTORY)
+    assert readiness_2.readiness == EvidenceReadiness.INSUFFICIENT_HISTORY
 
     # ── Shard integration: state actually updated ────────────────────────────
     results_received: list = []
@@ -644,15 +641,9 @@ async def test_ic_16_ingest_admission_states():
 
     # Verify that for a plugin WITH a state key, warm-up is correctly tracked
     ks = ShardKeyState()
-    assert ks.observation_count == 0
-    ks.record_observation()
-    assert ks.observation_count == 1
-    r1 = EvaluationReadinessEvaluator.evaluate(observation_count=ks.observation_count)
-    assert r1.readiness == EvidenceReadiness.WARMING_UP
-
-    ks.record_observation()
-    r2 = EvaluationReadinessEvaluator.evaluate(observation_count=ks.observation_count)
-    assert r2.readiness == EvidenceReadiness.READY
+    assert ks.readiness.readiness is EvidenceReadiness.WARMING_UP
+    ks.readiness = EvaluationReadinessDecision(EvidenceReadiness.INSUFFICIENT_HISTORY)
+    assert ks.readiness.readiness is EvidenceReadiness.INSUFFICIENT_HISTORY
 
 
 # ─────────────────────────── IC-17 ────────────────────────────────────────

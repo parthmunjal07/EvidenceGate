@@ -79,7 +79,7 @@ class AdmissionEvaluator:
     contract, minimum quality/visibility, and governance ingest_permitted.
 
     It must NOT check WARMING_UP / INSUFFICIENT_HISTORY / STATE_EVICTED;
-    those are EvaluationReadinessEvaluator concerns.
+    those are mechanism-owned evaluation-readiness concerns.
     """
     @staticmethod
     def evaluate(
@@ -88,7 +88,6 @@ class AdmissionEvaluator:
         governance: LaneGovernance,
     ) -> IngestAdmissionDecision:
         reasons: list[AdmissionReason] = []
-
         # Check governance ingest permission
         if not governance.ingest_permitted:
             reasons.append(AdmissionReason.ANALYTIC_UNAVAILABLE)
@@ -131,49 +130,3 @@ class AdmissionEvaluator:
             quality_ref=observation.quality_ref,
             governance_version=governance.governance_version,
         )
-
-
-# ---------------------------------------------------------------------------
-# Evaluation Readiness Evaluator
-# ---------------------------------------------------------------------------
-
-class EvaluationReadinessEvaluator:
-    """
-    Phase 2 evaluation readiness check. Runs after factual state update.
-    Returns an EvaluationReadinessDecision describing the lifecycle state.
-    Never rejects an observation from ingest; only advises on evaluation.
-    """
-    @staticmethod
-    def evaluate(
-        observation_count: int,
-        state_evicted: bool = False,
-        terminal_pending: bool = False,
-        warmup_threshold: int = 1,
-    ) -> EvaluationReadinessDecision:
-        """
-        Minimal scaffold readiness lifecycle.
-
-        - observation_count == 0: should not happen post-update, but guard.
-        - observation_count <= warmup_threshold: WARMING_UP.
-        - observation_count > warmup_threshold: READY.
-        - state_evicted=True: STATE_EVICTED (takes precedence).
-        - terminal_pending=True: TERMINAL_EVIDENCE_PENDING.
-
-        No threat-specific thresholds, windows, or science.
-        """
-        if state_evicted:
-            return EvaluationReadinessDecision(
-                readiness=EvidenceReadiness.STATE_EVICTED,
-                reason="State was evicted; evidence continuity broken.",
-            )
-        if terminal_pending:
-            return EvaluationReadinessDecision(
-                readiness=EvidenceReadiness.TERMINAL_EVIDENCE_PENDING,
-                reason="Waiting for terminal evidence.",
-            )
-        if observation_count <= warmup_threshold:
-            return EvaluationReadinessDecision(
-                readiness=EvidenceReadiness.WARMING_UP,
-                reason=f"Only {observation_count} observation(s) seen; warming up.",
-            )
-        return EvaluationReadinessDecision(readiness=EvidenceReadiness.READY)

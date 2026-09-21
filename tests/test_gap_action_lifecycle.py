@@ -16,6 +16,8 @@ from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.payloads import PacketObservation
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.registry.plugin import PluginProcessOutcome, StateKey, StateTransitionRequest
+from evidencegate.registry.manifest import StateResourcePolicy
+from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.results.types import ResultDraft
 from evidencegate.runtime.dispatcher import LaneDispatcher
 from evidencegate.runtime.shard import LaneShard
@@ -52,7 +54,8 @@ class StatefulPlugin(BasicScaffoldPlugin):
         self.action, self.contexts, self.calls = action, [], 0
 
     def manifest(self):
-        return replace(super().manifest(), plugin_id="gap-fixture", gap_action=self.action)
+        return replace(super().manifest(), plugin_id="gap-fixture", gap_action=self.action,
+                       state_resource_policy=StateResourcePolicy(10, timedelta(minutes=10)))
 
     def state_key(self, observation):
         return StateKey(observation.observation_id.split("-")[1])
@@ -63,7 +66,8 @@ class StatefulPlugin(BasicScaffoldPlugin):
         count = 1 if state is None else state.payload["count"] + 1
         return PluginProcessOutcome((ResultDraft(ResultType.REVIEW_FINDING, "generic", (observation.observation_id,), ()),),
             StateTransitionRequest(self.state_key(observation), None if state is None else state.version,
-                StateOperation.UPSERT, {"count": count}, timedelta(minutes=5)))
+                StateOperation.UPSERT, {"count": count}, timedelta(minutes=5)),
+            EvaluationReadinessDecision(EvidenceReadiness.READY))
 
 
 async def emit(target, item):
@@ -149,7 +153,7 @@ async def test_abstain_commits_facts_but_suppresses_results_until_explicit_resol
     await run_shard(shard, obs(2))
     entry = shard.state_store.read("gap-fixture", "a", obs(2).event_time)
     assert plugin.calls == 1 and entry.payload == {"count": 1} and results == []
-    assert plugin.contexts[-1]["readiness"].readiness is EvidenceReadiness.ABSTAINING
+    assert plugin.contexts[-1]["readiness"].readiness is EvidenceReadiness.WARMING_UP
     await d.resolve_gap(gap.gap_id)
     await run_shard(shard, obs(3))
     assert len(results) == 1

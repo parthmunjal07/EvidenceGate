@@ -44,7 +44,14 @@ class RuntimeSupervisor:
         self.router = RelevanceRouter(plugins)
         self.state_stores: Dict[LaneTarget, StateStore] = {
             # Explicit lane watermarks, not observation timestamps, own expiry.
-            target: StateStore(expire_on_access=False) for target in plugins.keys()
+            # The manifest limit is an engineering bound, never a scientific window.
+            target: StateStore(
+                max_entries=(plugin.manifest().state_resource_policy.max_entries
+                             if plugin.manifest().state_resource_policy is not None
+                             else StateStore.DEFAULT_MAX_ENTRIES),
+                expire_on_access=False,
+            )
+            for target, plugin in plugins.items()
         }
         
         self.shards: Dict[LaneTarget, list[LaneShard]] = {}

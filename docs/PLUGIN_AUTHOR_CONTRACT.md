@@ -12,6 +12,8 @@ Define a static `PluginManifest` with the plugin boundary: accepted observation 
 - `state_key()` extracts the identifier used for deterministic sharding; plugins cannot access global cross-shard memory.
 - `process()` receives a defensive, versioned state snapshot. It may calculate one declarative transition but must not mutate runtime state, open external database connections, publish to message buses, or block the event loop with synchronous I/O.
 - A stateful result records the exact version of the snapshot read. Stateless evaluation uses `None`, never a fabricated version zero.
+- Every stateful `process()` outcome must supply an `EvaluationReadinessDecision`. The mechanism decides readiness from its prior snapshot and current observation; the runtime never promotes readiness from an event count. Stateless outcomes default to `READY`.
+- Stateful manifests declare `StateResourcePolicy(max_entries, max_ttl)`. These are runtime engineering limits, not scientific history horizons or detection windows. An UPSERT whose TTL exceeds `max_ttl` is rejected rather than clamped.
 
 ## Result drafts and factual evidence
 

@@ -16,6 +16,8 @@ from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.payloads import PacketObservation
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.registry.plugin import PluginProcessOutcome, StateKey, StateTransitionRequest
+from evidencegate.registry.manifest import StateResourcePolicy
+from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.results.types import ResultDraft
 from evidencegate.runtime.dispatcher import LaneDispatcher, WatermarkError
 from evidencegate.runtime.shard import LaneShard
@@ -54,7 +56,8 @@ class LifecyclePlugin(BasicScaffoldPlugin):
         self.illegal_callback = None
 
     def manifest(self):
-        return replace(super().manifest(), plugin_id="lifecycle-fixture", gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG)
+        return replace(super().manifest(), plugin_id="lifecycle-fixture", gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
+                       state_resource_policy=StateResourcePolicy(10, timedelta(minutes=10)))
 
     def state_key(self, item):
         return StateKey(item.observation_id.split("-")[1])
@@ -63,7 +66,8 @@ class LifecyclePlugin(BasicScaffoldPlugin):
         self.process_calls += 1
         count = 1 if state is None else state.payload["count"] + 1
         return PluginProcessOutcome((), StateTransitionRequest(self.state_key(item), None if state is None else state.version,
-            StateOperation.UPSERT, {"count": count}, TTL))
+            StateOperation.UPSERT, {"count": count}, TTL),
+            EvaluationReadinessDecision(EvidenceReadiness.READY))
 
     async def on_expire(self, key, context, state):
         self.order.append(("expire", str(key)))
@@ -130,7 +134,7 @@ async def test_watermark_expiry_order_readiness_and_monotonicity():
         assert dispatcher.watermark == expiry
         await ingest(dispatcher, shards, observation(12, "a"))
         owning_shard = next(shard for shard in shards if "a" in shard._key_states)
-        assert owning_shard.get_readiness("a").readiness is EvidenceReadiness.WARMING_UP
+        assert owning_shard.get_readiness("a").readiness is EvidenceReadiness.READY
     finally:
         await close(dispatcher, shards)
 

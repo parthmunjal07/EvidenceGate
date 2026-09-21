@@ -12,7 +12,7 @@ from evidencegate.domain.enums import (
     DirectionBasis, Finality, ObservationType,
     OperationalHealth,
     ResultType,
-    ScientificStatus, SourceKind, WireDirection,
+    ScientificStatus, SourceKind, WireDirection, EvidenceReadiness,
 )
 from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.governance import LaneGovernance
@@ -24,6 +24,7 @@ from evidencegate.registry.plugin import (
     StateKey,
     StateTransitionRequest,
 )
+from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.results.types import ResultDraft
 from evidencegate.runtime.dispatcher import LaneDispatcher
 from evidencegate.runtime.shard import LaneShard
@@ -237,12 +238,13 @@ async def test_state_transition_failure_emits_error_without_result_or_mutation()
                         missing_prerequisites=(),
                     ),
                 ),
-                state_transition=StateTransitionRequest(
-                    key=key,
-                    expected_version=expected,
-                    operation=StateOperation.NO_CHANGE,
-                ),
-            )
+                    state_transition=StateTransitionRequest(
+                        key=key,
+                        expected_version=expected,
+                        operation=StateOperation.NO_CHANGE,
+                    ),
+                    evaluation_readiness=EvaluationReadinessDecision(EvidenceReadiness.READY),
+                )
 
     plugin = TransitionPlugin()
     store = StateStore()

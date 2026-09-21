@@ -7,6 +7,7 @@ from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.quality import QualityGap
 from evidencegate.results.types import ResultDraft
 from evidencegate.runtime.state_contract import StateKey, StateOperation
+from evidencegate.admission.evaluator import EvaluationReadinessDecision
 
 if TYPE_CHECKING:
     from evidencegate.runtime.state import StateEntry
@@ -48,6 +49,8 @@ class PluginProcessOutcome:
 
     result_drafts: tuple[ResultDraft, ...] = ()
     state_transition: StateTransitionRequest | None = None
+    # Stateful invocations must explicitly supply this mechanism decision.
+    evaluation_readiness: EvaluationReadinessDecision | None = None
 
 class AnalyticPlugin(Protocol):
     def manifest(self) -> PluginManifest: ...

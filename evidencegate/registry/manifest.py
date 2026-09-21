@@ -1,9 +1,28 @@
 from dataclasses import dataclass
+from datetime import timedelta
 from evidencegate.domain.enums import (
     AvailabilityBasis, Finality, GapAction, IntegrationStatus, ObservationType,
     ResultType, VisibilityCapability, OfficialPsCategory, AnalyticFamily,
 )
 from evidencegate.domain.quality import QualityRequirement
+
+
+@dataclass(frozen=True, slots=True)
+class StateResourcePolicy:
+    """Runtime resource limits, deliberately separate from mechanism science."""
+
+    max_entries: int
+    max_ttl: timedelta
+
+    def __post_init__(self) -> None:
+        if isinstance(self.max_entries, bool) or not isinstance(self.max_entries, int):
+            raise TypeError("max_entries must be a non-bool integer")
+        if self.max_entries <= 0:
+            raise ValueError("max_entries must be greater than zero")
+        if not isinstance(self.max_ttl, timedelta):
+            raise TypeError("max_ttl must be a timedelta")
+        if self.max_ttl <= timedelta(0):
+            raise ValueError("max_ttl must be positive")
 
 @dataclass(frozen=True, slots=True)
 class PluginManifest:
@@ -37,3 +56,5 @@ class PluginManifest:
     official_ps_category: OfficialPsCategory | None = None
     analytic_family: AnalyticFamily | None = None
     mechanism_id: str | None = None
+    # Engineering capacity/retention limits; never a scientific window.
+    state_resource_policy: StateResourcePolicy | None = None

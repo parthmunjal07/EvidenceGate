@@ -33,10 +33,7 @@ from evidencegate.runtime.state import StateEntry, StateOperation, StateStore
 from evidencegate.runtime.provenance import parser_refs_from_observation
 from evidencegate.results.types import ResultDraft, Result_T
 from evidencegate.results.finalizer import ResultEmissionContext
-from evidencegate.admission.evaluator import (
-    EvaluationReadinessEvaluator,
-    EvaluationReadinessDecision,
-)
+from evidencegate.admission.evaluator import EvaluationReadinessDecision
 
 
 logger = logging.getLogger(__name__)
@@ -48,22 +45,14 @@ class ShardKeyState:
     Per-state-key metadata tracked by the shard for readiness lifecycle.
     No threat science here — only counts to determine warm-up progression.
     """
-    __slots__ = ("observation_count", "evicted", "abstaining_gap_ids")
+    __slots__ = ("readiness", "abstaining_gap_ids")
 
     def __init__(self) -> None:
-        self.observation_count: int = 0
-        self.evicted: bool = False
+        self.readiness = EvaluationReadinessDecision(EvidenceReadiness.WARMING_UP)
         self.abstaining_gap_ids: set[str] = set()
 
-    def record_observation(self) -> None:
-        self.observation_count += 1
-
-    def mark_evicted(self) -> None:
-        self.evicted = True
-
     def reenter_warmup(self) -> None:
-        self.observation_count = 0
-        self.evicted = False
+        self.readiness = EvaluationReadinessDecision(EvidenceReadiness.WARMING_UP)
 
     @property
     def abstaining(self) -> bool:
@@ -271,10 +260,7 @@ class LaneShard:
         ks = self._key_states.get(state_key)
         if ks is None:
             return EvaluationReadinessDecision(readiness=EvidenceReadiness.WARMING_UP)
-        return EvaluationReadinessEvaluator.evaluate(
-            observation_count=ks.observation_count,
-            state_evicted=ks.evicted,
-        )
+        return ks.readiness
 
     async def _consume(self) -> None:
         while True:
@@ -298,30 +284,15 @@ class LaneShard:
                         if entry is not None
                         else None
                     )
-                    # Update key tracking BEFORE readiness evaluation
                     if key_str not in self._key_states:
                         self._key_states[key_str] = ShardKeyState()
-                    self._key_states[key_str].record_observation()
 
                 # ── Evaluation Readiness ─────────────────────────────────────
                 # Computed AFTER state update so it reflects the new count.
-                readiness_decision = EvaluationReadinessEvaluator.evaluate(
-                    observation_count=(
-                        self._key_states[key_str].observation_count
-                        if key_str is not None
-                        else 1  # stateless observations are always ready
-                    ),
-                    state_evicted=(
-                        self._key_states[key_str].evicted
-                        if key_str is not None
-                        else False
-                    ),
+                readiness_decision = (
+                    self._key_states[key_str].readiness if key_str is not None
+                    else EvaluationReadinessDecision(EvidenceReadiness.READY)
                 )
-                if key_str is not None and self._key_states[key_str].abstaining:
-                    readiness_decision = EvaluationReadinessDecision(
-                        readiness=EvidenceReadiness.ABSTAINING,
-                        reason="affected quality gap remains active",
-                    )
 
                 context = {
                     "readiness": readiness_decision,
@@ -332,6 +303,23 @@ class LaneShard:
                 outcome = await self.plugin.process(observation, context, state)
                 if not isinstance(outcome, PluginProcessOutcome):
                     raise TypeError("plugin process must return PluginProcessOutcome")
+
+                # A stateful mechanism, rather than the runtime, owns its
+                # readiness. Validate before publication; factual transition
+                # remains eligible to commit below.
+                readiness_error = None
+                if state_key is not None:
+                    if not isinstance(outcome.evaluation_readiness, EvaluationReadinessDecision):
+                        readiness_error = ValueError(
+                            "stateful plugin process outcome must declare evaluation_readiness"
+                        )
+                    else:
+                        readiness_decision = outcome.evaluation_readiness
+                        self._key_states[key_str].readiness = readiness_decision
+                elif outcome.evaluation_readiness is not None:
+                    if not isinstance(outcome.evaluation_readiness, EvaluationReadinessDecision):
+                        raise TypeError("evaluation_readiness must be EvaluationReadinessDecision")
+                    readiness_decision = outcome.evaluation_readiness
 
                 transition = outcome.state_transition
                 if transition is not None:
@@ -347,6 +335,12 @@ class LaneShard:
                         raise ValueError(
                             "state transition key must match plugin.state_key(observation)"
                         )
+                    if transition.operation is StateOperation.UPSERT:
+                        policy = self.plugin.manifest().state_resource_policy
+                        if policy is None:
+                            raise ValueError("stateful UPSERT requires manifest.state_resource_policy")
+                        if transition.ttl is not None and transition.ttl > policy.max_ttl:
+                            raise ValueError("state transition TTL exceeds manifest state resource policy")
 
                     transition_result = self.state_store.transition(
                         namespace=self.plugin.manifest().plugin_id,
@@ -362,6 +356,9 @@ class LaneShard:
                         StateOperation.REENTER_WARMUP,
                     ):
                         self._key_states[key_str].reenter_warmup()
+
+                if readiness_error is not None:
+                    raise readiness_error
 
                 abstaining = key_str is not None and self._key_states[key_str].abstaining
                 if not abstaining:

@@ -21,6 +21,8 @@ from evidencegate.registry.plugin import (
     StateKey,
     StateTransitionRequest,
 )
+from evidencegate.registry.manifest import StateResourcePolicy
+from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.results.types import ResultDraft
 from evidencegate.runtime.shard import LaneShard
 from evidencegate.runtime.state import StateOperation, StateStore
@@ -88,7 +90,8 @@ class GenericStatefulPlugin(BasicScaffoldPlugin):
         self.expected_version_override: int | None | object = _UNSET
 
     def manifest(self):
-        return replace(super().manifest(), plugin_id="generic_state_fixture")
+        return replace(super().manifest(), plugin_id="generic_state_fixture",
+                       state_resource_policy=StateResourcePolicy(10, timedelta(minutes=10)))
 
     def state_key(self, observation: NetworkObservation) -> StateKey:
         return KEY
@@ -122,7 +125,11 @@ class GenericStatefulPlugin(BasicScaffoldPlugin):
             evidence_items=(observation.observation_id,),
             missing_prerequisites=(),
         )
-        return PluginProcessOutcome((draft,), transition)
+        readiness = (EvidenceReadiness.INSUFFICIENT_HISTORY
+                     if payload is not None and payload["count"] < 2
+                     else EvidenceReadiness.READY)
+        return PluginProcessOutcome((draft,), transition,
+                                    EvaluationReadinessDecision(readiness))
 
 
 _UNSET = object()

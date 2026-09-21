@@ -69,6 +69,8 @@ class StateStore:
     kept separate from any plugin-defined scientific history window.
     """
 
+    DEFAULT_MAX_ENTRIES = DEFAULT_MAX_ENTRIES
+
     def __init__(
         self, max_entries: int = DEFAULT_MAX_ENTRIES, *, expire_on_access: bool = True
     ) -> None:
