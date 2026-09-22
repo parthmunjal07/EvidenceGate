@@ -8,7 +8,7 @@ Classification: **PRE-DGA CURRENT-MVP STACK CHARACTERIZATION**. These controlled
 
 ```json
 {
-  "captured_at": "2026-09-22T18:19:43.831770+00:00",
+  "captured_at": "2026-09-22T18:23:27.942379+00:00",
   "os_platform": "Windows-11-10.0.26200-SP0",
   "python_version": "3.13.7",
   "cpu_logical": 18,
@@ -30,15 +30,15 @@ Both modes use the real source adapter, shared canonicalizer, default 16-target 
 
 | Source | Read | Observations | Routed updates | Finalized | Persisted | Wall seconds | Zero drop |
 |---|---:|---:|---:|---:|---:|---:|---|
-| NDJSON | 11 | 11 | 42 | 35 | 35 | 0.152203 | True |
-| PCAP | 11 | 11 | 42 | 35 | 35 | 0.10536 | True |
+| NDJSON | 11 | 11 | 42 | 35 | 35 | 0.082028 | True |
+| PCAP | 11 | 11 | 42 | 35 | 35 | 0.075716 | True |
 
 ## Persist latency
 
 | Source | p50 ms | p95 ms | p99 ms |
 |---|---:|---:|---:|
-| NDJSON | 1.1704 | 3.7278 | 29.8713 |
-| PCAP | 0.9644 | 1.6403 | 10.1099 |
+| NDJSON | 0.7405 | 3.7542 | 8.4191 |
+| PCAP | 0.7176 | 2.4165 | 7.3171 |
 
 Structural time-to-signal remains a mechanism-evidence property. End-to-end evidence latency is not combined with historical capture timestamps. Replay wall duration is reported separately.
 
@@ -46,8 +46,8 @@ Structural time-to-signal remains a mechanism-evidence property. End-to-end evid
 
 | Source | RSS start | RSS peak | RSS end | Active state end | Peak reorder | SQLite bytes |
 |---|---:|---:|---:|---:|---:|---:|
-| NDJSON | 46882816 | 47484928 | 47542272 | 14 | 1 | 417792 |
-| PCAP | 47607808 | 48009216 | 48009216 | 14 | 1 | 417792 |
+| NDJSON | 46817280 | 47616000 | 47616000 | 14 | 1 | 417792 |
+| PCAP | 47730688 | 48009216 | 48009216 | 14 | 1 | 417792 |
 
 ## Quality and capacity
 

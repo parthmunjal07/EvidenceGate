@@ -3,7 +3,7 @@
   "default_target_count": 16,
   "dga_model_active": false,
   "environment": {
-    "captured_at": "2026-09-22T18:19:43.831770+00:00",
+    "captured_at": "2026-09-22T18:23:27.942379+00:00",
     "cpu_logical": 18,
     "cpu_physical": 14,
     "dependency_versions": {
@@ -59,7 +59,7 @@
         "state_capacity_events": 0
       },
       "database": {
-        "path": "C:\\Users\\tanej\\Desktop\\Projects\\sih26145\\benchmark_results\\current-stack-ndjson-g3ta_kll.db",
+        "path": "C:\\Users\\tanej\\Desktop\\Projects\\sih26145\\benchmark_results\\current-stack-ndjson-0z19fnxd.db",
         "pragmas": {
           "foreign_keys": "ON",
           "journal_mode": "WAL",
@@ -70,23 +70,23 @@
       "memory": {
         "active_state_entries_end": 14,
         "peak_reorder_occupancy": 1,
-        "rss_end_bytes": 47542272,
-        "rss_peak_bytes": 47484928,
-        "rss_start_bytes": 46882816,
+        "rss_end_bytes": 47616000,
+        "rss_peak_bytes": 47616000,
+        "rss_start_bytes": 46817280,
         "sqlite_file_size_bytes": 417792
       },
       "scenario": "controlled DDoS + Recon parity",
       "source_type": "NDJSON",
       "speed": 0,
       "timing": {
-        "controlled_processing_rate_observations_per_second": 72.272,
+        "controlled_processing_rate_observations_per_second": 134.1,
         "end_to_end_evidence_latency": "not measured; capture event time is historical",
         "persist_latency": {
-          "p50_ms": 1.1704,
-          "p95_ms": 3.7278,
-          "p99_ms": 29.8713
+          "p50_ms": 0.7405,
+          "p95_ms": 3.7542,
+          "p99_ms": 8.4191
         },
-        "replay_wall_seconds": 0.152203,
+        "replay_wall_seconds": 0.082028,
         "structural_time_to_signal": "reported by mechanism evidence, not benchmark-combined"
       },
       "zero_drop": true
@@ -125,7 +125,7 @@
         "state_capacity_events": 0
       },
       "database": {
-        "path": "C:\\Users\\tanej\\Desktop\\Projects\\sih26145\\benchmark_results\\current-stack-pcap-1_lsyuar.db",
+        "path": "C:\\Users\\tanej\\Desktop\\Projects\\sih26145\\benchmark_results\\current-stack-pcap-v4g79cpu.db",
         "pragmas": {
           "foreign_keys": "ON",
           "journal_mode": "WAL",
@@ -138,21 +138,21 @@
         "peak_reorder_occupancy": 1,
         "rss_end_bytes": 48009216,
         "rss_peak_bytes": 48009216,
-        "rss_start_bytes": 47607808,
+        "rss_start_bytes": 47730688,
         "sqlite_file_size_bytes": 417792
       },
       "scenario": "controlled DDoS + Recon raw PCAP",
       "source_type": "PCAP",
       "speed": 0,
       "timing": {
-        "controlled_processing_rate_observations_per_second": 104.404,
+        "controlled_processing_rate_observations_per_second": 145.279,
         "end_to_end_evidence_latency": "not measured; capture event time is historical",
         "persist_latency": {
-          "p50_ms": 0.9644,
-          "p95_ms": 1.6403,
-          "p99_ms": 10.1099
+          "p50_ms": 0.7176,
+          "p95_ms": 2.4165,
+          "p99_ms": 7.3171
         },
-        "replay_wall_seconds": 0.10536,
+        "replay_wall_seconds": 0.075716,
         "structural_time_to_signal": "reported by mechanism evidence, not benchmark-combined"
       },
       "zero_drop": true

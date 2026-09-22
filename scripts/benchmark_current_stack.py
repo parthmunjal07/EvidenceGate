@@ -99,6 +99,7 @@ async def _run_mode(
         sampling = False
         await sampler
         rss_end = process.memory_info().rss
+        rss_peak = max(rss_peak, rss_end)
         active_state_entries = sum(len(store) for store in supervisor.state_stores.values())
         peak_reorder = max(
             (dispatcher.peak_pending_reorder_total for dispatcher in supervisor.dispatchers.values()),
