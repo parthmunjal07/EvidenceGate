@@ -72,3 +72,94 @@ class DdosASynConfig:
             config_status="POC_OR_EXPERIMENT_ONLY",
             science_admitted=False,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class DdosWindowConfig:
+    """Scientific/reference configuration for one factual event-time window."""
+
+    config_id: str
+    measurement_window: timedelta
+    target_role_label: str
+    service_role_label: str
+    packet_length_key: str
+    config_status: str
+    science_admitted: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.config_id, str) or not self.config_id.strip():
+            raise ValueError("config_id must be a non-empty string")
+        if not isinstance(self.measurement_window, timedelta):
+            raise TypeError("measurement_window must be a timedelta")
+        if self.measurement_window <= timedelta(0):
+            raise ValueError("measurement_window must be positive")
+        labels = (self.target_role_label, self.service_role_label)
+        if any(not isinstance(label, str) or not label.strip() for label in labels):
+            raise ValueError("role labels must be non-empty strings")
+        if self.target_role_label == self.service_role_label:
+            raise ValueError("target and service role labels must be distinct")
+        if not isinstance(self.packet_length_key, str) or not self.packet_length_key:
+            raise ValueError("packet_length_key must be a non-empty string")
+        if not isinstance(self.config_status, str) or not self.config_status.strip():
+            raise ValueError("config_status must be a non-empty string")
+        if not isinstance(self.science_admitted, bool):
+            raise TypeError("science_admitted must be bool")
+
+    @property
+    def canonical_hash(self) -> str:
+        value = {
+            "config_status": self.config_status,
+            "measurement_window_microseconds": int(
+                self.measurement_window.total_seconds() * 1_000_000
+            ),
+            "packet_length_key": self.packet_length_key,
+            "science_admitted": self.science_admitted,
+            "service_role_label": self.service_role_label,
+            "target_role_label": self.target_role_label,
+        }
+        encoded = json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode("utf-8")
+        return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+    @classmethod
+    def reference_poc_v1(cls) -> "DdosWindowConfig":
+        return cls(
+            config_id=f"{cls.__name__}-reference-poc-v1",
+            measurement_window=timedelta(seconds=1),
+            target_role_label="target_id",
+            service_role_label="service_id",
+            packet_length_key="ip",
+            config_status="POC_OR_EXPERIMENT_ONLY",
+            science_admitted=False,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class DdosUdpDemandConfig(DdosWindowConfig):
+    """Controlled reference configuration for DDOS-B-B0."""
+
+
+@dataclass(frozen=True, slots=True)
+class DdosReflectionVictimConfig(DdosWindowConfig):
+    """Controlled reference configuration for DDOS-CV-B0."""
+
+
+@dataclass(frozen=True, slots=True)
+class DdosSourceDiversityConfig(DdosWindowConfig):
+    """Controlled reference configuration for DDOS-D-B0."""
+
+
+@dataclass(frozen=True, slots=True)
+class DdosIcmpDemandConfig(DdosWindowConfig):
+    """Controlled reference configuration for DDOS-E1-B0."""
+
+
+@dataclass(frozen=True, slots=True)
+class DdosFragmentDemandConfig(DdosWindowConfig):
+    """Controlled reference configuration for DDOS-E2-B0."""
+
+
+@dataclass(frozen=True, slots=True)
+class DdosConnectionChurnConfig(DdosWindowConfig):
+    """Controlled reference configuration for DDOS-E3-B0."""
