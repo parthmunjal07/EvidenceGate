@@ -1,0 +1,162 @@
+{
+  "classification": "PRE-DGA CURRENT-MVP STACK CHARACTERIZATION",
+  "default_target_count": 16,
+  "dga_model_active": false,
+  "environment": {
+    "captured_at": "2026-09-22T18:19:43.831770+00:00",
+    "cpu_logical": 18,
+    "cpu_physical": 14,
+    "dependency_versions": {
+      "dpkt": "1.9.8",
+      "evidencegate": "0.1.0",
+      "fastapi": "0.141.1",
+      "psutil": "7.0.0",
+      "pydantic": "2.13.5"
+    },
+    "os_platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.13.7",
+    "ram_total_bytes": 16568107008
+  },
+  "limitations": [
+    "single development host and short deterministic private-network fixtures",
+    "processing latency is not independently instrumented; persistence latency is reported",
+    "no UI subscriber was attached, so SSE drops are zero by construction",
+    "results must be rerun after DGA model integration"
+  ],
+  "production_throughput_claim": false,
+  "runs": [
+    {
+      "active_lane_ids": [
+        "c2.r1",
+        "ddos.connection_churn",
+        "ddos.fragment_demand",
+        "ddos.icmp_demand",
+        "ddos.reflection_victim",
+        "ddos.source_diversity",
+        "ddos.syn_state",
+        "ddos.udp_demand",
+        "dga",
+        "dns_tunnelling.t1",
+        "encrypted_session.enc_a",
+        "recon.2d",
+        "recon.h",
+        "recon.tcp",
+        "recon.v",
+        "unusual_transfer.m1"
+      ],
+      "active_target_count": 16,
+      "counters": {
+        "canonical_observations_emitted": 11,
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "quality_gaps": 0,
+        "records_or_packets_read": 11,
+        "reorder_capacity_events": 0,
+        "results_finalized": 35,
+        "results_persisted": 35,
+        "routed_mechanism_updates": 42,
+        "sse_notification_drops": 0,
+        "state_capacity_events": 0
+      },
+      "database": {
+        "path": "C:\\Users\\tanej\\Desktop\\Projects\\sih26145\\benchmark_results\\current-stack-ndjson-g3ta_kll.db",
+        "pragmas": {
+          "foreign_keys": "ON",
+          "journal_mode": "WAL",
+          "synchronous": "NORMAL"
+        },
+        "type": "disk-backed SQLite"
+      },
+      "memory": {
+        "active_state_entries_end": 14,
+        "peak_reorder_occupancy": 1,
+        "rss_end_bytes": 47542272,
+        "rss_peak_bytes": 47484928,
+        "rss_start_bytes": 46882816,
+        "sqlite_file_size_bytes": 417792
+      },
+      "scenario": "controlled DDoS + Recon parity",
+      "source_type": "NDJSON",
+      "speed": 0,
+      "timing": {
+        "controlled_processing_rate_observations_per_second": 72.272,
+        "end_to_end_evidence_latency": "not measured; capture event time is historical",
+        "persist_latency": {
+          "p50_ms": 1.1704,
+          "p95_ms": 3.7278,
+          "p99_ms": 29.8713
+        },
+        "replay_wall_seconds": 0.152203,
+        "structural_time_to_signal": "reported by mechanism evidence, not benchmark-combined"
+      },
+      "zero_drop": true
+    },
+    {
+      "active_lane_ids": [
+        "c2.r1",
+        "ddos.connection_churn",
+        "ddos.fragment_demand",
+        "ddos.icmp_demand",
+        "ddos.reflection_victim",
+        "ddos.source_diversity",
+        "ddos.syn_state",
+        "ddos.udp_demand",
+        "dga",
+        "dns_tunnelling.t1",
+        "encrypted_session.enc_a",
+        "recon.2d",
+        "recon.h",
+        "recon.tcp",
+        "recon.v",
+        "unusual_transfer.m1"
+      ],
+      "active_target_count": 16,
+      "counters": {
+        "canonical_observations_emitted": 11,
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "quality_gaps": 0,
+        "records_or_packets_read": 11,
+        "reorder_capacity_events": 0,
+        "results_finalized": 35,
+        "results_persisted": 35,
+        "routed_mechanism_updates": 42,
+        "sse_notification_drops": 0,
+        "state_capacity_events": 0
+      },
+      "database": {
+        "path": "C:\\Users\\tanej\\Desktop\\Projects\\sih26145\\benchmark_results\\current-stack-pcap-1_lsyuar.db",
+        "pragmas": {
+          "foreign_keys": "ON",
+          "journal_mode": "WAL",
+          "synchronous": "NORMAL"
+        },
+        "type": "disk-backed SQLite"
+      },
+      "memory": {
+        "active_state_entries_end": 14,
+        "peak_reorder_occupancy": 1,
+        "rss_end_bytes": 48009216,
+        "rss_peak_bytes": 48009216,
+        "rss_start_bytes": 47607808,
+        "sqlite_file_size_bytes": 417792
+      },
+      "scenario": "controlled DDoS + Recon raw PCAP",
+      "source_type": "PCAP",
+      "speed": 0,
+      "timing": {
+        "controlled_processing_rate_observations_per_second": 104.404,
+        "end_to_end_evidence_latency": "not measured; capture event time is historical",
+        "persist_latency": {
+          "p50_ms": 0.9644,
+          "p95_ms": 1.6403,
+          "p99_ms": 10.1099
+        },
+        "replay_wall_seconds": 0.10536,
+        "structural_time_to_signal": "reported by mechanism evidence, not benchmark-combined"
+      },
+      "zero_drop": true
+    }
+  ],
+  "watermark": "PRE-DGA / CONTROLLED MVP / NOT PRODUCTION THROUGHPUT"
+}

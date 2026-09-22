@@ -1,3 +1,4 @@
+"""SUPERSEDED historical dummy-plugin saturation experiment; not throughput evidence."""
 import asyncio
 import time
 import psutil
@@ -50,6 +51,7 @@ async def track_system_health(metrics_q, stop_event):
         await asyncio.sleep(0.09) # Poll every 100ms roughly
 
 async def benchmark_run():
+    print("SUPERSEDED FOR FINAL THROUGHPUT CLAIMS; use benchmark_current_stack.py")
     print("Initializing benchmark...")
     
     # 1. Persistence
