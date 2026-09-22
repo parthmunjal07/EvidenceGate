@@ -5,17 +5,25 @@ from dataclasses import replace
 import pytest
 
 from evidencegate.domain.enums import (
-    AnalyticFamily, AvailabilityBasis, DirectionBasis, Finality, IntegrationStatus,
-    ObservationType, OfficialPsCategory, ResultType, ScientificStatus, SourceKind,
-    VisibilityCapability, WireDirection,
+    AnalyticFamily, AvailabilityBasis, DirectionBasis, Finality, IdentityBasis,
+    IntegrationStatus, ObservationType, OfficialPsCategory, ResultType,
+    ScientificStatus, SourceKind, VisibilityCapability, WireDirection,
 )
-from evidencegate.domain.events import NetworkObservationEnvelope, VisibilityProfile
-from evidencegate.domain.payloads import DNSObservation, FlowObservation, QUICObservation, TLSObservation
+from evidencegate.domain.events import (
+    NetworkObservationEnvelope, ObservationIdentity, RoleAssignment,
+    VisibilityProfile,
+)
+from evidencegate.domain.payloads import (
+    DNSObservation, FlowObservation, PacketObservation, QUICObservation,
+    TLSObservation,
+)
 from evidencegate.plugins.providers.registry import (
-    C2_CONTROLLED_MVP_CAPACITY, build_mvp_provider_registry,
-    build_mvp_runtime_registration,
+    C2_CONTROLLED_MVP_CAPACITY, DDOS_CONTROLLED_MVP_CAPACITY,
+    DDOS_RECON_MVP_ACTIVATION_DECISION_ID, RECON_CONTROLLED_MVP_CAPACITY,
+    build_mvp_provider_registry, build_mvp_runtime_registration,
 )
 from evidencegate.routing.router import RelevanceRouter
+from evidencegate.runtime.dispatcher import EventTimeReorderPolicy
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 from evidencegate.registry.plugin import PluginProcessOutcome, StateKey
 from evidencegate.domain.quality import QualityGap
@@ -67,11 +75,58 @@ def registry():
     return build_mvp_provider_registry(NOW)
 
 
+EXPECTED_TARGETS = {
+    "ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim",
+    "ddos.source_diversity", "ddos.icmp_demand", "ddos.fragment_demand",
+    "ddos.connection_churn", "c2.r1", "dga", "dns_tunnelling.t1",
+    "encrypted_session.enc_a", "recon.h", "recon.v", "recon.2d",
+    "recon.tcp", "unusual_transfer.m1",
+}
+
+
+def mixed_tcp_syn():
+    initiator, target = "198.51.100.10", "192.0.2.10"
+    value = observation(
+        ObservationType.PACKET,
+        PacketObservation(
+            lengths={"ip": 40}, observed_l2_facts={}, observed_l3_facts={},
+            observed_l4_facts={}, src_address=initiator, dst_address=target,
+            src_port=50000, dst_port=443, flags=["SYN"], sequence_facts=None,
+            fragmentation=None, raw_reference="fixture:tcp", protocol=6,
+        ),
+        {VisibilityCapability.PACKET_FACTS, VisibilityCapability.FORWARD_FACTS},
+    )
+    return replace(
+        value,
+        present_fields=frozenset({
+            "lengths", "protocol", "src_address", "dst_address", "src_port",
+            "dst_port", "flags",
+        }),
+        visibility=VisibilityProfile(
+            available=frozenset({
+                VisibilityCapability.PACKET_FACTS,
+                VisibilityCapability.FORWARD_FACTS,
+            }),
+            unavailable=frozenset({VisibilityCapability.REVERSE_FACTS}),
+        ),
+        identity=ObservationIdentity(
+            observed_identifiers=(initiator, target),
+            identifier_basis=IdentityBasis.OBSERVED_IDENTIFIER,
+            role_assignments=(
+                RoleAssignment(initiator, "initiator_id", IdentityBasis.SOURCE_DECLARED_ROLE),
+                RoleAssignment(target, "target_id", IdentityBasis.SOURCE_DECLARED_ROLE),
+                RoleAssignment("service/https", "service_id", IdentityBasis.SOURCE_DECLARED_ROLE),
+            ),
+        ),
+    )
+
+
 def test_exact_packages_lanes_mappings_and_governance():
     plugins, governances = registry()
-    assert set(plugins) == {"ddos", "c2.r1", "dga", "dns_tunnelling.t1", "encrypted_session.enc_a", "recon", "unusual_transfer.m1"}
+    assert set(plugins) == EXPECTED_TARGETS
+    assert "ddos" not in plugins and "recon" not in plugins
     manifests = [plugin.manifest() for plugin in plugins.values()]
-    assert len({m.plugin_id for m in manifests}) == 7
+    assert len({m.plugin_id for m in manifests}) == 16
     assert {m.official_ps_category for m in manifests} == set(OfficialPsCategory)
     assert {m.analytic_family for m in manifests} == set(AnalyticFamily)
     assert [m.analytic_family for m in manifests if m.official_ps_category is OfficialPsCategory.DGA_AND_DNS_TUNNELLING] == [AnalyticFamily.DGA, AnalyticFamily.DNS_TUNNELLING]
@@ -92,23 +147,35 @@ def test_exact_packages_lanes_mappings_and_governance():
     assert c2_r1.state_resource_policy.max_entries == 1024
     assert c2_r1.governing_decision_ids == ("C2-DEC-MVP-CAPACITY-V1",)
     assert governances["c2.r1"].governance_version == "c2-r1-mvp-0.1.0"
+    activated = tuple(
+        plugin for lane, plugin in plugins.items()
+        if str(lane).startswith(("ddos.", "recon."))
+    )
+    assert all(
+        plugin.manifest().governing_decision_ids
+        == (DDOS_RECON_MVP_ACTIVATION_DECISION_ID,)
+        for plugin in activated
+    )
 
 
 def test_structural_zero_to_many_and_protocol_distinction():
     plugins, _ = registry()
     router = RelevanceRouter(plugins)
-    assert set(router.route(flow())) == {"ddos", "recon"}
+    assert set(router.route(mixed_tcp_syn())) == {
+        "ddos.syn_state", "ddos.source_diversity", "ddos.connection_churn",
+        "recon.h", "recon.v", "recon.2d", "recon.tcp",
+    }
+    assert router.route(flow()) == ()
     assert set(router.route(dns())) == {"dga", "dns_tunnelling.t1"}
     assert router.route(tls()) == ("encrypted_session.enc_a",)
     assert router.route(quic()) == ()
 
 
 @pytest.mark.asyncio
-async def test_shells_remain_stateless_and_enc_a_only_emits_factual_review_context():
+async def test_remaining_stateless_defaults_emit_only_factual_context():
     plugins, _ = registry()
-    for plugin in plugins.values():
-        if plugin.manifest().mechanism_id == "C2-M1":
-            continue
+    for lane in ("dga", "dns_tunnelling.t1", "encrypted_session.enc_a", "unusual_transfer.m1"):
+        plugin = plugins[lane]
         candidates = (flow(), dns(), tls(), quic())
         if plugin.manifest().mechanism_id == "CAT6-EX-M1":
             candidates = (replace(
@@ -142,12 +209,34 @@ async def test_runtime_constructs_every_provider_lane_with_implemented_results()
     assert set(supervisor.dispatchers) == set(plugins) == set(supervisor.state_stores)
     supervisor.start_all()
     try:
-        assert set((await supervisor.ingest_observation(flow())).selected_targets) == {"ddos", "recon"}
-        for lane in ("ddos", "recon"):
-            await supervisor.dispatchers[lane].queue.join()
-        assert all(len(store) == 0 for store in supervisor.state_stores.values())
+        plan = await supervisor.ingest_observation(mixed_tcp_syn())
+        assert set(plan.selected_targets) == {
+            "ddos.syn_state", "ddos.source_diversity", "ddos.connection_churn",
+            "recon.h", "recon.v", "recon.2d", "recon.tcp",
+        }
         await supervisor.ingest_observation(tls())
         await supervisor.dispatchers["encrypted_session.enc_a"].queue.join()
         assert len(results) == 1
     finally:
         await supervisor.stop_all()
+
+
+def test_runtime_registration_has_exact_controlled_mvp_capacity_policies():
+    registration = build_mvp_runtime_registration(NOW)
+    policies = registration.reorder_policies
+    assert set(policies) == {
+        "c2.r1", "ddos.syn_state", "ddos.udp_demand",
+        "ddos.reflection_victim", "ddos.source_diversity", "ddos.icmp_demand",
+        "ddos.fragment_demand", "ddos.connection_churn", "recon.h", "recon.v",
+        "recon.2d", "recon.tcp",
+    }
+    assert policies["ddos.syn_state"] == EventTimeReorderPolicy(16, 2048)
+    for lane in (
+        "ddos.udp_demand", "ddos.reflection_victim", "ddos.source_diversity",
+        "ddos.icmp_demand", "ddos.fragment_demand", "ddos.connection_churn",
+    ):
+        assert policies[lane] == EventTimeReorderPolicy(256, 2048)
+    for lane in ("recon.h", "recon.v", "recon.2d", "recon.tcp"):
+        assert policies[lane] == EventTimeReorderPolicy(16, 1024)
+    assert DDOS_CONTROLLED_MVP_CAPACITY.decision_id == DDOS_RECON_MVP_ACTIVATION_DECISION_ID
+    assert RECON_CONTROLLED_MVP_CAPACITY.decision_id == DDOS_RECON_MVP_ACTIVATION_DECISION_ID

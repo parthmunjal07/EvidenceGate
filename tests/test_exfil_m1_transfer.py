@@ -80,7 +80,7 @@ async def test_measurement_evidence_rates_sampling_state_and_persistence(tmp_pat
     try:
         observation = canonical_client_only_flow({"bytes_c2s": 10, "packets_c2s": 2, "bytes_s2c": 4})
         plan = await supervisor.ingest_observation(observation)
-        assert set(plan.selected_targets) == {"ddos", "recon", LANE}
+        assert set(plan.selected_targets) == {LANE}
         await asyncio.gather(*(supervisor.dispatchers[lane].queue.join() for lane in plan.selected_targets))
         result, lane = next(item for item in results if item[1] == LANE)
         evidence = result.evidence.to_value()

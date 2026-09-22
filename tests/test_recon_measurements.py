@@ -211,9 +211,15 @@ def test_config_is_explicit_immutable_and_horizons_are_not_defaults():
         config(max_events_per_key=0)
     assert value.canonical_hash == config(config_id="renamed").canonical_hash
     assert ReconConfig.controlled_fixture_v1().config_id == "recon-controlled-fixture-v1"
+    mvp = ReconConfig.controlled_mvp_v1()
+    assert mvp.config_id == "recon-controlled-mvp-v1"
+    assert mvp.horizons == (timedelta(seconds=60), timedelta(seconds=3600))
+    assert mvp.max_events_per_key == 16
+    assert mvp.state_ttl == timedelta(seconds=3600)
+    assert mvp.canonical_hash == replace(mvp, config_id="renamed").canonical_hash
 
 
-def test_manifests_are_independent_bounded_and_default_registry_stays_shell():
+def test_manifests_are_independent_bounded_and_default_registry_is_active():
     plugins = [cls(config(), max_state_entries=17) for cls in (
         ReconHPlugin, ReconVPlugin, Recon2DPlugin, ReconTcpPlugin
     )]
@@ -222,7 +228,14 @@ def test_manifests_are_independent_bounded_and_default_registry_stays_shell():
     ]
     assert all(item.manifest().state_resource_policy.max_entries == 17 for item in plugins)
     registry, _ = build_mvp_provider_registry(NOW)
-    assert type(registry["recon"]).__name__ == "ReconShellPlugin"
+    assert "recon" not in registry
+    assert {str(lane) for lane in registry if str(lane).startswith("recon.")} == {
+        "recon.h", "recon.v", "recon.2d", "recon.tcp",
+    }
+    for lane in ("recon.h", "recon.v", "recon.2d", "recon.tcp"):
+        active = registry[lane]
+        assert active.config == ReconConfig.controlled_mvp_v1()
+        assert active.manifest().state_resource_policy.max_entries == 1024
 
 
 def test_direction_and_trusted_roles_fail_closed():
@@ -390,6 +403,25 @@ async def test_state_event_capacity_is_explicit_and_truncation_visible():
         "retained_event_count": 2, "max_events_per_key": 2,
         "capacity_dropped_event_count": 1, "capacity_truncated": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_controlled_mvp_event_capacity_boundary_16_to_17_is_explicit():
+    plugin = Recon2DPlugin(
+        ReconConfig.controlled_mvp_v1(), max_state_entries=1024
+    )
+    results, _, _ = await replay(
+        {"recon.2d": plugin},
+        tuple(packet(index, target_port=10000 + index) for index in range(17)),
+    )
+    state = evidence(results[-1][1])["state_capacity"]
+    assert state == {
+        "retained_event_count": 16, "max_events_per_key": 16,
+        "capacity_dropped_event_count": 1, "capacity_truncated": True,
+    }
+    assert evidence(results[-1][1])["quality"]["count_interpretation"] == (
+        "OBSERVED_LOWER_BOUND"
+    )
 
 
 @pytest.mark.asyncio

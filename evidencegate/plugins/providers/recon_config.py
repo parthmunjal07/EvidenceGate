@@ -78,3 +78,19 @@ class ReconConfig:
             initiator_role_label="initiator_id",
             target_role_label="target_id",
         )
+
+    @classmethod
+    def controlled_mvp_v1(cls) -> "ReconConfig":
+        """Human-gated controlled-MVP measurement configuration.
+
+        The horizons are observation windows and the retained-event limit is an
+        engineering bound.  Neither value is a malicious-scan policy.
+        """
+        return cls(
+            config_id="recon-controlled-mvp-v1",
+            horizons=(timedelta(seconds=60), timedelta(seconds=3600)),
+            max_events_per_key=16,
+            state_ttl=timedelta(seconds=3600),
+            initiator_role_label="initiator_id",
+            target_role_label="target_id",
+        )

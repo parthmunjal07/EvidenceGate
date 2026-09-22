@@ -450,7 +450,7 @@ def test_default_registry_activation_and_zero_to_many_are_compatible():
     assert "c2.r1" in plugins and plugins["c2.r1"].manifest().mechanism_id == "C2-M1"
     assert "c2" not in plugins
     selected = set(RelevanceRouter(plugins).route(flow(0)))
-    assert selected == {"ddos", "recon", "unusual_transfer.m1", "c2.r1"}
+    assert selected == {"unusual_transfer.m1", "c2.r1"}
 
 
 @pytest.mark.asyncio

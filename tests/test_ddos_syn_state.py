@@ -427,28 +427,24 @@ async def test_sqlite_v3_round_trip_preserves_ddos_a_result(tmp_path):
         writer.close()
 
 
-def test_no_alert_scoring_fields_and_default_ddos_remains_shell():
+def test_no_alert_scoring_fields_and_default_ddos_is_active():
     plugin = DdosASynPlugin(config(), max_state_entries=16)
     assert ResultType.THREAT_ALERT not in plugin.manifest().allowed_result_types
     assert plugin.manifest().state_resource_policy.max_entries == 16
     assert plugin.manifest().state_resource_policy.max_ttl == timedelta(seconds=5)
     plugins, _ = build_mvp_provider_registry(NOW)
-    assert isinstance(plugins["ddos"], DdosShellPlugin)
-    assert "ddos.syn_state" not in plugins
+    assert "ddos" not in plugins
+    assert isinstance(plugins["ddos.syn_state"], DdosASynPlugin)
     assert plugins["c2.r1"].manifest().mechanism_id == "C2-M1"
     assert not any(isinstance(value, ThreatAlert) for value in ())
 
 
-def test_explicit_lane_routes_independently_from_default_shell():
-    mechanism = DdosASynPlugin(config(), max_state_entries=16)
+def test_default_lane_routes_without_provider_shell():
     default, _ = build_mvp_provider_registry(NOW)
-    router = RelevanceRouter({
-        LaneTarget("ddos"): default["ddos"],
-        LANE: mechanism,
-    })
-    assert set(router.route(packet(0, ["SYN"], WireDirection.FORWARD))) == {
-        "ddos", "ddos.syn_state",
-    }
+    router = RelevanceRouter({LANE: default[LANE]})
+    assert router.route(packet(0, ["SYN"], WireDirection.FORWARD)) == (
+        "ddos.syn_state",
+    )
 
 
 @pytest.mark.asyncio

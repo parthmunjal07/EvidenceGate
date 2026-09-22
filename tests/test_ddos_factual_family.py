@@ -400,7 +400,9 @@ async def test_connection_churn_counts_only_initiating_syn_and_bounds_unique_tup
         packet(300, protocol=6, flags=["SYN"], src_port=50002),
         packet(400, protocol=6, flags=["SYN"], src_port=50003),
     )
-    results, _, _, _ = await run({lane: plugin}, observations)
+    results, _, _, _ = await run(
+        {lane: plugin}, observations, per_key=512, total=512
+    )
     result = results[0][1]
     assert isinstance(result, QualityDegraded)
     evidence = result.evidence.to_value()
@@ -410,6 +412,47 @@ async def test_connection_churn_counts_only_initiating_syn_and_bounds_unique_tup
     assert not plugin.route(packet(500, protocol=6, flags=["ACK"]))
     assert not plugin.route(packet(600, protocol=6, flags=["SYN", "ACK"],
                                    direction=WireDirection.REVERSE))
+
+
+@pytest.mark.asyncio
+async def test_controlled_mvp_source_capacity_boundary_256_to_257_is_explicit():
+    lane = LaneTarget("ddos.source_diversity")
+    plugin = plugin_set(source_limit=256, state_limit=512)[lane]
+    observations = tuple(
+        packet(
+            index, src=f"198.51.{index // 256}.{index % 256}",
+            src_port=10000 + index,
+        )
+        for index in range(257)
+    )
+    results, _, _, _ = await run(
+        {lane: plugin}, observations, per_key=512, total=512
+    )
+    result = results[0][1]
+    evidence = result.evidence.to_value()
+    assert isinstance(result, QualityDegraded)
+    assert evidence["apparent_source_cardinality_lower_bound"] == 256
+    assert evidence["source_capacity_reached"] is True
+    assert evidence["measurement_is_lower_bound"] is True
+
+
+@pytest.mark.asyncio
+async def test_controlled_mvp_attempt_capacity_boundary_256_to_257_is_explicit():
+    lane = LaneTarget("ddos.connection_churn")
+    plugin = plugin_set(attempt_limit=256, state_limit=512)[lane]
+    observations = tuple(
+        packet(index, protocol=6, flags=["SYN"], src_port=10000 + index)
+        for index in range(257)
+    )
+    results, _, _, _ = await run(
+        {lane: plugin}, observations, per_key=512, total=512
+    )
+    result = results[0][1]
+    evidence = result.evidence.to_value()
+    assert isinstance(result, QualityDegraded)
+    assert evidence["unique_visible_tuple_count_lower_bound"] == 256
+    assert evidence["attempt_capacity_reached"] is True
+    assert evidence["measurement_is_lower_bound"] is True
 
 
 @pytest.mark.asyncio
@@ -584,11 +627,19 @@ async def test_reorder_per_key_boundary_creates_quality_gap_without_unbounded_gr
     assert supervisor.dispatchers[lane].health.active_gaps
 
 
-def test_default_registry_remains_shell_and_no_alert_result_is_allowed():
+def test_default_registry_activates_factual_ddos_without_alert_results():
     plugins, _ = build_mvp_provider_registry(NOW)
-    assert isinstance(plugins["ddos"], DdosShellPlugin)
-    assert not any(str(lane).startswith("ddos.") for lane in plugins if lane != "ddos")
-    for plugin in plugin_set().values():
+    assert "ddos" not in plugins
+    active = {
+        str(lane): plugin for lane, plugin in plugins.items()
+        if str(lane).startswith("ddos.")
+    }
+    assert set(active) == {
+        "ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim",
+        "ddos.source_diversity", "ddos.icmp_demand", "ddos.fragment_demand",
+        "ddos.connection_churn",
+    }
+    for plugin in active.values():
         assert ResultType.THREAT_ALERT not in plugin.manifest().allowed_result_types
     assert not any(isinstance(item, ThreatAlert) for item in ())
 

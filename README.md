@@ -7,11 +7,28 @@ observations and factual analytic results.
 The implemented mechanisms are DNS-T1, ENC-A, CAT6-EX-M1, C2-R1 recurrence
 measurement, DDOS-A-B0 SYN/state, and factual bounded DDoS demand/context
 mechanisms for UDP, victim reflection shape, apparent source diversity, ICMP,
-fragments, and TCP initiating-attempt churn. The DDoS mechanisms are available
-only through explicit runtime-capacity and reorder configuration and are not
-default active; the default `ddos` lane remains the provider shell. Their
-five-second SYN TTL and one-second measurement window are controlled reference/
-POC configuration, not attack thresholds.
+fragments, and TCP initiating-attempt churn. All seven factual DDoS mechanisms
+are default active. Category-5 Recon horizontal breadth, target-port breadth,
+host-by-port geometry, and captured TCP probing-state measurements are also
+default active. The former `ddos` and `recon` provider shells are not default
+runtime targets.
+
+The DDoS SYN lane uses controlled-MVP engineering bounds of 1024 state keys,
+16 reordered events per key, and 2048 reordered events lane-wide. Each DDoS
+window lane uses 512 state keys, 256 reordered events per key, and 2048 reordered
+events lane-wide; bounded apparent-source and visible-tuple sets retain at most
+256 values where applicable. The five-second SYN TTL and one-second event-time
+measurement window remain controlled reference/POC configuration, not attack
+thresholds.
+
+Each default Recon lane uses controlled-MVP bounds of 1024 state keys, 16
+retained events per key, 16 reordered events per key, and 1024 reordered events
+lane-wide, with a 3600-second state TTL and 60/3600-second observation horizons.
+Truncation is reported as lower-bound evidence. These limits and windows are
+controlled-MVP configuration, not production sizing or malicious-scan
+thresholds. There is no DDoS verdict, malicious-scan verdict, universal score,
+confidence/severity ranking, or active DDoS/Recon ML.
+
 C2-R1 is default active with controlled-MVP engineering bounds of
 1024 state keys, 16 pending reordered events per key, and 2048 pending reordered
 events lane-wide. These are tested controlled-MVP engineering containment bounds,
