@@ -1,0 +1,1929 @@
+{
+  "aggregate_repetitions": [
+    {
+      "config": {
+        "active_key_count": 128,
+        "database_mode": "none",
+        "events_per_key": 4,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 512,
+        "same_timestamp_burst": 4,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "max_processed_observations_per_second": 298.024,
+      "median_processed_observations_per_second": 266.764,
+      "median_tracemalloc_delta_bytes": 326478,
+      "min_processed_observations_per_second": 221.588,
+      "repetitions": 3,
+      "run_ids": [
+        "a1929ce373e0",
+        "adfc7ce51695",
+        "f6ade6ba503f"
+      ]
+    },
+    {
+      "config": {
+        "active_key_count": 128,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 1024,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "max_processed_observations_per_second": 179.225,
+      "median_processed_observations_per_second": 176.022,
+      "median_tracemalloc_delta_bytes": 425582,
+      "min_processed_observations_per_second": 161.342,
+      "repetitions": 3,
+      "run_ids": [
+        "7576cfd60851",
+        "2472893e411e",
+        "95ffdf38c5e2"
+      ]
+    },
+    {
+      "config": {
+        "active_key_count": 256,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 2048,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "max_processed_observations_per_second": 213.608,
+      "median_processed_observations_per_second": 196.512,
+      "median_tracemalloc_delta_bytes": 767679,
+      "min_processed_observations_per_second": 195.905,
+      "repetitions": 3,
+      "run_ids": [
+        "bc6e57503ec1",
+        "a675332a2fcb",
+        "3868fce0fb5c"
+      ]
+    },
+    {
+      "config": {
+        "active_key_count": 257,
+        "database_mode": "none",
+        "events_per_key": 1,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "same_timestamp_burst": 1,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "max_processed_observations_per_second": 307.961,
+      "median_processed_observations_per_second": 259.322,
+      "median_tracemalloc_delta_bytes": 403573,
+      "min_processed_observations_per_second": 188.67,
+      "repetitions": 3,
+      "run_ids": [
+        "26418bdf42b3",
+        "3fc4357b51a1",
+        "aaf21541758b"
+      ]
+    },
+    {
+      "config": {
+        "active_key_count": 64,
+        "database_mode": "none",
+        "events_per_key": 4,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "same_timestamp_burst": 4,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "max_processed_observations_per_second": 317.569,
+      "median_processed_observations_per_second": 236.633,
+      "median_tracemalloc_delta_bytes": 199846,
+      "min_processed_observations_per_second": 176.729,
+      "repetitions": 3,
+      "run_ids": [
+        "6f7dcc692d4a",
+        "24ed6b0da313",
+        "4f2e64aaae3a"
+      ]
+    },
+    {
+      "config": {
+        "active_key_count": 64,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "max_processed_observations_per_second": 148.437,
+      "median_processed_observations_per_second": 128.015,
+      "median_tracemalloc_delta_bytes": 363479,
+      "min_processed_observations_per_second": 116.133,
+      "repetitions": 3,
+      "run_ids": [
+        "0296f5fcfd79",
+        "201425410f93",
+        "1134f25e0922"
+      ]
+    }
+  ],
+  "default_c2_activation": "STILL GATED",
+  "environment": {
+    "available_memory_bytes": "unavailable",
+    "captured_at": "2026-09-22T03:42:33.125598+00:00",
+    "cpu_model": "Intel64 Family 6 Model 170 Stepping 4, GenuineIntel",
+    "git_commit": "cb4008f3924133a9433bed1b2bd007fd903f8803",
+    "logical_cpu_count": 18,
+    "os": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.7"
+  },
+  "production_claim": "NONE",
+  "queue_capacities": {
+    "ingress": 2000,
+    "shard": 1000
+  },
+  "runs": [
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 64,
+        "database_mode": "none",
+        "events_per_key": 4,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 1,
+        "same_timestamp_burst": 4,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 0.809272,
+      "expected_live_state_entries": 64,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.1805,
+          "p95_ms": 0.3729,
+          "p99_ms": 0.4725,
+          "sample_count": 257
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 371.2101,
+          "p95_ms": 577.9739,
+          "p99_ms": 613.1361,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2316,
+          "p95_ms": 0.5517,
+          "p99_ms": 0.8726,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0004,
+          "p95_ms": 0.001,
+          "p99_ms": 0.0014,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.1783,
+          "p95_ms": 0.4344,
+          "p99_ms": 1.1378,
+          "sample_count": 257
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 3217.938,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5734.633,
+          "current_traced_bytes": 1468066,
+          "peak_traced_bytes": 1473274,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 205948,
+        "tracemalloc_delta_bytes": 205948,
+        "tracemalloc_peak_bytes": 1476843
+      },
+      "observations": 257,
+      "offered_observations_per_second": 317.569,
+      "offered_records_per_second": 317.569,
+      "peak_reorder_per_key": 4,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 64,
+      "pending_reorder_at_end": 0,
+      "records_read": 257,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 128,
+        "REVIEW_FINDING": 129
+      },
+      "results": 257,
+      "results_per_second": 317.569,
+      "run_id": "6f7dcc692d4a",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 317.569,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 512,
+      "config": {
+        "active_key_count": 128,
+        "database_mode": "none",
+        "events_per_key": 4,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 512,
+        "repetition": 1,
+        "same_timestamp_burst": 4,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 1.721339,
+      "expected_live_state_entries": 128,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.1771,
+          "p95_ms": 0.4305,
+          "p99_ms": 1.0045,
+          "sample_count": 513
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 849.0546,
+          "p95_ms": 1238.0646,
+          "p99_ms": 1269.7483,
+          "sample_count": 513
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2365,
+          "p95_ms": 0.6361,
+          "p99_ms": 1.8874,
+          "sample_count": 513
+        },
+        "result_persistence": {
+          "p50_ms": 0.0004,
+          "p95_ms": 0.0011,
+          "p99_ms": 0.0017,
+          "sample_count": 513
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.1842,
+          "p95_ms": 0.4519,
+          "p99_ms": 1.2983,
+          "sample_count": 513
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 2507.594,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5270.729,
+          "current_traced_bytes": 2698613,
+          "peak_traced_bytes": 2703207,
+          "pending_observations": 512,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 320972,
+        "tracemalloc_delta_bytes": 320972,
+        "tracemalloc_peak_bytes": 2714296
+      },
+      "observations": 513,
+      "offered_observations_per_second": 298.024,
+      "offered_records_per_second": 298.024,
+      "peak_reorder_per_key": 4,
+      "peak_reorder_total": 512,
+      "peak_state_entries": 128,
+      "pending_reorder_at_end": 0,
+      "records_read": 513,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 256,
+        "REVIEW_FINDING": 257
+      },
+      "results": 513,
+      "results_per_second": 298.024,
+      "run_id": "a1929ce373e0",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 298.024,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 1024,
+      "config": {
+        "active_key_count": 128,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 1024,
+        "repetition": 1,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 5.719061,
+      "expected_live_state_entries": 128,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2829,
+          "p95_ms": 0.7861,
+          "p99_ms": 3.3493,
+          "sample_count": 1025
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 3080.4077,
+          "p95_ms": 4345.1134,
+          "p99_ms": 4459.1906,
+          "sample_count": 1025
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2983,
+          "p95_ms": 1.0044,
+          "p99_ms": 3.524,
+          "sample_count": 1025
+        },
+        "result_persistence": {
+          "p50_ms": 0.0005,
+          "p95_ms": 0.0012,
+          "p99_ms": 0.0017,
+          "sample_count": 1025
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2975,
+          "p95_ms": 0.8419,
+          "p99_ms": 4.7097,
+          "sample_count": 1025
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 3327.273,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5008.744,
+          "current_traced_bytes": 5128954,
+          "peak_traced_bytes": 5131958,
+          "pending_observations": 1024,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 425891,
+        "tracemalloc_delta_bytes": 425891,
+        "tracemalloc_peak_bytes": 5144637
+      },
+      "observations": 1025,
+      "offered_observations_per_second": 179.225,
+      "offered_records_per_second": 179.225,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 1024,
+      "peak_state_entries": 128,
+      "pending_reorder_at_end": 0,
+      "records_read": 1025,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 256,
+        "REVIEW_FINDING": 769
+      },
+      "results": 1025,
+      "results_per_second": 179.225,
+      "run_id": "7576cfd60851",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 179.225,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 2048,
+      "config": {
+        "active_key_count": 256,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 2048,
+        "repetition": 1,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 10.426852,
+      "expected_live_state_entries": 256,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2034,
+          "p95_ms": 0.5351,
+          "p99_ms": 2.9787,
+          "sample_count": 2049
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 5648.9812,
+          "p95_ms": 8344.9963,
+          "p99_ms": 8403.959,
+          "sample_count": 2049
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2938,
+          "p95_ms": 0.8058,
+          "p99_ms": 3.5204,
+          "sample_count": 2049
+        },
+        "result_persistence": {
+          "p50_ms": 0.0006,
+          "p95_ms": 0.0013,
+          "p99_ms": 0.002,
+          "sample_count": 2049
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2279,
+          "p95_ms": 0.6689,
+          "p99_ms": 3.5486,
+          "sample_count": 2049
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 2997.684,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 4894.25,
+          "current_traced_bytes": 10023423,
+          "peak_traced_bytes": 10026427,
+          "pending_observations": 2048,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 767407,
+        "tracemalloc_delta_bytes": 767407,
+        "tracemalloc_peak_bytes": 10051906
+      },
+      "observations": 2049,
+      "offered_observations_per_second": 196.512,
+      "offered_records_per_second": 196.512,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 2048,
+      "peak_state_entries": 256,
+      "pending_reorder_at_end": 0,
+      "records_read": 2049,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 512,
+        "REVIEW_FINDING": 1537
+      },
+      "results": 2049,
+      "results_per_second": 196.512,
+      "run_id": "bc6e57503ec1",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 196.512,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 257,
+        "database_mode": "none",
+        "events_per_key": 1,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 1,
+        "same_timestamp_burst": 1,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 1,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 1,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 0.991046,
+      "expected_live_state_entries": 256,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2405,
+          "p95_ms": 0.5985,
+          "p99_ms": 3.2655,
+          "sample_count": 258
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 441.7333,
+          "p95_ms": 694.0991,
+          "p99_ms": 702.9904,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.1829,
+          "p95_ms": 0.4635,
+          "p99_ms": 1.9548,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0004,
+          "p95_ms": 0.001,
+          "p99_ms": 0.0013,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2346,
+          "p95_ms": 0.569,
+          "p99_ms": 2.0912,
+          "sample_count": 258
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 1582.059,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5929.316,
+          "current_traced_bytes": 1517905,
+          "peak_traced_bytes": 1521719,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 405007,
+        "tracemalloc_delta_bytes": 405007,
+        "tracemalloc_peak_bytes": 1552820
+      },
+      "observations": 258,
+      "offered_observations_per_second": 260.331,
+      "offered_records_per_second": 260.331,
+      "peak_reorder_per_key": 1,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 256,
+      "pending_reorder_at_end": 0,
+      "records_read": 258,
+      "rejected_total_observations": 1,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 257
+      },
+      "results": 257,
+      "results_per_second": 259.322,
+      "run_id": "26418bdf42b3",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "SATURATED_REORDER_TOTAL"
+      ],
+      "successfully_processed_observations_per_second": 259.322,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 64,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 1,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 256,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 256,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 2.007583,
+      "expected_live_state_entries": 32,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2203,
+          "p95_ms": 0.7832,
+          "p99_ms": 6.8255,
+          "sample_count": 513
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 1304.0973,
+          "p95_ms": 1568.2818,
+          "p99_ms": 1576.9503,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2726,
+          "p95_ms": 0.816,
+          "p99_ms": 2.7935,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0005,
+          "p95_ms": 0.0014,
+          "p99_ms": 0.0026,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.3123,
+          "p95_ms": 1.204,
+          "p99_ms": 6.7097,
+          "sample_count": 513
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 11358.719,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5726.551,
+          "current_traced_bytes": 1465997,
+          "peak_traced_bytes": 1469607,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 363479,
+        "tracemalloc_delta_bytes": 363479,
+        "tracemalloc_peak_bytes": 1906280
+      },
+      "observations": 513,
+      "offered_observations_per_second": 255.531,
+      "offered_records_per_second": 255.531,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 32,
+      "pending_reorder_at_end": 0,
+      "records_read": 513,
+      "rejected_total_observations": 256,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 64,
+        "REVIEW_FINDING": 193
+      },
+      "results": 257,
+      "results_per_second": 128.015,
+      "run_id": "0296f5fcfd79",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "SATURATED_REORDER_TOTAL"
+      ],
+      "successfully_processed_observations_per_second": 128.015,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 64,
+        "database_mode": "none",
+        "events_per_key": 4,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 2,
+        "same_timestamp_burst": 4,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 1.454207,
+      "expected_live_state_entries": 64,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2742,
+          "p95_ms": 0.5482,
+          "p99_ms": 4.1149,
+          "sample_count": 257
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 735.8813,
+          "p95_ms": 1113.9221,
+          "p99_ms": 1137.1049,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.3357,
+          "p95_ms": 0.6907,
+          "p99_ms": 1.2747,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0006,
+          "p95_ms": 0.0013,
+          "p99_ms": 0.002,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2911,
+          "p95_ms": 0.71,
+          "p99_ms": 5.6479,
+          "sample_count": 257
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 3122.594,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5732.379,
+          "current_traced_bytes": 1467489,
+          "peak_traced_bytes": 1472747,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 199846,
+        "tracemalloc_delta_bytes": 199846,
+        "tracemalloc_peak_bytes": 1476380
+      },
+      "observations": 257,
+      "offered_observations_per_second": 176.729,
+      "offered_records_per_second": 176.729,
+      "peak_reorder_per_key": 4,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 64,
+      "pending_reorder_at_end": 0,
+      "records_read": 257,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 128,
+        "REVIEW_FINDING": 129
+      },
+      "results": 257,
+      "results_per_second": 176.729,
+      "run_id": "24ed6b0da313",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 176.729,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 512,
+      "config": {
+        "active_key_count": 128,
+        "database_mode": "none",
+        "events_per_key": 4,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 512,
+        "repetition": 2,
+        "same_timestamp_burst": 4,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 2.315109,
+      "expected_live_state_entries": 128,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2929,
+          "p95_ms": 0.5998,
+          "p99_ms": 2.9357,
+          "sample_count": 513
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 1244.7977,
+          "p95_ms": 1767.533,
+          "p99_ms": 1827.1631,
+          "sample_count": 513
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2907,
+          "p95_ms": 0.6634,
+          "p99_ms": 1.3732,
+          "sample_count": 513
+        },
+        "result_persistence": {
+          "p50_ms": 0.0005,
+          "p95_ms": 0.001,
+          "p99_ms": 0.0013,
+          "sample_count": 513
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.3121,
+          "p95_ms": 0.5923,
+          "p99_ms": 2.5423,
+          "sample_count": 513
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 2550.609,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5270.9,
+          "current_traced_bytes": 2698701,
+          "peak_traced_bytes": 2703295,
+          "pending_observations": 512,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 326478,
+        "tracemalloc_delta_bytes": 326478,
+        "tracemalloc_peak_bytes": 2714384
+      },
+      "observations": 513,
+      "offered_observations_per_second": 221.588,
+      "offered_records_per_second": 221.588,
+      "peak_reorder_per_key": 4,
+      "peak_reorder_total": 512,
+      "peak_state_entries": 128,
+      "pending_reorder_at_end": 0,
+      "records_read": 513,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 256,
+        "REVIEW_FINDING": 257
+      },
+      "results": 513,
+      "results_per_second": 221.588,
+      "run_id": "adfc7ce51695",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 221.588,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 1024,
+      "config": {
+        "active_key_count": 128,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 1024,
+        "repetition": 2,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 5.823146,
+      "expected_live_state_entries": 128,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2322,
+          "p95_ms": 0.5098,
+          "p99_ms": 2.4676,
+          "sample_count": 1025
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 3225.3051,
+          "p95_ms": 4415.0373,
+          "p99_ms": 4441.4953,
+          "sample_count": 1025
+        },
+        "plugin_processing": {
+          "p50_ms": 0.4022,
+          "p95_ms": 1.0516,
+          "p99_ms": 3.4275,
+          "sample_count": 1025
+        },
+        "result_persistence": {
+          "p50_ms": 0.0006,
+          "p95_ms": 0.0012,
+          "p99_ms": 0.0015,
+          "sample_count": 1025
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2542,
+          "p95_ms": 0.6405,
+          "p99_ms": 2.9535,
+          "sample_count": 1025
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 3324.859,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5008.577,
+          "current_traced_bytes": 5128783,
+          "peak_traced_bytes": 5131787,
+          "pending_observations": 1024,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 425582,
+        "tracemalloc_delta_bytes": 425582,
+        "tracemalloc_peak_bytes": 5144466
+      },
+      "observations": 1025,
+      "offered_observations_per_second": 176.022,
+      "offered_records_per_second": 176.022,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 1024,
+      "peak_state_entries": 128,
+      "pending_reorder_at_end": 0,
+      "records_read": 1025,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 256,
+        "REVIEW_FINDING": 769
+      },
+      "results": 1025,
+      "results_per_second": 176.022,
+      "run_id": "2472893e411e",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 176.022,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 2048,
+      "config": {
+        "active_key_count": 256,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 2048,
+        "repetition": 2,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 10.459166,
+      "expected_live_state_entries": 256,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2887,
+          "p95_ms": 0.6515,
+          "p99_ms": 3.4025,
+          "sample_count": 2049
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 5467.6557,
+          "p95_ms": 8540.5528,
+          "p99_ms": 8836.2402,
+          "sample_count": 2049
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2949,
+          "p95_ms": 0.7153,
+          "p99_ms": 2.3636,
+          "sample_count": 2049
+        },
+        "result_persistence": {
+          "p50_ms": 0.0005,
+          "p95_ms": 0.0011,
+          "p99_ms": 0.0015,
+          "sample_count": 2049
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.3052,
+          "p95_ms": 0.7854,
+          "p99_ms": 2.7813,
+          "sample_count": 2049
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 2999.883,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 4894.228,
+          "current_traced_bytes": 10023378,
+          "peak_traced_bytes": 10026382,
+          "pending_observations": 2048,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 767970,
+        "tracemalloc_delta_bytes": 767970,
+        "tracemalloc_peak_bytes": 10051861
+      },
+      "observations": 2049,
+      "offered_observations_per_second": 195.905,
+      "offered_records_per_second": 195.905,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 2048,
+      "peak_state_entries": 256,
+      "pending_reorder_at_end": 0,
+      "records_read": 2049,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 512,
+        "REVIEW_FINDING": 1537
+      },
+      "results": 2049,
+      "results_per_second": 195.905,
+      "run_id": "a675332a2fcb",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 195.905,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 257,
+        "database_mode": "none",
+        "events_per_key": 1,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 2,
+        "same_timestamp_burst": 1,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 1,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 1,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 0.83452,
+      "expected_live_state_entries": 256,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2867,
+          "p95_ms": 0.4179,
+          "p99_ms": 1.2216,
+          "sample_count": 258
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 374.2007,
+          "p95_ms": 616.1136,
+          "p99_ms": 633.3394,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.206,
+          "p95_ms": 0.3956,
+          "p99_ms": 0.6524,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0004,
+          "p95_ms": 0.0008,
+          "p99_ms": 0.0012,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.293,
+          "p95_ms": 0.4376,
+          "p99_ms": 0.5836,
+          "sample_count": 258
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 1576.457,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5928.289,
+          "current_traced_bytes": 1517642,
+          "peak_traced_bytes": 1521556,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 403573,
+        "tracemalloc_delta_bytes": 403573,
+        "tracemalloc_peak_bytes": 1551671
+      },
+      "observations": 258,
+      "offered_observations_per_second": 309.16,
+      "offered_records_per_second": 309.16,
+      "peak_reorder_per_key": 1,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 256,
+      "pending_reorder_at_end": 0,
+      "records_read": 258,
+      "rejected_total_observations": 1,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 257
+      },
+      "results": 257,
+      "results_per_second": 307.961,
+      "run_id": "3fc4357b51a1",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "SATURATED_REORDER_TOTAL"
+      ],
+      "successfully_processed_observations_per_second": 307.961,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 64,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 2,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 256,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 256,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 1.731369,
+      "expected_live_state_entries": 32,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2849,
+          "p95_ms": 0.6005,
+          "p99_ms": 2.503,
+          "sample_count": 513
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 1050.7392,
+          "p95_ms": 1354.769,
+          "p99_ms": 1367.5622,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.356,
+          "p95_ms": 0.5598,
+          "p99_ms": 1.0888,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0006,
+          "p95_ms": 0.0009,
+          "p99_ms": 0.0011,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.3273,
+          "p95_ms": 1.0057,
+          "p99_ms": 2.9653,
+          "sample_count": 513
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 11355.469,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5723.77,
+          "current_traced_bytes": 1465285,
+          "peak_traced_bytes": 1468945,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 363375,
+        "tracemalloc_delta_bytes": 363375,
+        "tracemalloc_peak_bytes": 1907869
+      },
+      "observations": 513,
+      "offered_observations_per_second": 296.297,
+      "offered_records_per_second": 296.297,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 32,
+      "pending_reorder_at_end": 0,
+      "records_read": 513,
+      "rejected_total_observations": 256,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 64,
+        "REVIEW_FINDING": 193
+      },
+      "results": 257,
+      "results_per_second": 148.437,
+      "run_id": "201425410f93",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "SATURATED_REORDER_TOTAL"
+      ],
+      "successfully_processed_observations_per_second": 148.437,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 64,
+        "database_mode": "none",
+        "events_per_key": 4,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 3,
+        "same_timestamp_burst": 4,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 1.08607,
+      "expected_live_state_entries": 64,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2905,
+          "p95_ms": 0.5512,
+          "p99_ms": 1.0844,
+          "sample_count": 257
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 504.4998,
+          "p95_ms": 743.4702,
+          "p99_ms": 831.7452,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.293,
+          "p95_ms": 0.6629,
+          "p99_ms": 1.2199,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0005,
+          "p95_ms": 0.001,
+          "p99_ms": 0.0014,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.3062,
+          "p95_ms": 0.5604,
+          "p99_ms": 1.0053,
+          "sample_count": 257
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 3105.125,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5732.527,
+          "current_traced_bytes": 1467527,
+          "peak_traced_bytes": 1472785,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 198728,
+        "tracemalloc_delta_bytes": 198728,
+        "tracemalloc_peak_bytes": 1476418
+      },
+      "observations": 257,
+      "offered_observations_per_second": 236.633,
+      "offered_records_per_second": 236.633,
+      "peak_reorder_per_key": 4,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 64,
+      "pending_reorder_at_end": 0,
+      "records_read": 257,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 128,
+        "REVIEW_FINDING": 129
+      },
+      "results": 257,
+      "results_per_second": 236.633,
+      "run_id": "4f2e64aaae3a",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 236.633,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 512,
+      "config": {
+        "active_key_count": 128,
+        "database_mode": "none",
+        "events_per_key": 4,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 512,
+        "repetition": 3,
+        "same_timestamp_burst": 4,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 1.923048,
+      "expected_live_state_entries": 128,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2581,
+          "p95_ms": 0.4465,
+          "p99_ms": 1.1487,
+          "sample_count": 513
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 932.5166,
+          "p95_ms": 1378.2274,
+          "p99_ms": 1454.9368,
+          "sample_count": 513
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2683,
+          "p95_ms": 0.6087,
+          "p99_ms": 1.4954,
+          "sample_count": 513
+        },
+        "result_persistence": {
+          "p50_ms": 0.0005,
+          "p95_ms": 0.0009,
+          "p99_ms": 0.0012,
+          "sample_count": 513
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2741,
+          "p95_ms": 0.5529,
+          "p99_ms": 1.2353,
+          "sample_count": 513
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 2551.312,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5270.404,
+          "current_traced_bytes": 2698447,
+          "peak_traced_bytes": 2703091,
+          "pending_observations": 512,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 326568,
+        "tracemalloc_delta_bytes": 326568,
+        "tracemalloc_peak_bytes": 2714130
+      },
+      "observations": 513,
+      "offered_observations_per_second": 266.764,
+      "offered_records_per_second": 266.764,
+      "peak_reorder_per_key": 4,
+      "peak_reorder_total": 512,
+      "peak_state_entries": 128,
+      "pending_reorder_at_end": 0,
+      "records_read": 513,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 256,
+        "REVIEW_FINDING": 257
+      },
+      "results": 513,
+      "results_per_second": 266.764,
+      "run_id": "f6ade6ba503f",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 266.764,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 1024,
+      "config": {
+        "active_key_count": 128,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 1024,
+        "repetition": 3,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 6.352945,
+      "expected_live_state_entries": 128,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.2881,
+          "p95_ms": 0.5229,
+          "p99_ms": 1.3511,
+          "sample_count": 1025
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 4015.0268,
+          "p95_ms": 5160.0098,
+          "p99_ms": 5220.196,
+          "sample_count": 1025
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2628,
+          "p95_ms": 1.0791,
+          "p99_ms": 5.6725,
+          "sample_count": 1025
+        },
+        "result_persistence": {
+          "p50_ms": 0.0004,
+          "p95_ms": 0.0012,
+          "p99_ms": 0.0017,
+          "sample_count": 1025
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.3035,
+          "p95_ms": 0.5597,
+          "p99_ms": 1.5586,
+          "sample_count": 1025
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 3323.141,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5008.491,
+          "current_traced_bytes": 5128695,
+          "peak_traced_bytes": 5131699,
+          "pending_observations": 1024,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 425362,
+        "tracemalloc_delta_bytes": 425362,
+        "tracemalloc_peak_bytes": 5144378
+      },
+      "observations": 1025,
+      "offered_observations_per_second": 161.342,
+      "offered_records_per_second": 161.342,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 1024,
+      "peak_state_entries": 128,
+      "pending_reorder_at_end": 0,
+      "records_read": 1025,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 256,
+        "REVIEW_FINDING": 769
+      },
+      "results": 1025,
+      "results_per_second": 161.342,
+      "run_id": "95ffdf38c5e2",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 161.342,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 2048,
+      "config": {
+        "active_key_count": 256,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 2048,
+        "repetition": 3,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 0,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 0,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 9.592343,
+      "expected_live_state_entries": 256,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.1856,
+          "p95_ms": 0.3911,
+          "p99_ms": 2.2833,
+          "sample_count": 2049
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 5052.3577,
+          "p95_ms": 7559.984,
+          "p99_ms": 7708.3179,
+          "sample_count": 2049
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2657,
+          "p95_ms": 0.6368,
+          "p99_ms": 4.3878,
+          "sample_count": 2049
+        },
+        "result_persistence": {
+          "p50_ms": 0.0005,
+          "p95_ms": 0.001,
+          "p99_ms": 0.0016,
+          "sample_count": 2049
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2055,
+          "p95_ms": 0.4841,
+          "p99_ms": 3.7909,
+          "sample_count": 2049
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 2998.746,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 4894.261,
+          "current_traced_bytes": 10023446,
+          "peak_traced_bytes": 10026450,
+          "pending_observations": 2048,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 767679,
+        "tracemalloc_delta_bytes": 767679,
+        "tracemalloc_peak_bytes": 10051957
+      },
+      "observations": 2049,
+      "offered_observations_per_second": 213.608,
+      "offered_records_per_second": 213.608,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 2048,
+      "peak_state_entries": 256,
+      "pending_reorder_at_end": 0,
+      "records_read": 2049,
+      "rejected_total_observations": 0,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 512,
+        "REVIEW_FINDING": 1537
+      },
+      "results": 2049,
+      "results_per_second": 213.608,
+      "run_id": "3868fce0fb5c",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "CLEAN"
+      ],
+      "successfully_processed_observations_per_second": 213.608,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 257,
+        "database_mode": "none",
+        "events_per_key": 1,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 3,
+        "same_timestamp_burst": 1,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 1,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 1,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 1.362165,
+      "expected_live_state_entries": 256,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.185,
+          "p95_ms": 0.7691,
+          "p99_ms": 2.6586,
+          "sample_count": 258
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 812.2121,
+          "p95_ms": 1184.6423,
+          "p99_ms": 1202.1107,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.1767,
+          "p95_ms": 0.2911,
+          "p99_ms": 1.0032,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0004,
+          "p95_ms": 0.001,
+          "p99_ms": 0.0013,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2088,
+          "p95_ms": 0.5925,
+          "p99_ms": 3.6394,
+          "sample_count": 258
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 1572.195,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5930.766,
+          "current_traced_bytes": 1518276,
+          "peak_traced_bytes": 1522140,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 402482,
+        "tracemalloc_delta_bytes": 402482,
+        "tracemalloc_peak_bytes": 1552233
+      },
+      "observations": 258,
+      "offered_observations_per_second": 189.404,
+      "offered_records_per_second": 189.404,
+      "peak_reorder_per_key": 1,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 256,
+      "pending_reorder_at_end": 0,
+      "records_read": 258,
+      "rejected_total_observations": 1,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 257
+      },
+      "results": 257,
+      "results_per_second": 188.67,
+      "run_id": "aaf21541758b",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "SATURATED_REORDER_TOTAL"
+      ],
+      "successfully_processed_observations_per_second": 188.67,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    },
+    {
+      "accepted_at_peak_reorder": 256,
+      "config": {
+        "active_key_count": 64,
+        "database_mode": "none",
+        "events_per_key": 8,
+        "max_state_entries": 1024,
+        "reorder_capacity": 16,
+        "reorder_total_capacity": 256,
+        "repetition": 3,
+        "same_timestamp_burst": 8,
+        "shard_count": 4,
+        "workload": "many_keys_same_time"
+      },
+      "counts": {
+        "ingress_queue_saturation": 0,
+        "late_events": 0,
+        "processing_errors": 0,
+        "quality_gaps": 256,
+        "reorder_saturation": 0,
+        "reorder_total_saturation": 256,
+        "shard_queue_saturation": 0,
+        "state_capacity_exceeded": 0,
+        "watermarks_advanced": 2
+      },
+      "elapsed_seconds": 2.212988,
+      "expected_live_state_entries": 32,
+      "latency": {
+        "canonicalization": {
+          "p50_ms": 0.1899,
+          "p95_ms": 0.6487,
+          "p99_ms": 7.0906,
+          "sample_count": 513
+        },
+        "end_to_end_from_runtime_submission": {
+          "p50_ms": 1420.6574,
+          "p95_ms": 1796.5428,
+          "p99_ms": 1835.5316,
+          "sample_count": 257
+        },
+        "plugin_processing": {
+          "p50_ms": 0.2726,
+          "p95_ms": 1.0647,
+          "p99_ms": 4.367,
+          "sample_count": 257
+        },
+        "result_persistence": {
+          "p50_ms": 0.0006,
+          "p95_ms": 0.0013,
+          "p99_ms": 0.0015,
+          "sample_count": 257
+        },
+        "runtime_ingest_submission": {
+          "p50_ms": 0.2839,
+          "p95_ms": 1.2819,
+          "p99_ms": 8.9582,
+          "sample_count": 513
+        }
+      },
+      "memory": {
+        "approx_delta_bytes_per_live_key": 11380.406,
+        "reorder_at_peak": {
+          "approx_bytes_per_pending_observation": 5727.316,
+          "current_traced_bytes": 1466193,
+          "peak_traced_bytes": 1469853,
+          "pending_observations": 256,
+          "scope": "Python traced allocation at observed pending-reorder peak; includes runtime and benchmark instrumentation; not RSS"
+        },
+        "scope": "Live Python allocations after releasing benchmark timing/control buffers; includes runtime overhead and is not process RSS",
+        "tracemalloc_baseline_bytes": 0,
+        "tracemalloc_current_bytes": 364173,
+        "tracemalloc_delta_bytes": 364173,
+        "tracemalloc_peak_bytes": 1898489
+      },
+      "observations": 513,
+      "offered_observations_per_second": 231.813,
+      "offered_records_per_second": 231.813,
+      "peak_reorder_per_key": 8,
+      "peak_reorder_total": 256,
+      "peak_state_entries": 32,
+      "pending_reorder_at_end": 0,
+      "records_read": 513,
+      "rejected_total_observations": 256,
+      "result_types": {
+        "INSUFFICIENT_EVIDENCE": 64,
+        "REVIEW_FINDING": 193
+      },
+      "results": 257,
+      "results_per_second": 116.133,
+      "run_id": "1134f25e0922",
+      "sqlite_results": 0,
+      "state_cardinality_matches_expected": true,
+      "status": [
+        "SATURATED_REORDER_TOTAL"
+      ],
+      "successfully_processed_observations_per_second": 116.133,
+      "synthetic_workload_status": "CONTROLLED SYNTHETIC ENGINEERING LOAD"
+    }
+  ],
+  "scientific_config": {
+    "config_hash": "sha256:ed86c33e11bd37397d849c0483582122a8f7ad8168c07cbaccb5342e866b412a",
+    "config_id": "c2-reference-config-v1",
+    "event_basis": "FLOW_START",
+    "max_retained_events_per_pair": 32,
+    "minimum_history_events": 3,
+    "state_ttl_seconds": 3600.0
+  },
+  "status": "[EXPERIMENT] CONTROLLED MVP GLOBAL REORDER CAPACITY CHARACTERIZATION"
+}

@@ -83,7 +83,7 @@ async def run_shard(shard, item):
 def dispatcher(plugin, shard, controls):
     return LaneDispatcher("lane", plugin, gov(), [shard], 1,
         control_sink=lambda event: emit(controls, event),
-        reorder_policy=EventTimeReorderPolicy(10))
+        reorder_policy=EventTimeReorderPolicy(10, 100))
 
 
 @pytest.mark.asyncio

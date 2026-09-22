@@ -132,7 +132,7 @@ async def run_c2(bundle, *, clock=None, canonicalizer=None, speed=0):
     supervisor = RuntimeSupervisor(
         {lane: plugin}, {lane: c2_governance()}, writer, shard_count=1,
         control_sink=control,
-        reorder_policies={lane: EventTimeReorderPolicy(10)},
+        reorder_policies={lane: EventTimeReorderPolicy(10, 100)},
     )
     summary = await ReplayRunner(
         NdjsonReplaySource(bundle), supervisor, control_sink=control,

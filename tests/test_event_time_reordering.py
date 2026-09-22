@@ -124,7 +124,9 @@ async def collect(target, item):
     target.append(item)
 
 
-async def dispatcher_fixture(*, maximum=20, ttl=timedelta(minutes=10), shards=2):
+async def dispatcher_fixture(
+    *, maximum=20, total=200, ttl=timedelta(minutes=10), shards=2
+):
     plugin = RecordingStatefulPlugin(ttl=ttl)
     store = StateStore(expire_on_access=False)
     results, controls, gaps = [], [], []
@@ -137,7 +139,7 @@ async def dispatcher_fixture(*, maximum=20, ttl=timedelta(minutes=10), shards=2)
         LANE, plugin, governance(), lane_shards, shards,
         control_sink=lambda item: collect(controls, item),
         gap_sink=lambda item: collect(gaps, item),
-        reorder_policy=EventTimeReorderPolicy(maximum),
+        reorder_policy=EventTimeReorderPolicy(maximum, total),
     )
     for shard in lane_shards:
         shard.start()
@@ -257,11 +259,87 @@ async def test_per_key_bound_surfaces_quality_loss_without_evicting_buffered_fac
         await close(dispatcher, shards)
 
 
+@pytest.mark.asyncio
+async def test_total_bound_saturates_across_keys_without_evicting_existing_facts():
+    plugin, _, shards, dispatcher, _, controls, gaps = await dispatcher_fixture(
+        maximum=4, total=4
+    )
+    try:
+        await admit(
+            dispatcher,
+            observation(1, key="a"), observation(1, key="b"),
+            observation(1, key="c"), observation(1, key="d"),
+            observation(1, key="e"),
+        )
+        assert dispatcher.pending_reorder_count == 4
+        assert dispatcher.peak_pending_reorder_total == 4
+        assert dispatcher.peak_pending_reorder_per_key == 1
+        assert len(dispatcher._reorder_buffers) == 4
+        assert [gap.gap_types for gap in gaps] == [
+            ("REORDER_BUFFER_TOTAL_SATURATION",)
+        ]
+        assert "configured_total_limit=4" in gaps[0].reason
+        assert "current_pending_total=4" in gaps[0].reason
+        assert any(event.control_type is ControlType.GAP_ACTION_STATUS for event in controls)
+        await dispatcher.advance_watermark(NOW + timedelta(seconds=2))
+        assert dispatcher.pending_reorder_count == 0
+        assert {item[0] for item in plugin.processed} == {"a", "b", "c", "d"}
+    finally:
+        await close(dispatcher, shards)
+
+
+@pytest.mark.asyncio
+async def test_per_key_saturation_has_precedence_when_both_limits_are_full():
+    _, _, shards, dispatcher, _, _, gaps = await dispatcher_fixture(
+        maximum=2, total=2
+    )
+    try:
+        await admit(
+            dispatcher,
+            observation(1, key="a"), observation(2, key="a"),
+            observation(3, key="a"),
+        )
+        assert dispatcher.pending_reorder_count == 2
+        assert [gap.gap_types for gap in gaps] == [
+            ("REORDER_BUFFER_SATURATION",)
+        ]
+    finally:
+        await close(dispatcher, shards)
+
+
+@pytest.mark.asyncio
+async def test_watermark_releases_total_budget_for_new_observations():
+    plugin, _, shards, dispatcher, _, _, gaps = await dispatcher_fixture(
+        maximum=2, total=2
+    )
+    try:
+        await admit(dispatcher, observation(1, key="a"), observation(1, key="b"))
+        assert dispatcher.pending_reorder_count == 2
+        await dispatcher.advance_watermark(NOW + timedelta(seconds=2))
+        assert dispatcher.pending_reorder_count == 0
+        await admit(dispatcher, observation(2, key="c"), observation(2, key="d"))
+        assert dispatcher.pending_reorder_count == 2
+        assert gaps == []
+        await dispatcher.advance_watermark(NOW + timedelta(seconds=3))
+        assert dispatcher.pending_reorder_count == 0
+        assert {item[0] for item in plugin.processed} == {"a", "b", "c", "d"}
+    finally:
+        await close(dispatcher, shards)
+
+
 def test_reorder_policy_is_strictly_positive_and_typed():
-    with pytest.raises(ValueError):
-        EventTimeReorderPolicy(0)
     with pytest.raises(TypeError):
-        EventTimeReorderPolicy(True)
+        EventTimeReorderPolicy(1)
+    with pytest.raises(ValueError):
+        EventTimeReorderPolicy(0, 1)
+    with pytest.raises(TypeError):
+        EventTimeReorderPolicy(True, 1)
+    with pytest.raises(ValueError):
+        EventTimeReorderPolicy(1, 0)
+    with pytest.raises(TypeError):
+        EventTimeReorderPolicy(1, True)
+    with pytest.raises(ValueError, match="cannot be less"):
+        EventTimeReorderPolicy(2, 1)
 
 
 @pytest.mark.asyncio
@@ -275,7 +353,7 @@ async def test_supervisor_requires_stateful_policy_but_not_for_current_registry(
         RuntimeSupervisor({LANE: plugin}, {LANE: governance()}, writer)
     supervisor = RuntimeSupervisor(
         {LANE: plugin}, {LANE: governance()}, writer,
-        reorder_policies={LANE: EventTimeReorderPolicy(5)},
+        reorder_policies={LANE: EventTimeReorderPolicy(5, 50)},
     )
     assert supervisor.dispatchers[LANE].pending_reorder_count == 0
 
@@ -295,7 +373,7 @@ async def test_different_arrivals_produce_identical_state_and_finalized_results(
 
         supervisor = RuntimeSupervisor(
             {LANE: plugin}, {LANE: governance()}, writer, shard_count=2,
-            reorder_policies={LANE: EventTimeReorderPolicy(10)},
+            reorder_policies={LANE: EventTimeReorderPolicy(10, 100)},
         )
         supervisor.start_all()
         try:
@@ -544,7 +622,7 @@ async def test_watermark_marker_backpressures_instead_of_dropping_on_full_ingres
     shard = LaneShard(0, plugin, store, lambda item: collect([], item))
     dispatcher = LaneDispatcher(
         LANE, plugin, governance(), [shard], 1, max_size=1,
-        reorder_policy=EventTimeReorderPolicy(10),
+        reorder_policy=EventTimeReorderPolicy(10, 100),
     )
     entered, release = asyncio.Event(), asyncio.Event()
     original_buffer = dispatcher._buffer_stateful

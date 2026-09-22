@@ -43,16 +43,25 @@ class _WatermarkRequest:
 
 @dataclass(frozen=True, slots=True)
 class EventTimeReorderPolicy:
-    """Engineering memory bound for one state key's reorder buffer."""
+    """Independent per-key and lane-wide engineering reorder memory bounds."""
 
     max_buffered_events_per_key: int
+    max_buffered_events_total: int
 
     def __post_init__(self) -> None:
-        value = self.max_buffered_events_per_key
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError("max_buffered_events_per_key must be a non-bool integer")
-        if value <= 0:
-            raise ValueError("max_buffered_events_per_key must be greater than zero")
+        for name in (
+            "max_buffered_events_per_key", "max_buffered_events_total",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise TypeError(f"{name} must be a non-bool integer")
+            if value <= 0:
+                raise ValueError(f"{name} must be greater than zero")
+        if self.max_buffered_events_total < self.max_buffered_events_per_key:
+            raise ValueError(
+                "max_buffered_events_total cannot be less than "
+                "max_buffered_events_per_key"
+            )
 
 
 def source_position_order(source_position: str) -> tuple[int, int | str]:
@@ -126,6 +135,7 @@ class LaneDispatcher:
             list[tuple[datetime, tuple[int, int | str], str, int, NetworkObservation]],
         ] = {}
         self._reorder_sequence = 0
+        self._pending_reorder_total = 0
         self._peak_pending_reorder_total = 0
         self._peak_pending_reorder_per_key = 0
 
@@ -136,7 +146,7 @@ class LaneDispatcher:
     @property
     def pending_reorder_count(self) -> int:
         """Number of admitted stateful observations awaiting a watermark."""
-        return sum(len(buffer) for buffer in self._reorder_buffers.values())
+        return self._pending_reorder_total
 
     @property
     def max_pending_reorder_per_key(self) -> int:
@@ -277,10 +287,19 @@ class LaneDispatcher:
             raise RuntimeError(
                 "stateful lane requires an explicit EventTimeReorderPolicy"
             )
-        buffer = self._reorder_buffers.setdefault(state_key, [])
-        if len(buffer) >= policy.max_buffered_events_per_key:
+        buffer = self._reorder_buffers.get(state_key)
+        # Deterministic precedence: a fact that violates both limits is
+        # classified as per-key saturation.
+        if buffer is not None and len(buffer) >= policy.max_buffered_events_per_key:
             await self._handle_reorder_saturation(observation, state_key, shard_idx)
             return
+        if self._pending_reorder_total >= policy.max_buffered_events_total:
+            await self._handle_total_reorder_saturation(
+                observation, state_key, shard_idx
+            )
+            return
+        if buffer is None:
+            buffer = self._reorder_buffers.setdefault(state_key, [])
         self._reorder_sequence += 1
         heapq.heappush(
             buffer,
@@ -292,6 +311,7 @@ class LaneDispatcher:
                 observation,
             ),
         )
+        self._pending_reorder_total += 1
         self._peak_pending_reorder_per_key = max(
             self._peak_pending_reorder_per_key, len(buffer)
         )
@@ -420,6 +440,7 @@ class LaneDispatcher:
             )
             while buffer and buffer[0][0] < watermark:
                 observation = heapq.heappop(buffer)[-1]
+                self._pending_reorder_total -= 1
                 await self._dispatch_to_shard(observation, shard_idx, state_key)
             if not buffer:
                 del self._reorder_buffers[state_key]
@@ -533,6 +554,42 @@ class LaneDispatcher:
         self.health.record_gap(gap)
         registry.queue_full_events.labels(
             lane=str(self.target), shard_id="reorder"
+        ).inc()
+        await self._emit_gap(gap)
+        await self._invoke_gap_action(
+            self.plugin.manifest().gap_action, gap, state_key, shard_id
+        )
+        return gap
+
+    async def _handle_total_reorder_saturation(
+        self,
+        observation: NetworkObservation,
+        state_key: StateKey,
+        shard_id: int,
+    ) -> QualityGap:
+        """Record an incoming fact rejected by the lane-wide reorder budget."""
+        policy = self._reorder_policy
+        if policy is None:  # Defensive; stateful buffering already requires it.
+            raise RuntimeError("total reorder saturation requires a reorder policy")
+        gap = QualityGap(
+            gap_id=str(uuid.uuid4()),
+            scope=str(self.target),
+            first_known_event_time=observation.event_time,
+            last_known_event_time=observation.event_time,
+            detection_time=observation.ingest_time,
+            count=1,
+            gap_types=("REORDER_BUFFER_TOTAL_SATURATION",),
+            reason=(
+                "Lane-wide event-time reorder buffer full; incoming admitted "
+                "observation was not retained. "
+                f"configured_total_limit={policy.max_buffered_events_total}; "
+                f"current_pending_total={self._pending_reorder_total}; "
+                "affected_state_key_known=true."
+            ),
+        )
+        self.health.record_gap(gap)
+        registry.queue_full_events.labels(
+            lane=str(self.target), shard_id="reorder-total"
         ).inc()
         await self._emit_gap(gap)
         await self._invoke_gap_action(

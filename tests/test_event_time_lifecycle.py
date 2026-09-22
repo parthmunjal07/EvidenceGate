@@ -92,7 +92,7 @@ async def fixture(shards=2):
     lane_shards = [LaneShard(i, plugin, store, lambda draft: collect(results, draft), control_sink=lambda event: collect(controls, event), lane_id="lane") for i in range(shards)]
     dispatcher = LaneDispatcher("lane", plugin, governance(), lane_shards, shards,
         control_sink=lambda event: collect(controls, event),
-        reorder_policy=EventTimeReorderPolicy(10))
+        reorder_policy=EventTimeReorderPolicy(10, 100))
     for shard in lane_shards:
         shard.start()
     dispatcher.start()

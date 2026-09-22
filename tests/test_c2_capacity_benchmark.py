@@ -25,7 +25,8 @@ def config(**changes) -> C2CapacityExperimentConfig:
     values = dict(
         workload="key_cardinality", active_key_count=3, events_per_key=3,
         same_timestamp_burst=1, max_state_entries=4, reorder_capacity=8,
-        shard_count=1, repetition=1, database_mode="none",
+        reorder_total_capacity=100, shard_count=1, repetition=1,
+        database_mode="none",
     )
     values.update(changes)
     return C2CapacityExperimentConfig(**values)
@@ -42,6 +43,22 @@ def test_workload_generates_exact_key_cardinality_and_deterministic_records():
     assert len(first) == 15
     assert len(clients) == 5
     assert run_id(value) == run_id(value)
+
+
+def test_many_key_same_time_generator_has_exact_cardinality_and_boundary():
+    value = config(
+        workload="many_keys_same_time", active_key_count=5,
+        events_per_key=2, same_timestamp_burst=2,
+    )
+    records = list(iter_workload_records(value))
+    assert len(records) == 11
+    assert len({
+        item["role_assignments"][0]["identifier"] for item in records[:-1]
+    }) == 5
+    assert {item["timestamp"] for item in records[:-1]} == {
+        "2026-01-01T00:00:00Z"
+    }
+    assert records[-1]["timestamp"] == "2026-01-01T00:00:01Z"
 
 
 @pytest.mark.asyncio
@@ -100,6 +117,30 @@ async def test_reorder_occupancy_and_saturation_are_exact():
     assert saturated["status"] == ["SATURATED_REORDER"]
 
 
+@pytest.mark.asyncio
+async def test_many_keys_hit_total_bound_without_hitting_per_key_bound():
+    clean = await run_experiment(config(
+        workload="many_keys_same_time", active_key_count=4,
+        events_per_key=2, same_timestamp_burst=2,
+        reorder_capacity=4, reorder_total_capacity=8,
+    ))
+    saturated = await run_experiment(config(
+        workload="many_keys_same_time", active_key_count=5,
+        events_per_key=2, same_timestamp_burst=2,
+        reorder_capacity=4, reorder_total_capacity=8,
+    ))
+    assert clean["peak_reorder_total"] == 8
+    assert clean["peak_reorder_per_key"] == 2
+    assert clean["counts"]["reorder_total_saturation"] == 0
+    assert saturated["peak_reorder_total"] == 8
+    assert saturated["peak_reorder_per_key"] == 2
+    assert saturated["counts"]["reorder_saturation"] == 0
+    assert saturated["counts"]["reorder_total_saturation"] == 2
+    assert saturated["results"] == 9
+    assert saturated["status"] == ["SATURATED_REORDER_TOTAL"]
+    assert saturated["memory"]["reorder_at_peak"]["pending_observations"] == 8
+
+
 def test_failure_categories_remain_separate():
     counts = {
         "reorder_saturation": 1, "ingress_queue_saturation": 2,
@@ -139,6 +180,7 @@ def test_report_and_config_serialization_are_deterministic():
             "workload": "key_cardinality", "active_key_count": 1,
             "events_per_key": 3, "same_timestamp_burst": 1,
             "max_state_entries": 1, "reorder_capacity": 1,
+            "reorder_total_capacity": 1,
         },
         "status": ["CLEAN"], "peak_state_entries": 1,
         "peak_reorder_total": 1, "peak_reorder_per_key": 1,
@@ -173,3 +215,8 @@ def test_safety_ceiling_requires_explicit_override():
     with pytest.raises(ValueError, match="allow-large"):
         value.validate_safety()
     value.validate_safety(allow_large=True)
+
+
+def test_benchmark_total_reorder_capacity_must_cover_per_key_capacity():
+    with pytest.raises(ValueError, match="cannot be less"):
+        config(reorder_capacity=8, reorder_total_capacity=7)

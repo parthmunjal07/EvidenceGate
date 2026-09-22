@@ -165,7 +165,7 @@ async def replay(
     supervisor = RuntimeSupervisor(
         {LANE: plugin}, {LANE: governance()}, writer, shard_count=2,
         control_sink=controls_writer,
-        reorder_policies={LANE: EventTimeReorderPolicy(20)},
+        reorder_policies={LANE: EventTimeReorderPolicy(20, 200)},
     )
     supervisor.start_all()
     try:
@@ -353,7 +353,7 @@ async def test_late_event_never_reaches_r1_state_and_watermark_equality_is_admit
     supervisor = RuntimeSupervisor(
         {LANE: plugin}, {LANE: governance()}, writer, shard_count=1,
         control_sink=control_writer,
-        reorder_policies={LANE: EventTimeReorderPolicy(10)},
+        reorder_policies={LANE: EventTimeReorderPolicy(10, 100)},
     )
     supervisor.start_all()
     try:
@@ -385,7 +385,7 @@ async def test_expiry_resets_history_without_hidden_count():
 
     supervisor = RuntimeSupervisor(
         {LANE: plugin}, {LANE: governance()}, writer, shard_count=1,
-        reorder_policies={LANE: EventTimeReorderPolicy(10)},
+        reorder_policies={LANE: EventTimeReorderPolicy(10, 100)},
     )
     supervisor.start_all()
     try:
@@ -477,7 +477,7 @@ async def test_c2_r1_and_transfer_results_remain_independent():
 
     supervisor = RuntimeSupervisor(
         scoped_plugins, scoped_governance, writer, shard_count=1,
-        reorder_policies={LANE: EventTimeReorderPolicy(10)},
+        reorder_policies={LANE: EventTimeReorderPolicy(10, 100)},
     )
     supervisor.start_all()
     try:

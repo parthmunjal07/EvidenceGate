@@ -60,27 +60,38 @@ class C2CapacityExperimentConfig:
     same_timestamp_burst: int
     max_state_entries: int
     reorder_capacity: int
+    reorder_total_capacity: int
     shard_count: int
     repetition: int = 1
     database_mode: str = "none"
 
     def __post_init__(self) -> None:
-        if self.workload not in {"key_cardinality", "full_history", "same_time_burst", "mixed"}:
+        if self.workload not in {
+            "key_cardinality", "full_history", "same_time_burst", "mixed",
+            "many_keys_same_time",
+        }:
             raise ValueError(f"unknown workload: {self.workload}")
         for name in (
             "active_key_count", "events_per_key", "same_timestamp_burst",
-            "max_state_entries", "reorder_capacity", "shard_count", "repetition",
+            "max_state_entries", "reorder_capacity", "reorder_total_capacity",
+            "shard_count", "repetition",
         ):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError(f"{name} must be a positive integer")
         if self.database_mode not in {"none", "sqlite"}:
             raise ValueError("database_mode must be 'none' or 'sqlite'")
+        if self.reorder_total_capacity < self.reorder_capacity:
+            raise ValueError(
+                "reorder_total_capacity cannot be less than reorder_capacity"
+            )
 
     @property
     def expected_records(self) -> int:
         if self.workload == "same_time_burst":
             return self.same_timestamp_burst + 1
+        if self.workload == "many_keys_same_time":
+            return self.active_key_count * self.same_timestamp_burst + 1
         return self.active_key_count * self.events_per_key
 
     def validate_safety(self, allow_large: bool = False) -> None:
@@ -205,6 +216,13 @@ def iter_workload_records(config: C2CapacityExperimentConfig) -> Iterable[dict[s
             yield _record(position, 0, BASE_TIME)
         yield _record(position + 1, 0, BASE_TIME + timedelta(seconds=1))
         return
+    if config.workload == "many_keys_same_time":
+        for key_index in range(config.active_key_count):
+            for _ in range(config.same_timestamp_burst):
+                position += 1
+                yield _record(position, key_index, BASE_TIME)
+        yield _record(position + 1, 0, BASE_TIME + timedelta(seconds=1))
+        return
 
     burst = config.same_timestamp_burst if config.workload == "mixed" else 1
     rounds = (config.events_per_key + burst - 1) // burst
@@ -261,6 +279,8 @@ def classify_status(counts: dict[str, int]) -> list[str]:
     status: list[str] = []
     if counts["reorder_saturation"]:
         status.append("SATURATED_REORDER")
+    if counts.get("reorder_total_saturation", 0):
+        status.append("SATURATED_REORDER_TOTAL")
     if counts["ingress_queue_saturation"] or counts["shard_queue_saturation"]:
         status.append("SATURATED_QUEUE")
     if counts["state_capacity_exceeded"]:
@@ -292,6 +312,11 @@ async def run_experiment(
     end_to_end_latencies: list[float] = []
     ingest_submission_latencies: list[float] = []
     arrival_times: dict[str, float] = {}
+    reorder_memory_at_peak = {
+        "pending_observations": 0,
+        "current_traced_bytes": 0,
+        "peak_traced_bytes": 0,
+    }
     sqlite_writer = None
     if config.database_mode == "sqlite":
         sqlite_writer = SqliteWriter(root / "results.sqlite3", SCHEMA)
@@ -320,7 +345,9 @@ async def run_experiment(
     supervisor = RuntimeSupervisor(
         {LANE: plugin}, {LANE: _governance()}, result_writer,
         shard_count=config.shard_count, control_sink=control_sink, gap_sink=gap_sink,
-        reorder_policies={LANE: EventTimeReorderPolicy(config.reorder_capacity)},
+        reorder_policies={LANE: EventTimeReorderPolicy(
+            config.reorder_capacity, config.reorder_total_capacity
+        )},
     )
     original_ingest = supervisor.ingest_observation
 
@@ -328,7 +355,20 @@ async def run_experiment(
         arrival_times[observation.observation_id] = time.perf_counter()
         started = time.perf_counter()
         try:
-            return await original_ingest(observation)
+            plan = await original_ingest(observation)
+            if config.workload == "many_keys_same_time":
+                # Deterministically observe the real dispatcher buffer before
+                # the later source timestamp advances the replay watermark.
+                await supervisor.dispatchers[LANE].queue.join()
+                pending = supervisor.dispatchers[LANE].pending_reorder_count
+                if pending > reorder_memory_at_peak["pending_observations"]:
+                    current, peak = tracemalloc.get_traced_memory()
+                    reorder_memory_at_peak.update({
+                        "pending_observations": pending,
+                        "current_traced_bytes": current,
+                        "peak_traced_bytes": peak,
+                    })
+            return plan
         finally:
             ingest_submission_latencies.append(time.perf_counter() - started)
 
@@ -366,6 +406,9 @@ async def run_experiment(
         "ingress_queue_saturation": ingress_queue,
         "shard_queue_saturation": shard_queue,
         "reorder_saturation": gap_types["REORDER_BUFFER_SATURATION"],
+        "reorder_total_saturation": gap_types[
+            "REORDER_BUFFER_TOTAL_SATURATION"
+        ],
         "state_capacity_exceeded": state_errors,
         "processing_errors": processing_errors,
         "late_events": sum(event.control_type is ControlType.LATE_EVENT_OBSERVED for event in controls),
@@ -401,6 +444,16 @@ async def run_experiment(
     expected_live = min(config.active_key_count, config.max_state_entries)
     if config.workload == "same_time_burst":
         expected_live = 1
+    elif config.workload == "many_keys_same_time":
+        accepted = min(
+            config.active_key_count * config.same_timestamp_burst,
+            config.reorder_total_capacity,
+        )
+        expected_live = min(
+            config.active_key_count,
+            (accepted + config.same_timestamp_burst - 1)
+            // config.same_timestamp_burst,
+        )
     return {
         "run_id": run_id(config),
         "config": asdict(config),
@@ -422,6 +475,8 @@ async def run_experiment(
         "peak_reorder_total": dispatcher.peak_pending_reorder_total,
         "peak_reorder_per_key": dispatcher.peak_pending_reorder_per_key,
         "pending_reorder_at_end": dispatcher.pending_reorder_count,
+        "accepted_at_peak_reorder": dispatcher.peak_pending_reorder_total,
+        "rejected_total_observations": counts["reorder_total_saturation"],
         "counts": counts,
         "memory": {
             "tracemalloc_baseline_bytes": baseline_current,
@@ -435,6 +490,21 @@ async def run_experiment(
                 "Live Python allocations after releasing benchmark timing/control "
                 "buffers; includes runtime overhead and is not process RSS"
             ),
+            "reorder_at_peak": {
+                **reorder_memory_at_peak,
+                "approx_bytes_per_pending_observation": (
+                    round(
+                        (reorder_memory_at_peak["current_traced_bytes"] - baseline_current)
+                        / reorder_memory_at_peak["pending_observations"],
+                        3,
+                    )
+                    if reorder_memory_at_peak["pending_observations"] else None
+                ),
+                "scope": (
+                    "Python traced allocation at observed pending-reorder peak; "
+                    "includes runtime and benchmark instrumentation; not RSS"
+                ),
+            },
         },
         "latency": latency,
     }
@@ -469,30 +539,57 @@ def preset_configs(repetitions: int, shards: int) -> list[C2CapacityExperimentCo
     for repetition in range(1, repetitions + 1):
         for keys in (32, 64, 128, 256, 512, 1024, 2048):
             configs.append(C2CapacityExperimentConfig(
-                "key_cardinality", keys, 3, 1, keys + 1, 64, shards, repetition,
+                "key_cardinality", keys, 3, 1, keys + 1, 64, 8192,
+                shards, repetition,
             ))
         for keys in (32, 128, 512, 1024):
             configs.append(C2CapacityExperimentConfig(
-                "full_history", keys, 32, 1, keys + 1, 64, shards, repetition,
+                "full_history", keys, 32, 1, keys + 1, 64, 8192,
+                shards, repetition,
             ))
         for bound in (1, 2, 4, 8, 16, 32, 64):
             for burst in (1, 2, 4, 8, 16, 32, 64):
                 configs.append(C2CapacityExperimentConfig(
-                    "same_time_burst", 1, burst + 1, burst, 8, bound, shards, repetition,
+                    "same_time_burst", 1, burst + 1, burst, 8, bound, 8192,
+                    shards, repetition,
                 ))
         configs.append(C2CapacityExperimentConfig(
-            "mixed", 256, 8, 4, 512, 16, shards, repetition, "sqlite",
+            "mixed", 256, 8, 4, 512, 16, 8192, shards, repetition, "sqlite",
         ))
     # Explicit boundary evidence: below, equal, and max+1 attempted.
     configs.extend([
-        C2CapacityExperimentConfig("key_cardinality", 31, 3, 1, 32, 64, shards),
-        C2CapacityExperimentConfig("key_cardinality", 32, 3, 1, 32, 64, shards),
-        C2CapacityExperimentConfig("key_cardinality", 33, 3, 1, 32, 64, shards),
-        C2CapacityExperimentConfig("key_cardinality", 2047, 3, 1, 2048, 64, shards),
-        C2CapacityExperimentConfig("key_cardinality", 2048, 3, 1, 2048, 64, shards),
-        C2CapacityExperimentConfig("key_cardinality", 2049, 3, 1, 2048, 64, shards),
+        C2CapacityExperimentConfig("key_cardinality", 31, 3, 1, 32, 64, 8192, shards),
+        C2CapacityExperimentConfig("key_cardinality", 32, 3, 1, 32, 64, 8192, shards),
+        C2CapacityExperimentConfig("key_cardinality", 33, 3, 1, 32, 64, 8192, shards),
+        C2CapacityExperimentConfig("key_cardinality", 2047, 3, 1, 2048, 64, 8192, shards),
+        C2CapacityExperimentConfig("key_cardinality", 2048, 3, 1, 2048, 64, 8192, shards),
+        C2CapacityExperimentConfig("key_cardinality", 2049, 3, 1, 2048, 64, 8192, shards),
     ])
     return configs
+
+
+def global_reorder_preset_configs(
+    repetitions: int, shards: int
+) -> list[C2CapacityExperimentConfig]:
+    """Controlled many-key matrix for the independent lane-wide budget."""
+    points = (
+        # Exact clean occupancy points used for memory characterization.
+        (64, 4, 256),
+        (128, 4, 512),
+        (128, 8, 1024),
+        (256, 8, 2048),
+        # T+1 proof and sustained excess proof at the smallest tested budget.
+        (257, 1, 256),
+        (64, 8, 256),
+    )
+    return [
+        C2CapacityExperimentConfig(
+            "many_keys_same_time", keys, burst, burst,
+            1024, 16, total, shards, repetition,
+        )
+        for repetition in range(1, repetitions + 1)
+        for keys, burst, total in points
+    ]
 
 
 def _median_runs(runs: Sequence[dict[str, object]]) -> list[dict[str, object]]:
@@ -594,15 +691,117 @@ def render_report(payload: dict[str, object]) -> str:
     return f"""# [EXPERIMENT]\n# CONTROLLED MVP ENGINEERING CAPACITY CHARACTERIZATION\n\nThis is **C2-R1 CAPACITY CHARACTERIZATION** using controlled synthetic engineering load. It is not a production benchmark, scientific C2 validation, FPR test, malware-truth test, or EvidenceGate production-throughput claim.\n\n## Scope and environment\n\n- Captured: {env['captured_at']}\n- OS: {env['os']}\n- Python: {env['python']}\n- CPU: {env['cpu_model']} ({env['logical_cpu_count']} logical CPUs)\n- Available memory: {env['available_memory_bytes']}\n- Git commit at measurement start: `{env['git_commit']}`\n- Scientific config: minimum history `{scientific['minimum_history_events']}`, retained history `{scientific['max_retained_events_per_pair']}`, TTL `{scientific['state_ttl_seconds']}` seconds, basis `{scientific['event_basis']}`\n- Persistence: explicitly stated per run; SQLite runs use the real disk-backed schema v3 writer and persist every warm-up and ready result.\n\nThe ingress queue capacity is 2000, shard mailbox capacity is 1000, state-key capacity is the per-run `max_state_entries`, and per-key reorder capacity is the per-run `reorder_capacity`. These are four independent bounds. Scientific retained history (32) is independent of reorder capacity and does not imply a reorder limit of 32.\n\n## Runs\n\n{_markdown_table(runs)}\n\nOffered rate is records/observations submitted per wall second. Successfully processed rate is finalized results per wall second; every successfully processed C2-R1 observation produces one warm-up or ready result. A rate is clean only when ingress, shard, reorder, state-capacity, and processing error counts are all zero. `tracemalloc` reports Python allocations, not full-process RSS. Percentiles are emitted only with at least 100 samples.\n\n## Observed boundaries and timing\n\n- Aggregate ingress queue saturation: {total_counts['ingress_queue_saturation']}; shard queue saturation: {total_counts['shard_queue_saturation']}.\n- Intentional reorder saturation gaps: {total_counts['reorder_saturation']}; intentional state-capacity errors: {total_counts['state_capacity_exceeded']}.\n- Unexpected processing errors: {total_counts['processing_errors']}; late events: {total_counts['late_events']}.\n- Largest clean minimal-state point: {max_minimal['peak_state_entries'] if max_minimal else 'none'} live keys at {max_minimal['successfully_processed_observations_per_second'] if max_minimal else 'n/a'} processed observations/s.\n- Largest clean full-history point: {max_history['peak_state_entries'] if max_history else 'none'} live keys at {max_history['successfully_processed_observations_per_second'] if max_history else 'n/a'} processed observations/s.\n- Smallest clean reorder bound by controlled burst: {reorder_map}.\n- SQLite runs: {len(sqlite_runs)}; all have equal finalized and persisted result counts: {all(r['results'] == r['sqlite_results'] for r in sqlite_runs)}. Canonicalization, ingest-submission, plugin, persistence, and end-to-end p50/p95/p99 values are preserved in the JSON artifact.\n\n## Candidate discussion\n\nClean tested state capacities span {min(state_values) if state_values else 'none'} through {max(state_values) if state_values else 'none'} entries at the exact tabled workloads. Clean tested reorder capacities: {reorder_values or 'none'}. Higher retained history increases memory per key; SQLite persistence reduces the observed vertical-slice rate relative to no-persistence runs. These measurements apply only to the exact environment and workloads above. No automatic headroom multiplier is selected.\n\nThe smallest tested clean state/reorder values for a workload can be read from the exact rows and machine-readable artifact. These are a **CANDIDATE RANGE FOR HUMAN GATE**, not final configuration. The default registry remains `LaneTarget(\"c2\") -> C2ShellPlugin`; C2-R1 has not been activated.\n\nHUMAN GATE REQUIRED\n\nSTATE CAPACITY CANDIDATES:\n{state_range}\n\nREORDER CAPACITY CANDIDATES:\n{reorder_map or 'No clean candidate measured'}\n\nSUPPORTING RUN IDS:\n{supporting or 'None'}\n\nKNOWN LIMITATIONS:\n- Single development host and synthetic typed-NDJSON replay only.\n- `tracemalloc` excludes native allocations and is not RSS.\n- C2-R1 vertical slice only; no DGA model, other threat paths, PCAP adapter, API, dashboard, or alert path.\n- Rates are machine- and workload-specific and are not production capacity.\n\nNO VALUE HAS BEEN ACTIVATED YET.\n"""
 
 
+def render_global_reorder_report(payload: dict[str, object]) -> str:
+    runs = payload["runs"]
+    env = payload["environment"]
+    rows = [
+        "| run | keys | events/key | per-key | total | offered | accepted peak | rejected total | peak total | peak/key | seconds | current traced at peak | peak traced | bytes/pending | status |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    for run in runs:
+        cfg = run["config"]
+        memory = run["memory"]["reorder_at_peak"]
+        rows.append(
+            "| " + " | ".join(map(str, (
+                run["run_id"], cfg["active_key_count"],
+                cfg["same_timestamp_burst"], cfg["reorder_capacity"],
+                cfg["reorder_total_capacity"], run["observations"],
+                run["accepted_at_peak_reorder"],
+                run["rejected_total_observations"], run["peak_reorder_total"],
+                run["peak_reorder_per_key"], run["elapsed_seconds"],
+                memory["current_traced_bytes"], memory["peak_traced_bytes"],
+                memory["approx_bytes_per_pending_observation"],
+                ", ".join(run["status"]),
+            ))) + " |"
+        )
+    clean_bounds = sorted({
+        run["config"]["reorder_total_capacity"] for run in runs
+        if run["status"] == ["CLEAN"]
+        and run["peak_reorder_total"] == run["config"]["reorder_total_capacity"]
+    })
+    supporting = [
+        run["run_id"] for run in runs
+        if run["config"].get("repetition") == 1
+    ]
+    return "\n".join((
+        "# [EXPERIMENT]",
+        "# CONTROLLED MVP GLOBAL REORDER CAPACITY CHARACTERIZATION",
+        "",
+        "This addendum uses controlled synthetic engineering load through the real typed-NDJSON replay, C2-R1 plugin, event-time reorder, StateStore, shards, and real result finalization. It makes no production-capacity or C2-detection claim.",
+        "",
+        "## Root cause and policy contract",
+        "",
+        "A per-key bound alone cannot bound the sum of buffers when many distinct keys share an unclosed event-time boundary. `EventTimeReorderPolicy` now requires independent positive non-boolean `max_buffered_events_per_key` and `max_buffered_events_total` values, with total greater than or equal to per-key. The dispatcher checks per-key first, then total, before insertion.",
+        "",
+        "Existing buffered facts are never evicted. A fact rejected by the lane-wide budget produces one `REORDER_BUFFER_TOTAL_SATURATION` QualityGap and invokes the plugin's existing GapAction. Per-key overflow remains `REORDER_BUFFER_SATURATION`. Watermark ordering and release semantics are unchanged.",
+        "",
+        "State capacity, per-key reorder capacity, lane-total reorder capacity, and C2 scientific retained history (32 events) remain four separate concepts. None is derived from another.",
+        "",
+        "## Many-key same-time workload and total sweep",
+        "",
+        *rows,
+        "",
+        "The workload assigns explicit trusted `SOURCE_DECLARED_ROLE` client, peer, and service identities. All K x B observations share one event time; a later source timestamp advances the real replay watermark. Offered observations include that later boundary record. Accepted peak counts refer to simultaneously buffered same-time observations; rejected-total counts are one visible gap per incoming excess fact.",
+        "",
+        "## Memory and throughput interpretation",
+        "",
+        "The table records Python traced current and peak allocation at the observed pending-buffer maximum plus an approximate incremental bytes/pending observation value. `tracemalloc` is not process RSS and the point-in-time value includes runtime and benchmark instrumentation. Saturated offered rates are not sustainable-throughput claims.",
+        "",
+        "## Environment",
+        "",
+        f"- Captured: {env['captured_at']}",
+        f"- OS: {env['os']}",
+        f"- Python: {env['python']}",
+        f"- CPU: {env['cpu_model']} ({env['logical_cpu_count']} logical CPUs)",
+        f"- Available memory: {env['available_memory_bytes']}",
+        f"- Starting git commit: `{env['git_commit']}`",
+        "",
+        "## Limitations",
+        "",
+        "- Single development host and controlled synthetic typed replay.",
+        "- Point-in-time `tracemalloc` allocation is not RSS.",
+        "- C2-R1 vertical slice only; no DGA, other threats, API, dashboard, or raw-PCAP path.",
+        "- Tested values are engineering candidates, not activated defaults or production claims.",
+        "",
+        "HUMAN GATE REQUIRED",
+        "",
+        "PROVISIONAL STATE CAPACITY:",
+        "1024",
+        "NOT YET ACTIVE",
+        "",
+        "PROVISIONAL PER-KEY REORDER CAPACITY:",
+        "16",
+        "NOT YET ACTIVE",
+        "",
+        "TOTAL REORDER CAPACITY CANDIDATES:",
+        f"{min(clean_bounds)}-{max(clean_bounds)} among exact clean tested bounds" if clean_bounds else "No clean candidate measured",
+        "",
+        "SUPPORTING RUN IDS:",
+        str(supporting),
+        "",
+        "KNOWN LIMITATIONS:",
+        "- Single-host controlled synthetic replay; tracemalloc is not RSS.",
+        "- Candidate values require Control Room review and are not production capacity.",
+        "",
+        "NO C2 CAPACITY VALUE HAS BEEN ACTIVATED.",
+        "",
+    ))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preset", action="store_true", help="run the conservative characterization sweep")
-    parser.add_argument("--workload", choices=("key_cardinality", "full_history", "same_time_burst", "mixed"), default="key_cardinality")
+    parser.add_argument(
+        "--global-reorder-preset", action="store_true",
+        help="run the many-key lane-total reorder characterization",
+    )
+    parser.add_argument("--workload", choices=("key_cardinality", "full_history", "same_time_burst", "mixed", "many_keys_same_time"), default="key_cardinality")
     parser.add_argument("--keys", type=int, nargs="+", default=[32])
     parser.add_argument("--events-per-key", type=int, default=3)
     parser.add_argument("--same-time-burst", type=int, default=1)
     parser.add_argument("--max-state-entries", type=int, default=64)
     parser.add_argument("--reorder-capacity", type=int, default=64)
+    parser.add_argument("--reorder-total-capacity", type=int, default=8192)
     parser.add_argument("--shards", type=int, default=4)
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--database-mode", choices=("none", "sqlite"), default="none")
@@ -618,13 +817,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def async_main(args: argparse.Namespace) -> dict[str, object]:
-    if args.preset:
+    if args.global_reorder_preset:
+        configs = global_reorder_preset_configs(args.repetitions, args.shards)
+    elif args.preset:
         configs = preset_configs(args.repetitions, args.shards)
     else:
         configs = [
             C2CapacityExperimentConfig(
                 args.workload, keys, args.events_per_key, args.same_time_burst,
-                args.max_state_entries, args.reorder_capacity, args.shards,
+                args.max_state_entries, args.reorder_capacity,
+                args.reorder_total_capacity, args.shards,
                 repetition, args.database_mode,
             )
             for repetition in range(1, args.repetitions + 1)
@@ -644,7 +846,11 @@ async def async_main(args: argparse.Namespace) -> dict[str, object]:
         runs.append(await run_experiment(config, allow_large=args.allow_large, working_directory=run_dir))
     reference = C2R1Config.reference_engine_v1()
     payload = {
-        "status": "[EXPERIMENT] CONTROLLED MVP ENGINEERING CAPACITY CHARACTERIZATION",
+        "status": (
+            "[EXPERIMENT] CONTROLLED MVP GLOBAL REORDER CAPACITY CHARACTERIZATION"
+            if args.global_reorder_preset else
+            "[EXPERIMENT] CONTROLLED MVP ENGINEERING CAPACITY CHARACTERIZATION"
+        ),
         "production_claim": "NONE",
         "environment": environment(),
         "scientific_config": {
@@ -668,7 +874,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     payload = asyncio.run(async_main(args))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    args.report.write_text(render_report(payload), encoding="utf-8")
+    report = (
+        render_global_reorder_report(payload)
+        if args.global_reorder_preset else render_report(payload)
+    )
+    args.report.write_text(report, encoding="utf-8")
     print(f"wrote {args.output} and {args.report}")
     return 0
 
