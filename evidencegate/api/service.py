@@ -15,6 +15,7 @@ from evidencegate.api.models import (
     TargetStatusDto,
 )
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner
+from evidencegate.ingest.pcap import PcapReplaySource
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.registry import build_mvp_runtime_registration
 from evidencegate.results.types import Result
@@ -29,12 +30,15 @@ class ReplayScenario:
     label: str
     family: str
     bundle: Path
+    source_type: str = "NDJSON"
+    manifest: Path | None = None
 
 
 @dataclass(slots=True)
 class _ReplayState:
     state: str = "IDLE"
     scenario: str | None = None
+    source_type: str | None = None
     records_read: int = 0
     observations_emitted: int = 0
     results_persisted: int = 0
@@ -66,10 +70,17 @@ def default_scenarios(root: Path) -> dict[str, ReplayScenario]:
         ("encrypted_session", "TLS handshake evidence", "Encrypted Sessions", "tls_handshake"),
         ("transfer_magnitude", "Transfer magnitude", "Data Exfiltration", "flow_transfer"),
     )
-    return {
+    scenarios = {
         scenario_id: ReplayScenario(scenario_id, label, family, fixtures / bundle)
         for scenario_id, label, family, bundle in definitions
     }
+    pcap_bundle = root / "tests" / "fixtures" / "pcap" / "raw_ddos_recon"
+    scenarios["raw_pcap_ddos_recon"] = ReplayScenario(
+        "raw_pcap_ddos_recon", "Raw PCAP — DDoS + Recon",
+        "DDoS / Reconnaissance", pcap_bundle / "capture.pcap", "PCAP",
+        pcap_bundle / "manifest.json",
+    )
+    return scenarios
 
 
 class ReplayBusyError(RuntimeError):
@@ -123,6 +134,7 @@ class EvidenceGateService:
             elapsed = perf_counter() - self._started_monotonic
         return ReplayStatusResponse(
             state=self._replay.state, scenario=self._replay.scenario,
+            source_type=self._replay.source_type,
             records_read=self._replay.records_read,
             observations_emitted=self._replay.observations_emitted,
             results_persisted=self._replay.results_persisted,
@@ -139,7 +151,8 @@ class EvidenceGateService:
             raise ReplayBusyError("a replay is already running")
         now = datetime.now(timezone.utc)
         self._replay = _ReplayState(
-            state="RUNNING", scenario=scenario_id, started_at=now,
+            state="RUNNING", scenario=scenario_id,
+            source_type=self.scenarios[scenario_id].source_type, started_at=now,
         )
         self._started_monotonic = perf_counter()
         self._task = asyncio.create_task(
@@ -166,8 +179,13 @@ class EvidenceGateService:
             reorder_policies=registration.reorder_policies,
         )
         try:
+            source = (
+                PcapReplaySource(scenario.bundle, scenario.manifest)
+                if scenario.source_type == "PCAP" and scenario.manifest is not None
+                else NdjsonReplaySource(scenario.bundle)
+            )
             summary = await ReplayRunner(
-                NdjsonReplaySource(scenario.bundle), supervisor, speed=speed,
+                source, supervisor, speed=speed,
             ).run()
             self._replay.records_read = summary.records_read
             self._replay.observations_emitted = summary.observations_emitted
@@ -200,7 +218,10 @@ class EvidenceGateService:
 
     def scenario_dtos(self) -> list[ScenarioDto]:
         return [
-            ScenarioDto(id=item.scenario_id, label=item.label, family=item.family)
+            ScenarioDto(
+                id=item.scenario_id, label=item.label, family=item.family,
+                source_type=item.source_type,
+            )
             for item in self.scenarios.values()
         ]
 

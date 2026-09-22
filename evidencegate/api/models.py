@@ -87,6 +87,7 @@ class ReplayRequest(StrictModel):
 class ReplayStatusResponse(StrictModel):
     state: Literal["IDLE", "RUNNING", "COMPLETED", "FAILED"]
     scenario: str | None
+    source_type: str | None = None
     records_read: int
     observations_emitted: int
     results_persisted: int
@@ -100,6 +101,7 @@ class ScenarioDto(StrictModel):
     id: str
     label: str
     family: str
+    source_type: str = "NDJSON"
 
 
 class TargetStatusDto(StrictModel):
@@ -124,6 +126,7 @@ class RuntimeStatusResponse(StrictModel):
     live_subscriber_count: int
     replay: ReplayStatusResponse
     scenarios: list[ScenarioDto]
+    supported_sources: list[str] = Field(default_factory=list)
 
 
 class ResultNotification(StrictModel):

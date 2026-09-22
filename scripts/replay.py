@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay a passive typed-NDJSON bundle through the EvidenceGate runtime."""
+"""Replay passive typed-NDJSON or raw-PCAP through the EvidenceGate runtime."""
 from __future__ import annotations
 
 import argparse
@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner, validate_bundle
+from evidencegate.ingest.pcap import PcapReplaySource, validate_pcap
 from evidencegate.ingest.replay_schema import ReplayValidationError
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.registry import build_mvp_runtime_registration
@@ -16,18 +17,29 @@ from evidencegate.runtime.supervisor import RuntimeSupervisor
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bundle", required=True, type=Path)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--bundle", type=Path, help="typed-NDJSON replay bundle")
+    source.add_argument("--pcap", type=Path, help="offline classic-PCAP capture")
+    parser.add_argument("--manifest", type=Path, help="trusted sidecar for --pcap")
     parser.add_argument("--database", type=Path, default=Path("evidencegate.db"))
     parser.add_argument("--speed", type=float, default=0,
                         help="0 = as fast as possible; 1 = event-time speed")
     parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args()
+    if args.pcap is not None and args.manifest is None:
+        parser.error("--manifest is required with --pcap")
+    if args.bundle is not None and args.manifest is not None:
+        parser.error("--manifest is only valid with --pcap")
     if args.validate_only:
         try:
-            count = await validate_bundle(args.bundle)
+            count = (
+                await validate_pcap(args.pcap, args.manifest)
+                if args.pcap is not None
+                else await validate_bundle(args.bundle)
+            )
         except ReplayValidationError as exc:
             parser.error(str(exc))
-        print(f"valid bundle: {count} records")
+        print(f"valid source: {count} records/packets")
         return
 
     sqlite = SqliteWriter(args.database, Path("evidencegate/persistence/schema.sql"))
@@ -46,8 +58,13 @@ async def main() -> None:
     )
     try:
         try:
+            input_source = (
+                PcapReplaySource(args.pcap, args.manifest)
+                if args.pcap is not None
+                else NdjsonReplaySource(args.bundle)
+            )
             summary = await ReplayRunner(
-                NdjsonReplaySource(args.bundle), supervisor, speed=args.speed,
+                input_source, supervisor, speed=args.speed,
             ).run()
         except ReplayValidationError as exc:
             parser.error(str(exc))

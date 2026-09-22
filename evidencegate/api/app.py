@@ -276,6 +276,7 @@ def create_app(
             durable_result_count=await service.writer.count_results(),
             live_subscriber_count=service.broadcaster.subscriber_count,
             replay=replay_value, scenarios=service.scenario_dtos(),
+            supported_sources=["TYPED_NDJSON_REPLAY", "RAW_PCAP_REPLAY"],
         )
 
     return application

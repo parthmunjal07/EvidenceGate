@@ -141,7 +141,7 @@
 
   async function monitorReplay() {
     const replay = await request("/replay/status");
-    el("replay-status").textContent = `${replay.state} · ${replay.scenario || "no scenario"} · ${replay.results_persisted} results persisted`;
+    el("replay-status").textContent = `${replay.state} · ${replay.source_type || "no source"} · ${replay.scenario || "no scenario"} · ${replay.records_read} read · ${replay.observations_emitted} observations · ${replay.results_persisted} results persisted`;
     el("runtime-state").textContent = replay.state === "RUNNING" ? "REPLAYING" : "ONLINE";
     if (replay.state === "RUNNING") {
       setTimeout(monitorReplay, 250);

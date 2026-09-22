@@ -20,6 +20,7 @@ from evidencegate.ingest.replay_schema import (
     parse_record_line,
 )
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
+from evidencegate.ingest.source import InputSource
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 
 
@@ -32,6 +33,7 @@ class NdjsonReplaySource:
     """Read one typed record at a time from an immutable finite bundle."""
 
     def __init__(self, bundle: str | Path):
+        self.source_type = "NDJSON"
         self.bundle = Path(bundle)
         self.source_id = "<unopened>"
         self.source_kind = None
@@ -142,13 +144,14 @@ class ReplaySummary:
     observations_emitted: int
     control_events: int
     elapsed_wall_seconds: float
+    routed_mechanism_updates: int = 0
 
 
 class ReplayRunner:
     """Feed a finite source incrementally into the existing runtime."""
 
     def __init__(
-        self, source: NdjsonReplaySource, supervisor: RuntimeSupervisor, *,
+        self, source: InputSource, supervisor: RuntimeSupervisor, *,
         speed: float = 0,
         control_sink: Callable[[RuntimeControlEvent], Awaitable[None]] | None = None,
         canonicalizer: ReplayCanonicalizer | None = None,
@@ -204,14 +207,16 @@ class ReplayRunner:
 
     async def run(self) -> ReplaySummary:
         started = perf_counter()
-        records_read = observations_emitted = 0
+        records_read = observations_emitted = routed_mechanism_updates = 0
         manifest = await self.source.open()
         self.supervisor.start_all()
         previous = maximum = None
         try:
             await self._control(ControlType.SOURCE_STARTED, payload={
-                "component": "replay", "bundle": str(self.source.bundle),
-                "event_time_order": "NONDECREASING",
+                "component": "replay",
+                "source": str(getattr(self.source, "bundle", self.source.source_id)),
+                "source_type": str(getattr(self.source, "source_type", "UNKNOWN")),
+                "event_time_order": "SOURCE_ORDER",
             })
             async for raw in self.source.records():
                 record = raw
@@ -228,10 +233,12 @@ class ReplayRunner:
                     if self.control_sink is not None:
                         await self.control_sink(event)
                 for observation in result.observations:
-                    await self.supervisor.ingest_observation(observation)
+                    plan = await self.supervisor.ingest_observation(observation)
+                    routed_mechanism_updates += len(plan.selected_targets)
                     observations_emitted += 1
                 records_read += 1
-                previous = maximum = record.timestamp
+                previous = record.timestamp
+                maximum = record.timestamp if maximum is None else max(maximum, record.timestamp)
             if maximum is not None and self._stateful_targets():
                 if maximum == datetime.max.replace(tzinfo=maximum.tzinfo):
                     raise ReplayValidationError(manifest.source_id, "EOF", "TerminalWatermarkError", "datetime.max cannot be advanced by one microsecond")
@@ -242,7 +249,10 @@ class ReplayRunner:
                 "observations_emitted": observations_emitted,
                 "terminal_boundary": "finite-source EOF",
             })
-            return ReplaySummary(records_read, observations_emitted, self._control_count, perf_counter() - started)
+            return ReplaySummary(
+                records_read, observations_emitted, self._control_count,
+                perf_counter() - started, routed_mechanism_updates,
+            )
         except Exception as exc:
             await self._control(ControlType.ERROR, event_time=maximum, payload={
                 "component": "replay", "exception_type": type(exc).__name__,
