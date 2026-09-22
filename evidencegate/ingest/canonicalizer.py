@@ -19,7 +19,9 @@ from evidencegate.domain.events import (
     NetworkObservation, RoleAssignment, RuntimeControlEvent, VisibilityProfile,
 )
 from evidencegate.domain.payloads import FlowObservation
-from evidencegate.domain.enums import AvailabilityBasis, Finality, ObservationType, VisibilityCapability
+from evidencegate.domain.enums import (
+    AvailabilityBasis, Finality, ObservationType, VisibilityCapability, WireDirection,
+)
 from evidencegate.ingest.builders import CanonicalObservationBuilder, identity_from_identifiers
 
 
@@ -47,6 +49,7 @@ class Canonicalizer(Protocol):
         ingest_time: datetime,
         declared_observed_fields: tuple[str, ...] | None = None,
         role_assignments: tuple[RoleAssignment, ...] = (),
+        wire_direction_override: WireDirection | None = None,
     ) -> CanonicalizationResult:
         ...
 
@@ -66,6 +69,7 @@ class FlowCanonicalizer:
         ingest_time: datetime,
         declared_observed_fields: tuple[str, ...] | None = None,
         role_assignments: tuple[RoleAssignment, ...] = (),
+        wire_direction_override: WireDirection | None = None,
     ) -> CanonicalizationResult:
         flow_obs: FlowObservation = record.raw_data
 
@@ -95,6 +99,7 @@ class FlowCanonicalizer:
                 unavailable=unavailable_protocol_facts,
             ),
             identity=identity_from_identifiers(flow_obs.endpoints, role_assignments),
+            wire_direction_override=wire_direction_override,
         )
 
         # Pure result: tuple of observations and tuple of control_events.

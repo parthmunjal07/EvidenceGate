@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from evidencegate.domain.enums import IdentityBasis, ObservationType, SourceKind
+from evidencegate.domain.enums import (
+    CapabilityState, IdentityBasis, ObservationType, SourceKind,
+    VisibilityCapability, WireDirection,
+)
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayCanonicalizer, validate_bundle
 from evidencegate.ingest.replay_schema import ReplayValidationError
 
@@ -15,6 +18,7 @@ FIXTURES = Path("tests/fixtures/replay")
 
 @pytest.mark.parametrize("name,count", [
     ("dns_forward", 1), ("tls_handshake", 1), ("flow_transfer", 1), ("c2_r1", 3),
+    ("mixed_direction", 3),
 ])
 async def test_manifest_and_all_fixture_records_validate(name, count):
     assert await validate_bundle(FIXTURES / name) == count
@@ -114,3 +118,129 @@ async def test_existing_dns_canonicalization_is_reused():
     payload = result.observations[0].typed_payload
     assert payload.qname_canonical == "demo.example"
     assert payload.representation_version == "DNS_NAME_REPRESENTATION_V1"
+
+
+async def test_mixed_record_directions_preserve_both_source_visibility():
+    source = NdjsonReplaySource(FIXTURES / "mixed_direction")
+    manifest = await source.open()
+    observations = []
+    async for record in source.records():
+        result = ReplayCanonicalizer().canonicalize(
+            record, manifest, f"quality:{record.position}", record.timestamp,
+        )
+        observations.extend(result.observations)
+    await source.close()
+    assert [item.wire_direction for item in observations] == [
+        WireDirection.FORWARD, WireDirection.REVERSE, WireDirection.FORWARD,
+    ]
+    for observation in observations:
+        assert observation.visibility.state(
+            VisibilityCapability.FORWARD_FACTS,
+        ) is CapabilityState.AVAILABLE
+        assert observation.visibility.state(
+            VisibilityCapability.REVERSE_FACTS,
+        ) is CapabilityState.AVAILABLE
+
+
+@pytest.mark.parametrize("value,match", [
+    ("SIDEWAYS", "unknown wire_direction"),
+    (1, "wire_direction must be a string"),
+])
+async def test_record_direction_rejects_unknown_strings_and_wrong_types(tmp_path, value, match):
+    bundle, manifest, records = _mutated_bundle(tmp_path)
+    records[0]["wire_direction"] = value
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (bundle / "records.ndjson").write_text(json.dumps(records[0]) + "\n", encoding="utf-8")
+    with pytest.raises(ReplayValidationError, match=match):
+        await validate_bundle(bundle)
+
+
+async def test_concrete_manifest_record_direction_conflict_fails_closed(tmp_path):
+    bundle, manifest, records = _mutated_bundle(tmp_path)
+    records[0]["wire_direction"] = "REVERSE"
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (bundle / "records.ndjson").write_text(json.dumps(records[0]) + "\n", encoding="utf-8")
+    with pytest.raises(ReplayValidationError, match="DirectionContractError.*contradicts"):
+        await validate_bundle(bundle)
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("dns_forward", WireDirection.FORWARD),
+    ("mixed_direction", WireDirection.FORWARD),
+])
+async def test_omitted_direction_uses_manifest_and_record_direction_is_explicit(fixture, expected):
+    source = NdjsonReplaySource(FIXTURES / fixture)
+    manifest = await source.open()
+    iterator = source.records().__aiter__()
+    record = await iterator.__anext__()
+    await iterator.aclose()
+    observation = ReplayCanonicalizer().canonicalize(
+        record, manifest, "quality", record.timestamp,
+    ).observations[0]
+    await source.close()
+    assert observation.wire_direction is expected
+
+
+async def test_unknown_manifest_and_omitted_record_stay_unknown(tmp_path):
+    bundle, manifest, records = _mutated_bundle(tmp_path)
+    manifest["wire_direction"] = "UNKNOWN"
+    manifest["direction_basis"] = "UNKNOWN"
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (bundle / "records.ndjson").write_text(json.dumps(records[0]) + "\n", encoding="utf-8")
+    source = NdjsonReplaySource(bundle)
+    parsed_manifest = await source.open()
+    iterator = source.records().__aiter__()
+    record = await iterator.__anext__()
+    await iterator.aclose()
+    observation = ReplayCanonicalizer().canonicalize(
+        record, parsed_manifest, "quality", record.timestamp,
+    ).observations[0]
+    await source.close()
+    assert observation.wire_direction is WireDirection.UNKNOWN
+
+
+async def test_direction_is_not_inferred_from_packet_addresses_ports_or_flags(tmp_path):
+    bundle, manifest, records = _mutated_bundle(tmp_path, "mixed_direction")
+    records = records[:2]
+    records[1]["payload"] = dict(records[0]["payload"])
+    records[1]["wire_direction"] = "REVERSE"
+    manifest["record_count"] = 2
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (bundle / "records.ndjson").write_text(
+        "\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8",
+    )
+    source = NdjsonReplaySource(bundle)
+    parsed_manifest = await source.open()
+    observations = []
+    async for record in source.records():
+        observations.extend(ReplayCanonicalizer().canonicalize(
+            record, parsed_manifest, "quality", record.timestamp,
+        ).observations)
+    await source.close()
+    assert observations[0].typed_payload == observations[1].typed_payload
+    assert [item.wire_direction for item in observations] == [
+        WireDirection.FORWARD, WireDirection.REVERSE,
+    ]
+
+
+@pytest.mark.parametrize("fixture", ["dns_forward", "tls_handshake", "flow_transfer"])
+async def test_record_direction_is_generic_across_replay_observation_types(tmp_path, fixture):
+    bundle, manifest, records = _mutated_bundle(tmp_path, fixture)
+    manifest["wire_direction"] = "UNKNOWN"
+    manifest["visibility"] = {
+        "available": ["FORWARD_FACTS", "REVERSE_FACTS"],
+        "unavailable": [], "degraded": [],
+    }
+    records[0]["wire_direction"] = "REVERSE"
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (bundle / "records.ndjson").write_text(json.dumps(records[0]) + "\n", encoding="utf-8")
+    source = NdjsonReplaySource(bundle)
+    parsed_manifest = await source.open()
+    iterator = source.records().__aiter__()
+    record = await iterator.__anext__()
+    await iterator.aclose()
+    observation = ReplayCanonicalizer().canonicalize(
+        record, parsed_manifest, "quality", record.timestamp,
+    ).observations[0]
+    await source.close()
+    assert observation.wire_direction is WireDirection.REVERSE

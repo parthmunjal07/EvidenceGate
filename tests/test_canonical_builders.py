@@ -122,6 +122,22 @@ def test_quic_outer_metadata_does_not_claim_tls_metadata():
     assert observation.visibility.state(VisibilityCapability.TLS_RECORD_METADATA) is CapabilityState.UNKNOWN
 
 
+def test_quic_accepts_declared_observation_direction_without_changing_source_visibility():
+    quic = QUICObservation("f", "1", "long", 1200, ["cid"], "1", 0, NOW, [])
+    both = VisibilityProfile(available=frozenset({
+        VisibilityCapability.FORWARD_FACTS, VisibilityCapability.REVERSE_FACTS,
+    }))
+    observation = QUICCanonicalBuilder().canonicalize(
+        RawSourceRecord(quic, NOW, 220),
+        manifest(wire_direction=WireDirection.UNKNOWN, visibility=both),
+        "quality", NOW, {"version", "header_type", "length"},
+        outer_metadata=True, wire_direction_override=WireDirection.REVERSE,
+    )
+    assert observation.wire_direction is WireDirection.REVERSE
+    assert observation.visibility.state(VisibilityCapability.FORWARD_FACTS) is CapabilityState.AVAILABLE
+    assert observation.visibility.state(VisibilityCapability.REVERSE_FACTS) is CapabilityState.AVAILABLE
+
+
 def test_source_quality_propagates_without_improvement():
     source_quality = EvidenceQuality(sampling=QualityState.DEGRADED, packet_loss=QualityState.UNKNOWN)
     observation = PacketCanonicalBuilder().canonicalize(

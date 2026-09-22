@@ -9,7 +9,8 @@ measurement. C2-R1 is default active with controlled-MVP engineering bounds of
 1024 state keys, 16 pending reordered events per key, and 2048 pending reordered
 events lane-wide. These are tested controlled-MVP engineering containment bounds,
 not production sizing or C2/scientific thresholds. Structured typed-NDJSON replay
-ingest is implemented; raw-PCAP ingest and live capture are not.
+ingest supports source-wide one-way direction and explicit per-record direction
+for mixed-direction captures; raw-PCAP ingest and live capture are not.
 
 ## Setup, Run, and Test Instructions
 

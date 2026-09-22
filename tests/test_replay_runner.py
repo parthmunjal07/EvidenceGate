@@ -82,6 +82,25 @@ async def test_repeated_replay_has_deterministic_scientific_ids(tmp_path):
     assert first[1][0].evidence == second[1][0].evidence
 
 
+async def test_mixed_direction_replay_is_deterministic_and_keeps_event_time(tmp_path):
+    first_canonicalizer = RecordingCanonicalizer()
+    second_canonicalizer = RecordingCanonicalizer()
+    first = await run_default(
+        FIXTURES / "mixed_direction", tmp_path / "mixed-one.sqlite",
+        canonicalizer=first_canonicalizer,
+    )
+    second = await run_default(
+        FIXTURES / "mixed_direction", tmp_path / "mixed-two.sqlite",
+        canonicalizer=second_canonicalizer,
+    )
+    assert first[0].records_read == second[0].records_read == 3
+    assert first_canonicalizer.observations == second_canonicalizer.observations
+    assert [item.event_time.isoformat() for item in first_canonicalizer.observations] == [
+        "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:01+00:00",
+        "2026-01-01T00:00:02+00:00",
+    ]
+
+
 class RecordingCanonicalizer(ReplayCanonicalizer):
     def __init__(self):
         super().__init__()

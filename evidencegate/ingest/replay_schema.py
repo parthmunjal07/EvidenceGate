@@ -55,9 +55,12 @@ class ReplaySourceRecord(RawSourceRecord):
     declared_observed_fields: tuple[str, ...] = ()
     role_assignments: tuple[RoleAssignment, ...] = ()
     canonicalization_options: Mapping[str, bool] = None  # type: ignore[assignment]
+    wire_direction: WireDirection | None = None
 
     def __post_init__(self) -> None:
         RawSourceRecord.__post_init__(self)
+        if self.wire_direction is not None and not isinstance(self.wire_direction, WireDirection):
+            raise TypeError("record wire_direction must be WireDirection or None")
         object.__setattr__(
             self, "canonicalization_options",
             MappingProxyType(dict(self.canonicalization_options or {})),
@@ -255,10 +258,13 @@ def parse_record_line(text: str, *, source_id: str, line_number: int) -> ReplayS
         }
         if not isinstance(value, dict):
             raise TypeError("record must be an object")
-        if set(value) != required:
+        allowed = required | {"wire_direction"}
+        if missing := required - set(value):
             raise ValueError(
-                f"missing={sorted(required - set(value))} unknown={sorted(set(value) - required)}"
+                f"missing={sorted(missing)} unknown={sorted(set(value) - allowed)}"
             )
+        if unknown := set(value) - allowed:
+            raise ValueError(f"missing=[] unknown={sorted(unknown)}")
         if value["schema_version"] != RECORD_SCHEMA_VERSION:
             raise ValueError("unsupported record schema_version")
         position = value["position"]
@@ -302,6 +308,8 @@ def parse_record_line(text: str, *, source_id: str, line_number: int) -> ReplayS
             observation_type=observation_type,
             declared_observed_fields=tuple(declared), role_assignments=tuple(roles),
             canonicalization_options=dict(options),
+            wire_direction=(_enum(WireDirection, value["wire_direction"], "wire_direction")
+                            if "wire_direction" in value else None),
         )
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         raise ReplayValidationError(source_id, f"line {line_number}", type(exc).__name__, str(exc)) from exc

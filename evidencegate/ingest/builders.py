@@ -137,7 +137,17 @@ class CanonicalObservationBuilder:
         visibility: VisibilityProfile = VisibilityProfile(),
         quality: EvidenceQuality | None = None,
         identity: ObservationIdentity | None = None,
+        wire_direction_override: WireDirection | None = None,
     ) -> NetworkObservationEnvelope:
+        if (wire_direction_override is not None
+                and not isinstance(wire_direction_override, WireDirection)):
+            raise TypeError("wire_direction_override must be WireDirection or None")
+        if (wire_direction_override not in (None, WireDirection.UNKNOWN)
+                and manifest.wire_direction is not WireDirection.UNKNOWN
+                and wire_direction_override is not manifest.wire_direction):
+            raise ValueError("record wire direction contradicts source manifest")
+        wire_direction = (manifest.wire_direction if wire_direction_override is None
+                          else wire_direction_override)
         return NetworkObservationEnvelope(
             observation_id=observation_id(observation_type, manifest.source_id, record.position),
             schema_version="1.1", observation_type=observation_type,
@@ -147,7 +157,7 @@ class CanonicalObservationBuilder:
             ingest_time=ingest_time, source_id=manifest.source_id,
             source_kind=manifest.source_kind, source_position=str(record.position),
             observation_contract=manifest.input_observation_contract,
-            wire_direction=manifest.wire_direction,
+            wire_direction=wire_direction,
             direction_basis=manifest.direction_basis,
             finality=record.finality if finality is None else finality,
             availability_basis=availability_basis,
@@ -175,6 +185,7 @@ class _PayloadBuilder:
         visibility: VisibilityProfile = VisibilityProfile(),
         quality: EvidenceQuality | None = None,
         role_assignments: Iterable[RoleAssignment] = (),
+        wire_direction_override: WireDirection | None = None,
     ) -> NetworkObservationEnvelope:
         if not isinstance(record.raw_data, self.payload_type):
             raise TypeError(f"{self.observation_type.value} builder requires {self.payload_type.__name__}")
@@ -190,6 +201,7 @@ class _PayloadBuilder:
             manifest=manifest, quality_ref=quality_ref, ingest_time=ingest_time,
             declared_observed_fields=declared_observed_fields, visibility=facts,
             quality=quality, identity=identity_from_identifiers(identifiers, role_assignments),
+            wire_direction_override=wire_direction_override,
         )
 
 
@@ -264,6 +276,7 @@ class DNSCanonicalBuilder(_PayloadBuilder):
         declared = kwargs["declared_observed_fields"]
         quality = kwargs.get("quality")
         roles = kwargs.get("role_assignments", ())
+        wire_direction_override = kwargs.get("wire_direction_override")
         if not isinstance(record.raw_data, DNSObservation):
             raise TypeError("DNS builder requires DNSObservation")
         return self.common.build(
@@ -271,6 +284,7 @@ class DNSCanonicalBuilder(_PayloadBuilder):
             manifest=manifest, quality_ref=quality_ref, ingest_time=ingest_time,
             declared_observed_fields=declared, visibility=visibility, quality=quality,
             identity=identity_from_identifiers((), roles),
+            wire_direction_override=wire_direction_override,
         )
 
 
@@ -286,6 +300,7 @@ class TLSCanonicalBuilder(_PayloadBuilder):
         visibility: VisibilityProfile = VisibilityProfile(),
         quality: EvidenceQuality | None = None,
         role_assignments: Iterable[RoleAssignment] = (),
+        wire_direction_override: WireDirection | None = None,
     ) -> NetworkObservationEnvelope:
         if not isinstance(record.raw_data, TLSObservation):
             raise TypeError("TLS builder requires TLSObservation")
@@ -306,6 +321,7 @@ class TLSCanonicalBuilder(_PayloadBuilder):
                 visibility, VisibilityProfile(available=frozenset(available)),
             ), quality=quality,
             identity=identity_from_identifiers((), role_assignments),
+            wire_direction_override=wire_direction_override,
         )
 
 
@@ -321,6 +337,7 @@ class QUICCanonicalBuilder(_PayloadBuilder):
         visibility: VisibilityProfile = VisibilityProfile(),
         quality: EvidenceQuality | None = None,
         role_assignments: Iterable[RoleAssignment] = (),
+        wire_direction_override: WireDirection | None = None,
     ) -> NetworkObservationEnvelope:
         if not isinstance(record.raw_data, QUICObservation):
             raise TypeError("QUIC builder requires QUICObservation")
@@ -336,6 +353,7 @@ class QUICCanonicalBuilder(_PayloadBuilder):
                                   if outer_metadata else frozenset()),
             ), quality=quality,
             identity=identity_from_identifiers((), role_assignments),
+            wire_direction_override=wire_direction_override,
         )
 
 

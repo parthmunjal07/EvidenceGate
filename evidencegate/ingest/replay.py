@@ -8,7 +8,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import AsyncIterator, Awaitable, Callable
 
-from evidencegate.domain.enums import ControlType, ObservationType
+from evidencegate.domain.enums import ControlType, ObservationType, WireDirection
 from evidencegate.domain.events import RuntimeControlEvent
 from evidencegate.ingest.builders import (
     DNSCanonicalBuilder, PacketCanonicalBuilder, QUICCanonicalBuilder,
@@ -111,11 +111,20 @@ class ReplayCanonicalizer:
     ) -> CanonicalizationResult:
         if not isinstance(record, ReplaySourceRecord):
             raise TypeError("ReplayCanonicalizer requires ReplaySourceRecord")
+        if (record.wire_direction not in (None, WireDirection.UNKNOWN)
+                and manifest.wire_direction is not WireDirection.UNKNOWN
+                and record.wire_direction is not manifest.wire_direction):
+            raise ReplayValidationError(
+                manifest.source_id, record.position, "DirectionContractError",
+                f"record wire_direction {record.wire_direction.value} contradicts "
+                f"manifest wire_direction {manifest.wire_direction.value}",
+            )
         common = dict(
             record=record, manifest=manifest, quality_ref=quality_ref,
             ingest_time=ingest_time,
             declared_observed_fields=record.declared_observed_fields,
             role_assignments=record.role_assignments,
+            wire_direction_override=record.wire_direction,
         )
         if record.observation_type is ObservationType.FLOW:
             return self._flow.canonicalize(**common)
@@ -252,8 +261,9 @@ async def validate_bundle(bundle: str | Path) -> int:
     count = 0
     manifest = await source.open()
     canonicalizer = ReplayCanonicalizer()
+    records = source.records()
     try:
-        async for record in source.records():
+        async for record in records:
             # Builder validation is part of the replay contract (declared
             # presence and factual visibility options), but no runtime/plugin
             # code is invoked in validation-only mode.
@@ -263,5 +273,6 @@ async def validate_bundle(bundle: str | Path) -> int:
             )
             count += 1
     finally:
+        await records.aclose()
         await source.close()
     return count

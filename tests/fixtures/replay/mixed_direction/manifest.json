@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidencegate-replay-manifest-v1",
+  "source_id": "fixture-mixed-direction",
+  "source_kind": "DERIVED",
+  "input_observation_contract": "REPLAY_TYPED_V1",
+  "timestamp_semantics": "SOURCE_EVENT_TIME",
+  "direction_basis": "CAPTURE_INTERFACE",
+  "wire_direction": "UNKNOWN",
+  "visibility": {"available": ["FORWARD_FACTS", "REVERSE_FACTS"], "unavailable": [], "degraded": []},
+  "quality": {"packet_loss": "UNKNOWN", "sampling": "UNKNOWN", "parser": "CLEAR", "capture_gap": "UNKNOWN"},
+  "event_time_order": "NONDECREASING",
+  "record_count": 3
+}
