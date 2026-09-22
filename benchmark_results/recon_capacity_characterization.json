@@ -1,0 +1,92 @@
+{
+  "config": {
+    "hosts_per_source": 4,
+    "max_events_per_key": 32,
+    "max_state_entries_per_lane": 2048,
+    "ports_per_source": 4,
+    "reorder_per_key": 32,
+    "reorder_total_per_lane": 2048,
+    "shard_count": 2,
+    "source_count": 64
+  },
+  "elapsed_seconds": 20.453894400037825,
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.7"
+  },
+  "expected_cardinality": {
+    "h_distinct_host_memberships": 1024,
+    "h_state_keys": 256,
+    "tcp_state_keys": 1024,
+    "two_d_distinct_pair_memberships": 1024,
+    "two_d_state_keys": 64,
+    "v_distinct_port_memberships": 1024,
+    "v_state_keys": 256
+  },
+  "experiment_scope": "CONTROLLED_SYNTHETIC_TEST_ONLY",
+  "measured_exact_set_cardinality": {
+    "h_distinct_host_memberships": 1024,
+    "two_d_distinct_pair_memberships": 1024,
+    "v_distinct_port_memberships": 1024
+  },
+  "mechanism_config_hash": "sha256:e9d01c6e96db64c8c3327aa3d0325dfaf73bd31155117f9e17f698327402382c",
+  "mechanism_results": 4096,
+  "mechanism_updates_per_second": 200.25526288003255,
+  "observations": 1024,
+  "observations_per_second": 50.06381572000814,
+  "production_throughput_claim": false,
+  "quality_gap_types": {},
+  "reorder": {
+    "recon.2d": {
+      "peak_per_key": 16,
+      "peak_total": 1024,
+      "pending_before_watermark": 1024
+    },
+    "recon.h": {
+      "peak_per_key": 4,
+      "peak_total": 1024,
+      "pending_before_watermark": 1024
+    },
+    "recon.tcp": {
+      "peak_per_key": 1,
+      "peak_total": 1024,
+      "pending_before_watermark": 1024
+    },
+    "recon.v": {
+      "peak_per_key": 4,
+      "peak_total": 1024,
+      "pending_before_watermark": 1024
+    }
+  },
+  "result_types": {
+    "REVIEW_FINDING": 4096
+  },
+  "runtime_error_controls": 0,
+  "state": {
+    "recon.2d": {
+      "entries": 64,
+      "retained_events": 1024,
+      "serialized_payload_bytes": 95466
+    },
+    "recon.h": {
+      "entries": 256,
+      "retained_events": 1024,
+      "serialized_payload_bytes": 144042
+    },
+    "recon.tcp": {
+      "entries": 1024,
+      "retained_events": 1024,
+      "serialized_payload_bytes": 323498
+    },
+    "recon.v": {
+      "entries": 256,
+      "retained_events": 1024,
+      "serialized_payload_bytes": 144042
+    }
+  },
+  "total_retained_events": 4096,
+  "total_serialized_payload_bytes": 707048,
+  "total_state_entries": 1600,
+  "tracemalloc_current_bytes": 3647277,
+  "tracemalloc_peak_bytes": 5811943
+}

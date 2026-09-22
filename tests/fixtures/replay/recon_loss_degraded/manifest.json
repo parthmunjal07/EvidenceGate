@@ -1,0 +1,3 @@
+{
+  "schema_version":"evidencegate-replay-manifest-v1","source_id":"fixture-recon-loss-degraded","source_kind":"DERIVED","input_observation_contract":"REPLAY_TYPED_V1","timestamp_semantics":"SOURCE_EVENT_TIME","direction_basis":"CAPTURE_INTERFACE","wire_direction":"FORWARD","visibility":{"available":["FORWARD_FACTS"],"unavailable":["REVERSE_FACTS"],"degraded":[]},"quality":{"packet_loss":"DEGRADED","sampling":"DEGRADED","parser":"CLEAR","capture_gap":"DEGRADED"},"event_time_order":"NONDECREASING","record_count":1
+}
