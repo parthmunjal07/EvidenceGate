@@ -5,10 +5,13 @@ incrementally ingests, canonicalizes, routes, and persists immutable network
 observations and factual analytic results.
 
 The implemented mechanisms are DNS-T1, ENC-A, CAT6-EX-M1, C2-R1 recurrence
-measurement, and the DDOS-A-B0 SYN/state mechanism. DDOS-A-B0 is available only
-through explicit runtime-capacity and reorder configuration and is not default
-active; the default `ddos` lane remains the provider shell. Its five-second state
-TTL is controlled reference/POC expiry configuration, not an attack threshold.
+measurement, DDOS-A-B0 SYN/state, and factual bounded DDoS demand/context
+mechanisms for UDP, victim reflection shape, apparent source diversity, ICMP,
+fragments, and TCP initiating-attempt churn. The DDoS mechanisms are available
+only through explicit runtime-capacity and reorder configuration and are not
+default active; the default `ddos` lane remains the provider shell. Their
+five-second SYN TTL and one-second measurement window are controlled reference/
+POC configuration, not attack thresholds.
 C2-R1 is default active with controlled-MVP engineering bounds of
 1024 state keys, 16 pending reordered events per key, and 2048 pending reordered
 events lane-wide. These are tested controlled-MVP engineering containment bounds,
