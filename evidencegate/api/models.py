@@ -1,0 +1,141 @@
+"""Typed public API contracts for the EvidenceGate product surface."""
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class HealthResponse(StrictModel):
+    status: Literal["ok"]
+    database: Literal["connected"]
+
+
+class StatusSnapshotDto(StrictModel):
+    scientific_status: str
+    integration_status: str
+    governance_version: str
+    readiness: str
+    quality_degraded: bool
+
+
+class QualitySnapshotDto(StrictModel):
+    packet_loss: str
+    sampling: str
+    parser: str
+    capture_gap: str
+
+
+class VisibilitySnapshotDto(StrictModel):
+    available: list[str]
+    unavailable: list[str]
+    degraded: list[str]
+
+
+class ResultDto(StrictModel):
+    result_id: str
+    schema_version: str
+    result_type: str
+    created_time: datetime
+    lane_id: str
+    family: str
+    plugin_id: str
+    plugin_version: str
+    analytic_version: str
+    governance_version: str
+    entity_reference: str
+    taxonomy: tuple[str, str, str]
+    mechanism_id: str | None
+    status_snapshot: StatusSnapshotDto
+    claim_ceiling: str
+    evidence: dict[str, Any]
+    evidence_items: list[str]
+    missing_prerequisites: list[str]
+    source_observation_ids: list[str]
+    source_ids: list[str]
+    quality_snapshot: QualitySnapshotDto
+    visibility_snapshot: VisibilitySnapshotDto
+    state_version: int | None
+    config_hash: str | None
+    parser_refs: list[str]
+    model_refs: list[str]
+    governing_ids: list[str]
+    quality_refs: list[str]
+    provenance_refs: list[str]
+    evidence_interval: tuple[datetime, datetime] | None
+    reason_code: str | None = None
+
+
+class ResultsResponse(StrictModel):
+    results: list[ResultDto]
+    next_cursor: str | None
+    sync_cursor: str | None = Field(
+        description="High-water cursor for durable forward resynchronization."
+    )
+
+
+class ReplayRequest(StrictModel):
+    scenario: str
+    speed: float = Field(default=0, ge=0, le=1000)
+
+
+class ReplayStatusResponse(StrictModel):
+    state: Literal["IDLE", "RUNNING", "COMPLETED", "FAILED"]
+    scenario: str | None
+    records_read: int
+    observations_emitted: int
+    results_persisted: int
+    elapsed_wall_seconds: float
+    started_at: datetime | None
+    finished_at: datetime | None
+    error: str | None
+
+
+class ScenarioDto(StrictModel):
+    id: str
+    label: str
+    family: str
+
+
+class TargetStatusDto(StrictModel):
+    lane_id: str
+    mechanism_id: str | None
+    implementation: Literal["ACTIVE_FACTUAL_MECHANISM", "REGISTERED_SHELL"]
+
+
+class FamilyStatusDto(StrictModel):
+    family: str
+    status: str
+
+
+class RuntimeStatusResponse(StrictModel):
+    state: Literal["ONLINE", "REPLAYING"]
+    default_target_count: int
+    active_lane_ids: list[str]
+    targets: list[TargetStatusDto]
+    family_status: list[FamilyStatusDto]
+    database_status: Literal["connected"]
+    durable_result_count: int
+    live_subscriber_count: int
+    replay: ReplayStatusResponse
+    scenarios: list[ScenarioDto]
+
+
+class ResultNotification(StrictModel):
+    event: Literal["result"] = "result"
+    result_id: str
+    created_time: datetime
+    lane_id: str
+    mechanism_id: str | None
+    result_type: str
+    cursor: str
+
+
+class StreamGap(StrictModel):
+    event: Literal["stream_gap"] = "stream_gap"
+    resync_required: Literal[True] = True

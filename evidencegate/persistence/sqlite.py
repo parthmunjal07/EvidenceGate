@@ -116,7 +116,8 @@ class SqliteWriter:
                     conn.execute("ROLLBACK")
                 raise
 
-    async def write_result(self, result: Result) -> None:
+    async def write_result(self, result: Result) -> bool:
+        """Persist a finalized result and report whether a new row was inserted."""
         if isinstance(result, ResultDraft) or not isinstance(result, Result):
             raise TypeError("write_result requires a finalized Result")
         if result.schema_version == "2.0" and (
@@ -135,9 +136,9 @@ class SqliteWriter:
         if result.result_id != result_id_for(result):
             raise ResultIdentityConflict("result_id does not match canonical result content")
         async with self._lock:
-            self._write_result_sync(result)
+            return self._write_result_sync(result)
 
-    def _write_result_sync(self, result: Result) -> None:
+    def _write_result_sync(self, result: Result) -> bool:
         conn = self._require_connection()
         content_hash = hashlib.sha256(canonical_result_content(result).encode()).hexdigest()
         conn.execute("BEGIN")
@@ -147,7 +148,7 @@ class SqliteWriter:
             if existing is not None:
                 if existing[0] == content_hash:
                     conn.execute("COMMIT")
-                    return
+                    return False
                 raise ResultIdentityConflict(f"result_id {result.result_id!r} already has different or unverifiable content")
             interval_start, interval_end = result.evidence_interval or (None, None)
             cursor.execute("""INSERT INTO results (
@@ -171,6 +172,7 @@ class SqliteWriter:
                  result.state_version, result.config_hash))
             self._insert_children(cursor, result)
             conn.execute("COMMIT")
+            return True
         except Exception:
             if conn.in_transaction:
                 conn.execute("ROLLBACK")
@@ -201,20 +203,53 @@ class SqliteWriter:
             row = conn.execute("SELECT * FROM results WHERE result_id = ?", (result_id,)).fetchone()
             return None if row is None else self._read_result(conn, row)
 
-    async def list_results(self, *, limit: int = 100, cursor: str | None = None, lane_id: str | None = None, result_type: ResultType | None = None) -> tuple[Result, ...]:
+    async def list_results(
+        self, *, limit: int = 100, cursor: str | None = None,
+        lane_id: str | None = None, mechanism_id: str | None = None,
+        result_type: ResultType | None = None, source_id: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        direction: str = "before",
+    ) -> tuple[Result, ...]:
         if not 1 <= limit <= 1000:
             raise ValueError("limit must be between 1 and 1000")
+        if direction not in {"before", "after"}:
+            raise ValueError("direction must be 'before' or 'after'")
+        for name, value in (("created_after", created_after), ("created_before", created_before)):
+            if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+                raise ValueError(f"{name} must be timezone-aware")
         clauses, params = ["content_hash IS NOT NULL"], []
         if cursor:
             created_time, result_id = self._decode_cursor(cursor)
-            clauses.append("(created_time < ? OR (created_time = ? AND result_id < ?))")
+            operator = "<" if direction == "before" else ">"
+            clauses.append(
+                f"(created_time {operator} ? OR "
+                f"(created_time = ? AND result_id {operator} ?))"
+            )
             params.extend((created_time, created_time, result_id))
         if lane_id:
             clauses.append("lane_id = ?"); params.append(lane_id)
+        if mechanism_id:
+            clauses.append("mechanism_id = ?"); params.append(mechanism_id)
         if result_type:
             clauses.append("result_type = ?"); params.append(result_type.value)
+        if source_id:
+            clauses.append(
+                "EXISTS (SELECT 1 FROM result_source_ids source_filter "
+                "WHERE source_filter.result_id = results.result_id "
+                "AND source_filter.source_id = ?)"
+            )
+            params.append(source_id)
+        if created_after is not None:
+            clauses.append("created_time > ?"); params.append(_time_text(created_after))
+        if created_before is not None:
+            clauses.append("created_time < ?"); params.append(_time_text(created_before))
         params.append(limit)
-        sql = "SELECT * FROM results WHERE " + " AND ".join(clauses) + " ORDER BY created_time DESC, result_id DESC LIMIT ?"
+        order = "DESC" if direction == "before" else "ASC"
+        sql = (
+            "SELECT * FROM results WHERE " + " AND ".join(clauses)
+            + f" ORDER BY created_time {order}, result_id {order} LIMIT ?"
+        )
         async with self._lock:
             conn = self._require_connection()
             return tuple(self._read_result(conn, row) for row in conn.execute(sql, params).fetchall())
@@ -226,9 +261,21 @@ class SqliteWriter:
     @staticmethod
     def _decode_cursor(cursor: str) -> tuple[str, str]:
         try:
-            return tuple(base64.urlsafe_b64decode(cursor.encode()).decode().split("\0", 1))  # type: ignore[return-value]
+            decoded = base64.b64decode(cursor.encode(), altchars=b"-_", validate=True).decode()
+            created_time, result_id = decoded.split("\0", 1)
+            parsed = datetime.fromisoformat(created_time)
+            if parsed.tzinfo is None or parsed.utcoffset() is None or not result_id:
+                raise ValueError
+            return created_time, result_id
         except Exception as exc:
             raise ValueError("invalid result cursor") from exc
+
+    async def count_results(self) -> int:
+        async with self._lock:
+            conn = self._require_connection()
+            return int(conn.execute(
+                "SELECT COUNT(*) FROM results WHERE content_hash IS NOT NULL"
+            ).fetchone()[0])
 
     def _read_result(self, conn: sqlite3.Connection, row: tuple) -> Result:
         columns = [item[0] for item in conn.execute("SELECT * FROM results LIMIT 0").description]

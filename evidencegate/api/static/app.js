@@ -1,0 +1,257 @@
+(() => {
+  "use strict";
+
+  const state = {
+    results: new Map(),
+    family: "",
+    resultType: "",
+    olderCursor: null,
+    syncCursor: null,
+    runtime: null,
+  };
+
+  const el = (id) => document.getElementById(id);
+  const pretty = (value) => JSON.stringify(value, null, 2);
+  const statusText = (value) => value.replaceAll("_", " ").toLowerCase();
+
+  async function request(url, options) {
+    const response = await fetch(url, options);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
+    return body;
+  }
+
+  function shortEvidence(evidence) {
+    const entries = Object.entries(evidence || {}).slice(0, 3);
+    if (!entries.length) return "No structured evidence fields";
+    return entries.map(([key, value]) => `${key}: ${typeof value === "object" ? "…" : value}`).join(" · ");
+  }
+
+  function visibleResults() {
+    return [...state.results.values()]
+      .filter((item) => !state.family || item.family === state.family)
+      .filter((item) => !state.resultType || item.result_type === state.resultType)
+      .sort((a, b) => b.created_time.localeCompare(a.created_time) || b.result_id.localeCompare(a.result_id));
+  }
+
+  function renderSummary(results) {
+    el("result-count").textContent = String(results.length);
+    el("quality-count").textContent = String(results.filter((item) => item.status_snapshot.quality_degraded || item.result_type === "QUALITY_DEGRADED").length);
+    el("insufficient-count").textContent = String(results.filter((item) => item.result_type === "INSUFFICIENT_EVIDENCE").length);
+  }
+
+  function renderTimeline() {
+    const results = visibleResults();
+    renderSummary(results);
+    const timeline = el("timeline");
+    timeline.replaceChildren();
+    if (!results.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No durable results match this view.";
+      timeline.append(empty);
+      return;
+    }
+    for (const result of results) {
+      const card = el("result-template").content.firstElementChild.cloneNode(true);
+      card.querySelector("time").textContent = new Date(result.created_time).toLocaleTimeString();
+      card.querySelector(".family").textContent = result.family;
+      card.querySelector(".mechanism").textContent = result.mechanism_id || result.lane_id;
+      card.querySelector(".result-type").textContent = statusText(result.result_type);
+      card.querySelector(".entity").textContent = result.entity_reference;
+      card.querySelector(".evidence-summary").textContent = shortEvidence(result.evidence);
+      const quality = card.querySelector(".quality-badge");
+      quality.textContent = result.status_snapshot.quality_degraded ? "quality degraded" : "quality stated";
+      quality.classList.toggle("degraded", result.status_snapshot.quality_degraded);
+      card.querySelector(".visibility-badge").textContent = `${result.visibility_snapshot.available.length} visible`;
+      card.querySelector('[data-field="observed"]').textContent = pretty({
+        entity_reference: result.entity_reference,
+        source_observation_ids: result.source_observation_ids,
+        evidence_interval: result.evidence_interval,
+      });
+      card.querySelector('[data-field="evidence"]').textContent = pretty(result.evidence);
+      card.querySelector('[data-field="missing"]').textContent = pretty(result.missing_prerequisites);
+      card.querySelector('[data-field="visibility"]').textContent = pretty(result.visibility_snapshot);
+      card.querySelector('[data-field="quality"]').textContent = pretty(result.quality_snapshot);
+      card.querySelector('[data-field="claim"]').textContent = result.claim_ceiling;
+      card.querySelector('[data-field="provenance"]').textContent = pretty({
+        result_id: result.result_id,
+        source_ids: result.source_ids,
+        provenance_refs: result.provenance_refs,
+        parser_refs: result.parser_refs,
+        model_refs: result.model_refs,
+        governing_ids: result.governing_ids,
+        config_hash: result.config_hash,
+        state_version: result.state_version,
+      });
+      timeline.append(card);
+    }
+  }
+
+  function renderFamilies(runtime) {
+    const host = el("family-filters");
+    host.replaceChildren();
+    for (const item of runtime.family_status) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "family-button";
+      button.dataset.family = item.family;
+      const name = document.createElement("span");
+      name.textContent = item.family;
+      const detail = document.createElement("small");
+      detail.textContent = item.status;
+      button.append(name, detail);
+      button.addEventListener("click", () => {
+        state.family = state.family === item.family ? "" : item.family;
+        document.querySelectorAll(".family-button").forEach((node) => node.classList.toggle("active", node.dataset.family === state.family));
+        renderTimeline();
+      });
+      host.append(button);
+    }
+  }
+
+  function renderReplayControls(runtime) {
+    const host = el("replay-controls");
+    host.replaceChildren();
+    for (const scenario of runtime.scenarios) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `Run ${scenario.label}`;
+      button.addEventListener("click", async () => {
+        setReplayDisabled(true);
+        try {
+          await request("/replay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scenario: scenario.id, speed: 0 }),
+          });
+          await monitorReplay();
+        } catch (error) {
+          el("replay-status").textContent = error.message;
+          setReplayDisabled(false);
+        }
+      });
+      host.append(button);
+    }
+  }
+
+  function setReplayDisabled(value) {
+    document.querySelectorAll("#replay-controls button").forEach((button) => { button.disabled = value; });
+  }
+
+  async function monitorReplay() {
+    const replay = await request("/replay/status");
+    el("replay-status").textContent = `${replay.state} · ${replay.scenario || "no scenario"} · ${replay.results_persisted} results persisted`;
+    el("runtime-state").textContent = replay.state === "RUNNING" ? "REPLAYING" : "ONLINE";
+    if (replay.state === "RUNNING") {
+      setTimeout(monitorReplay, 250);
+    } else {
+      setReplayDisabled(false);
+      await resync();
+    }
+  }
+
+  function absorb(results) {
+    for (const result of results) state.results.set(result.result_id, result);
+    renderTimeline();
+  }
+
+  async function initialLoad() {
+    const page = await request("/results?limit=100");
+    absorb(page.results);
+    state.olderCursor = page.next_cursor;
+    state.syncCursor = page.sync_cursor;
+    el("load-more").hidden = !state.olderCursor;
+  }
+
+  async function loadOlder() {
+    if (!state.olderCursor) return;
+    const page = await request(`/results?limit=100&cursor=${encodeURIComponent(state.olderCursor)}`);
+    absorb(page.results);
+    state.olderCursor = page.next_cursor;
+    el("load-more").hidden = !state.olderCursor;
+  }
+
+  async function resync() {
+    if (!state.syncCursor) {
+      await initialLoad();
+      return;
+    }
+    let cursor = state.syncCursor;
+    while (true) {
+      const page = await request(`/results?limit=500&cursor=${encodeURIComponent(cursor)}`);
+      absorb(page.results);
+      if (page.sync_cursor) state.syncCursor = page.sync_cursor;
+      if (page.results.length < 500) break;
+      cursor = page.next_cursor;
+    }
+  }
+
+  function openEvents() {
+    const stream = new EventSource("/events");
+    stream.addEventListener("ready", () => resync().catch(showStreamError));
+    stream.addEventListener("result", async (event) => {
+      const notification = JSON.parse(event.data);
+      try {
+        const result = await request(`/results/${encodeURIComponent(notification.result_id)}`);
+        absorb([result]);
+        state.syncCursor = notification.cursor;
+      } catch (error) {
+        showStreamError(error);
+      }
+    });
+    stream.addEventListener("stream_gap", async () => {
+      const notice = el("stream-notice");
+      notice.hidden = false;
+      notice.textContent = "Live notification gap observed. Resynchronizing from durable SQLite…";
+      try {
+        await resync();
+        notice.textContent = "Durable resynchronization complete.";
+        setTimeout(() => { notice.hidden = true; }, 2500);
+      } catch (error) {
+        showStreamError(error);
+      }
+    });
+    stream.onerror = () => {
+      const notice = el("stream-notice");
+      notice.hidden = false;
+      notice.textContent = "Live stream reconnecting; durable results remain available.";
+    };
+  }
+
+  function showStreamError(error) {
+    const notice = el("stream-notice");
+    notice.hidden = false;
+    notice.textContent = error.message;
+  }
+
+  async function boot() {
+    try {
+      const runtime = await request("/runtime");
+      state.runtime = runtime;
+      el("runtime-state").textContent = runtime.state;
+      el("runtime-dot").style.background = "var(--mint)";
+      el("active-count").textContent = String(runtime.targets.filter((item) => item.implementation === "ACTIVE_FACTUAL_MECHANISM").length);
+      renderFamilies(runtime);
+      renderReplayControls(runtime);
+      await initialLoad();
+      await monitorReplay();
+      openEvents();
+    } catch (error) {
+      el("runtime-state").textContent = "OFFLINE";
+      showStreamError(error);
+    }
+  }
+
+  el("all-families").addEventListener("click", () => {
+    state.family = "";
+    document.querySelectorAll(".family-button").forEach((node) => node.classList.remove("active"));
+    renderTimeline();
+  });
+  el("type-filter").addEventListener("change", (event) => {
+    state.resultType = event.target.value;
+    renderTimeline();
+  });
+  el("load-more").addEventListener("click", loadOlder);
+  boot();
+})();

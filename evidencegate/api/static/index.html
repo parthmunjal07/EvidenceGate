@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EvidenceGate</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">SIH26145 · Evidence Surface</p>
+      <h1>EvidenceGate</h1>
+      <p class="subtitle">Passive <span>•</span> Read-only <span>•</span> Streaming Evidence</p>
+    </div>
+    <div class="runtime-pill"><span id="runtime-dot"></span><strong id="runtime-state">CONNECTING</strong></div>
+  </header>
+
+  <main>
+    <section class="summary" aria-label="Current view summary">
+      <article><span>Active mechanisms</span><strong id="active-count">—</strong></article>
+      <article><span>Results in current view</span><strong id="result-count">0</strong></article>
+      <article><span>Quality-degraded results</span><strong id="quality-count">0</strong></article>
+      <article><span>Insufficient-evidence results</span><strong id="insufficient-count">0</strong></article>
+    </section>
+
+    <section class="workspace">
+      <aside>
+        <div class="panel-heading">
+          <div><p class="eyebrow">Presentation</p><h2>Families</h2></div>
+          <button id="all-families" class="quiet-button" type="button">Show all</button>
+        </div>
+        <div id="family-filters" class="family-list"></div>
+
+        <div class="dga-notice">
+          <span>DGA</span>
+          <strong>ANALYTIC / MODEL NOT ACTIVE</strong>
+          <p>Model integration pending frozen artifact / representation gate.</p>
+        </div>
+
+        <div class="panel-heading replay-heading">
+          <div><p class="eyebrow">Controlled input</p><h2>Replay</h2></div>
+        </div>
+        <div id="replay-controls" class="replay-list"></div>
+        <p id="replay-status" class="status-line">Loading replay state…</p>
+      </aside>
+
+      <section class="timeline-panel">
+        <div class="timeline-heading">
+          <div><p class="eyebrow">Immutable SQLite results</p><h2>Result timeline</h2></div>
+          <label>Result type
+            <select id="type-filter">
+              <option value="">All factual statuses</option>
+              <option value="REVIEW_FINDING">Review finding</option>
+              <option value="QUALITY_DEGRADED">Quality degraded</option>
+              <option value="INSUFFICIENT_EVIDENCE">Insufficient evidence</option>
+              <option value="PREREQUISITE_MISSING">Prerequisite missing</option>
+              <option value="ANALYTIC_UNAVAILABLE">Analytic unavailable</option>
+              <option value="PLUGIN_STATUS">Plugin status</option>
+            </select>
+          </label>
+        </div>
+        <div id="stream-notice" class="stream-notice" hidden></div>
+        <div id="timeline" class="timeline" aria-live="polite"></div>
+        <button id="load-more" class="load-more" type="button" hidden>Load older results</button>
+      </section>
+    </section>
+  </main>
+
+  <template id="result-template">
+    <details class="result-card">
+      <summary>
+        <time></time>
+        <span class="family"></span>
+        <span class="mechanism"></span>
+        <span class="result-type"></span>
+        <span class="entity"></span>
+        <span class="evidence-summary"></span>
+        <span class="quality-badge"></span>
+        <span class="visibility-badge"></span>
+      </summary>
+      <div class="detail-grid">
+        <section><h3>What was observed</h3><pre data-field="observed"></pre></section>
+        <section><h3>What was derived / measured</h3><pre data-field="evidence"></pre></section>
+        <section><h3>Missing evidence</h3><pre data-field="missing"></pre></section>
+        <section><h3>Visibility</h3><pre data-field="visibility"></pre></section>
+        <section><h3>Quality</h3><pre data-field="quality"></pre></section>
+        <section><h3>Claim limit</h3><pre data-field="claim"></pre></section>
+        <section class="wide"><h3>Provenance</h3><pre data-field="provenance"></pre></section>
+      </div>
+    </details>
+  </template>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
