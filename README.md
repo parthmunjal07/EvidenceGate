@@ -32,9 +32,12 @@ confidence/severity ranking, or active DDoS/Recon ML.
 C2-R1 is default active with controlled-MVP engineering bounds of
 1024 state keys, 16 pending reordered events per key, and 2048 pending reordered
 events lane-wide. These are tested controlled-MVP engineering containment bounds,
-not production sizing or C2/scientific thresholds. Structured typed-NDJSON replay
-ingest supports source-wide one-way direction and explicit per-record direction
-for mixed-direction captures; raw-PCAP ingest and live capture are not.
+not production sizing or C2/scientific thresholds. Supported passive inputs are
+structured typed-NDJSON replay and offline raw-PCAP replay. PCAP processing is
+incremental and read-only: capture timestamps remain event time, current replay
+arrival is ingest time, and direction, visibility, endpoint roles, services, and
+reflection facts come only from an explicit trusted sidecar. Live interface
+capture and NetFlow/IPFIX/sFlow input are not implemented.
 
 ## Setup, Run, and Test Instructions
 
@@ -92,6 +95,15 @@ Replay a versioned finite bundle through the same streaming runtime:
 python scripts/replay.py --bundle tests/fixtures/replay/dns_forward --database evidencegate.db --speed 0
 ```
 
+Replay a passive raw PCAP with its trusted adapter manifest:
+
+```bash
+python scripts/replay.py \
+  --pcap tests/fixtures/pcap/raw_ddos_recon/capture.pcap \
+  --manifest tests/fixtures/pcap/raw_ddos_recon/manifest.json \
+  --database evidencegate.db --speed 0
+```
+
 Replay bundles contain a `manifest.json` plus line-oriented `records.ndjson`.
 They are opened read-only and contain source/network facts only, never analytic
 results. `--speed 0` disables pacing; a positive value replays event-time spacing
@@ -104,13 +116,18 @@ pytest
 
 python -m compileall -q evidencegate scripts
 
-# Run the performance baseline benchmark
-python scripts/benchmark.py
+# Characterize the real current 16-target stack with disk-backed SQLite
+python scripts/benchmark_current_stack.py
 ```
+
+This benchmark is explicitly **PRE-DGA / CONTROLLED MVP / NOT PRODUCTION
+THROUGHPUT**. The historical dummy-plugin saturation benchmark is retained only
+as superseded history and is not evidence for a throughput claim.
 
 ## Dependency and License Inventory
 The MVP runtime utilizes the following minimal open-source packages:
 - `fastapi` (MIT) - API, lifecycle, static dashboard, and SSE routing.
+- `dpkt` 1.9.x (BSD-3-Clause) - incremental offline PCAP and packet parsing.
 - `uvicorn` (BSD) - ASGI application server.
 - `pydantic` (MIT) - Strongly-typed immutable validation for domain objects.
 - `prometheus-client` (Apache 2.0) - Instrumenting bounded health metrics.

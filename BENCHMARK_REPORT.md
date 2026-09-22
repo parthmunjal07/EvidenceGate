@@ -1,5 +1,13 @@
 # EvidenceGate BENCHMARK REPORT v1
 
+> **SUPERSEDED FOR FINAL THROUGHPUT CLAIMS.** This historical artifact used a
+> dummy `BenchmarkPlugin`, in-memory SQLite, and intentional queue saturation.
+> Its reported rate is invalid as current-stack or final throughput evidence.
+> Use `scripts/benchmark_current_stack.py`,
+> `benchmark_results/current_stack_real_benchmark.json`, and
+> `CURRENT_STACK_REAL_BENCHMARK_REPORT.md` for the PRE-DGA current-MVP
+> characterization. This file remains only as historical evidence.
+
 This report outlines the performance and throughput ceilings of the EvidenceGate runtime MVP. 
 
 ## 1. Environment & Parameters

@@ -1,5 +1,10 @@
 # EvidenceGate BENCHMARK PLAN v1
 
+> **SUPERSEDED FOR FINAL THROUGHPUT CLAIMS.** This plan describes the historical
+> dummy-plugin/in-memory/saturation experiment. The active real-stack method is
+> `scripts/benchmark_current_stack.py` and is classified PRE-DGA CURRENT-MVP
+> STACK CHARACTERIZATION, not production throughput.
+
 This document outlines the reproducible methodology for evaluating the pure baseline throughput and latency ceilings of the EvidenceGate runtime infrastructure (Prompt 4).
 
 ## 1. Methodology and Constraints
