@@ -12,6 +12,36 @@ Writes use one transaction for the result parent and ordered child rows. Source 
 
 Migration 3 is additive and idempotent. Databases already at version 2 keep every row, result ID, content hash, and scientific field unchanged. New columns remain `NULL` and new child tables remain empty for legacy v2 rows because mechanism evidence and provenance cannot be reconstructed truthfully. Canonical v2 identity remains version-aware and unchanged, while all newly finalized results use schema `3.0`.
 
-Connections enable WAL, foreign keys, and `synchronous=NORMAL`. `get_result(result_id)` reconstructs exact v2 or v3 final subtypes; hashless v1 rows retain the existing explicit read limitation. `list_results()` supports bounded (1-1000) cursor pagination and optional lane/type filters, ordered by `created_time DESC, result_id DESC`.
+Connections enable WAL, foreign keys, and `synchronous=NORMAL`. `get_result(result_id)` reconstructs exact v2 or v3 final subtypes; hashless v1 rows retain the existing explicit read limitation. `list_results()` supports bounded cursor pagination, lane, mechanism, result-type, source, and created-time filters. The HTTP limit is 1-500.
 
-No HTTP, WebSocket, or other API surface is changed by this persistence loop.
+## Product API
+
+`create_app(database)` owns the SQLite connection through the FastAPI lifespan,
+so importing the module does not open a connection and tests can supply a
+temporary database. The same application serves the static dashboard; no broad
+CORS policy is enabled.
+
+`GET /results` returns typed Pydantic DTOs without exposing Python dataclass
+internals. Normal pages are ordered by `(created_time, result_id)` descending.
+`next_cursor` continues toward older rows. `sync_cursor` is an `after.` cursor;
+passing it back through the same `cursor` parameter returns later durable rows in
+ascending order. Both forms encode an exact durable `(created_time, result_id)`
+boundary, not an offset or list index. Invalid cursors are rejected with a typed
+422 response.
+
+`GET /events` is a one-way Server-Sent Events notification stream. Each browser
+has an independent bounded queue. The runtime callback first commits a finalized
+result to SQLite and only then broadcasts its lightweight ID/time/lane/mechanism/
+type hint. On subscriber overflow, notification hints are discarded and a
+`stream_gap` event requests REST resynchronization; the durable result and
+runtime processing are unaffected.
+
+`POST /replay` selects a bundled fixture by an explicit scenario ID. Arbitrary
+paths, URLs, and extra request fields are rejected. One replay may run at a time.
+`GET /replay/status` reports only measured lifecycle values, while `GET /runtime`
+reports the exact 16-lane registration, DGA shell state, family readiness,
+database state, subscriber count, replay state, and available scenario metadata.
+
+The current API returns immutable evidence result semantics. It does not project
+them into standardized SIH alerts. `SihAlertProjection` and `ConfidenceBasis`
+exist as inactive design contracts only and are not included in an active route.

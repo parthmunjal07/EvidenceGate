@@ -39,26 +39,52 @@ for mixed-direction captures; raw-PCAP ingest and live capture are not.
 ## Setup, Run, and Test Instructions
 
 ### Prerequisites
-- Python 3.14+
-- `pip` / `virtualenv`
+- Python 3.11+
+- `pip` / `venv`
 
 ### Installation
 ```bash
-# 1. Create and activate a virtual environment
-python3.14 -m venv .venv
-source .venv/bin/activate
+python -m venv .venv
+```
 
-# 2. Install dependencies (see Dependency Inventory below)
-pip install -r pyproject.toml
+Activate it with `.venv\Scripts\Activate.ps1` on PowerShell or
+`source .venv/bin/activate` on Linux/macOS, then install the package:
+
+```bash
+python -m pip install -e ".[test]"
 ```
 
 ### Running the System
-EvidenceGate exposes a FastAPI interface and internal SQLite persistence. 
+EvidenceGate exposes the dashboard, durable API, live result-notification
+stream, and controlled replay service from one FastAPI process. SQLite data is
+stored in `evidencegate.db` by default.
+
 ```bash
-# Start the web server (development mode)
-uvicorn evidencegate.api.app:app --host 0.0.0.1 --port 8000
+python -m uvicorn evidencegate.api.app:app --host 127.0.0.1 --port 8000
 ```
-*Note: The MVP runs using an in-memory or generic SQLite file database. Ensure the SQLite schema is initialized via `evidencegate/persistence/schema.sql`.*
+
+Open `http://127.0.0.1:8000/`. Choose an allowlisted replay in the left panel,
+watch persisted results arrive, and open a result to inspect its evidence,
+visibility, quality, claim limit, and provenance. The application creates and
+migrates the database automatically. Set `EVIDENCEGATE_DB` before startup to use
+a different SQLite file.
+
+The API is documented at `http://127.0.0.1:8000/docs` and provides:
+
+- `GET /health`
+- `GET /results` and `GET /results/{result_id}`
+- `GET /events` (Server-Sent Events)
+- `POST /replay` and `GET /replay/status`
+- `GET /runtime`
+
+`POST /replay` accepts only scenario IDs returned by `GET /runtime`; it never
+accepts filesystem paths or network locations. Example:
+
+```bash
+curl -X POST http://127.0.0.1:8000/replay \
+  -H "Content-Type: application/json" \
+  -d '{"scenario":"mixed_ddos_recon","speed":0}'
+```
 
 Replay a versioned finite bundle through the same streaming runtime:
 
@@ -74,8 +100,9 @@ at that multiplier. Use `--validate-only` to validate without running analytics.
 ### Testing the System
 The system is protected by a suite of invariants derived directly from the Implementation Contract.
 ```bash
-# Execute the contract invariants test suite
-pytest tests/test_ic_invariants.py -v
+pytest
+
+python -m compileall -q evidencegate scripts
 
 # Run the performance baseline benchmark
 python scripts/benchmark.py
@@ -83,11 +110,12 @@ python scripts/benchmark.py
 
 ## Dependency and License Inventory
 The MVP runtime utilizes the following minimal open-source packages:
-- `fastapi` (MIT) - API endpoint shell and WebSocket routing.
+- `fastapi` (MIT) - API, lifecycle, static dashboard, and SSE routing.
 - `uvicorn` (BSD) - ASGI application server.
 - `pydantic` (MIT) - Strongly-typed immutable validation for domain objects.
 - `prometheus-client` (Apache 2.0) - Instrumenting bounded health metrics.
 - `pytest` / `pytest-asyncio` (MIT / Apache) - Contract verification framework.
+- `httpx` (BSD) - ASGI integration testing only.
 - `psutil` (BSD) - Baseline system health tracking for benchmarks.
 
 ## Explicit Scientific No-Go Boundaries
