@@ -16,6 +16,10 @@ class PacketObservation:
     sequence_facts: Optional[dict[str, Any]]
     fragmentation: Optional[dict[str, Any]]
     raw_reference: Optional[str]
+    # Canonical IP protocol number.  This optional tail field preserves every
+    # existing positional constructor while allowing mechanisms to require a
+    # factually declared protocol instead of guessing from ports or flags.
+    protocol: Optional[int] = None
 
 @dataclass(frozen=True, slots=True)
 class FlowObservation:

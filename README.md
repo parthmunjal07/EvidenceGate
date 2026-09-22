@@ -4,8 +4,12 @@ EvidenceGate is a strictly-bounded, single-host Python runtime application that
 incrementally ingests, canonicalizes, routes, and persists immutable network
 observations and factual analytic results.
 
-The implemented mechanisms are DNS-T1, ENC-A, CAT6-EX-M1, and C2-R1 recurrence
-measurement. C2-R1 is default active with controlled-MVP engineering bounds of
+The implemented mechanisms are DNS-T1, ENC-A, CAT6-EX-M1, C2-R1 recurrence
+measurement, and the DDOS-A-B0 SYN/state mechanism. DDOS-A-B0 is available only
+through explicit runtime-capacity and reorder configuration and is not default
+active; the default `ddos` lane remains the provider shell. Its five-second state
+TTL is controlled reference/POC expiry configuration, not an attack threshold.
+C2-R1 is default active with controlled-MVP engineering bounds of
 1024 state keys, 16 pending reordered events per key, and 2048 pending reordered
 events lane-wide. These are tested controlled-MVP engineering containment bounds,
 not production sizing or C2/scientific thresholds. Structured typed-NDJSON replay
