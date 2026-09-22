@@ -9,7 +9,7 @@
     "shard_count": 2,
     "source_count": 64
   },
-  "elapsed_seconds": 20.453894400037825,
+  "elapsed_seconds": 30.956533699994907,
   "environment": {
     "platform": "Windows-11-10.0.26200-SP0",
     "python": "3.13.7"
@@ -29,11 +29,11 @@
     "two_d_distinct_pair_memberships": 1024,
     "v_distinct_port_memberships": 1024
   },
-  "mechanism_config_hash": "sha256:e9d01c6e96db64c8c3327aa3d0325dfaf73bd31155117f9e17f698327402382c",
+  "mechanism_config_hash": "sha256:147f48a13ddcecfa618da0a08f4923b42b80d39023ce9d87a9970dea3d3f1774",
   "mechanism_results": 4096,
-  "mechanism_updates_per_second": 200.25526288003255,
+  "mechanism_updates_per_second": 132.31455561837254,
   "observations": 1024,
-  "observations_per_second": 50.06381572000814,
+  "observations_per_second": 33.078638904593134,
   "production_throughput_claim": false,
   "quality_gap_types": {},
   "reorder": {
@@ -87,6 +87,6 @@
   "total_retained_events": 4096,
   "total_serialized_payload_bytes": 707048,
   "total_state_entries": 1600,
-  "tracemalloc_current_bytes": 3647277,
-  "tracemalloc_peak_bytes": 5811943
+  "tracemalloc_current_bytes": 3654477,
+  "tracemalloc_peak_bytes": 5705615
 }

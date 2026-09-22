@@ -140,10 +140,10 @@ class _ReconPluginBase:
                 "explicit FORWARD/REVERSE wire direction",
                 "unique trusted initiator and target role assignments",
                 "role identifiers agree with direction-oriented packet endpoints",
-                "explicit TCP protocol fact in the canonical field or observed L4 metadata",
+                "explicit TCP protocol fact in the canonical packet field",
             ),
             required_fields=(
-                "src_address", "dst_address", "src_port", "dst_port", "flags",
+                "protocol", "src_address", "dst_address", "src_port", "dst_port", "flags",
             ),
             required_observation_contracts=(),
             required_visibility_capabilities=frozenset({VisibilityCapability.PACKET_FACTS}),
@@ -193,7 +193,7 @@ class _ReconPluginBase:
         if observation.observation_type is not ObservationType.PACKET:
             return None
         required = {
-            "src_address", "dst_address", "src_port", "dst_port", "flags",
+            "protocol", "src_address", "dst_address", "src_port", "dst_port", "flags",
         }
         if not required.issubset(observation.present_fields):
             return None
@@ -203,18 +203,8 @@ class _ReconPluginBase:
         roles = self._role_scope(observation)
         if roles is None:
             return None
-        # The base branch carries protocol in explicit L4 facts.  The parallel
-        # DDoS branch is expected to add the canonical packet field; prefer it
-        # automatically after rebase without duplicating that shared change.
-        if "protocol" in observation.present_fields and hasattr(payload, "protocol"):
-            protocol_value = payload.protocol
-        elif "observed_l4_facts" in observation.present_fields:
-            protocol_value = payload.observed_l4_facts.get(self.config.protocol_fact_key)
-        else:
-            protocol_value = None
-        if protocol_value == 6 or (
-            isinstance(protocol_value, str) and protocol_value.upper() == "TCP"
-        ):
+        protocol_value = payload.protocol
+        if protocol_value == 6:
             protocol = "TCP"
         else:
             return None

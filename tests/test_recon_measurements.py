@@ -66,19 +66,19 @@ def packet(
         capture_gap=QualityState.CLEAR,
     ),
     roles: tuple[RoleAssignment, ...] | None = None,
-    protocol: object = 6,
+    protocol: int | None = 6,
 ) -> NetworkObservationEnvelope:
     initiator = "198.51.100.10"
     forward = direction is WireDirection.FORWARD
     payload = PacketObservation(
         lengths={"ip": 40}, observed_l2_facts={}, observed_l3_facts={},
-        observed_l4_facts={"protocol": protocol},
+        observed_l4_facts={},
         src_address=initiator if forward else target,
         dst_address=target if forward else initiator,
         src_port=initiator_port if forward else target_port,
         dst_port=target_port if forward else initiator_port,
         flags=list(flags), sequence_facts=None, fragmentation=None,
-        raw_reference=f"fixture:{second}",
+        raw_reference=f"fixture:{second}", protocol=protocol,
     )
     assignments = roles if roles is not None else (
         RoleAssignment(initiator, "initiator_id", IdentityBasis.SOURCE_DECLARED_ROLE),
@@ -104,7 +104,7 @@ def packet(
         finality=Finality.CURRENT, availability_basis=AvailabilityBasis.IMMEDIATE,
         provenance_ref=f"prov:{second}", quality_ref=f"quality:{second}",
         present_fields=frozenset({
-            "lengths", "observed_l4_facts", "src_address", "dst_address",
+            "lengths", "protocol", "observed_l4_facts", "src_address", "dst_address",
             "src_port", "dst_port", "flags", "raw_reference",
         }),
         typed_payload=payload,
@@ -240,6 +240,22 @@ def test_direction_and_trusted_roles_fail_closed():
     assert not plugin.route(mismatched)
     assert not plugin.route(unknown)
     assert not plugin.route(packet(0, protocol=17))
+
+
+def test_observed_l4_protocol_fallback_is_rejected():
+    plugin = ReconHPlugin(config(), max_state_entries=20)
+    canonical = packet(0)
+    payload = replace(
+        canonical.typed_payload,
+        protocol=None,
+        observed_l4_facts={"protocol": 6},
+    )
+    compatibility_only = replace(
+        canonical,
+        typed_payload=payload,
+        present_fields=(canonical.present_fields - {"protocol"}) | {"observed_l4_facts"},
+    )
+    assert not plugin.route(compatibility_only)
 
 
 @pytest.mark.asyncio

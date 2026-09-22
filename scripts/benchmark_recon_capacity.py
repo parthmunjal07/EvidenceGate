@@ -71,10 +71,10 @@ def observation(index: int, source: int, host: int, port: int) -> NetworkObserva
     event_time = NOW + timedelta(microseconds=index)
     payload = PacketObservation(
         lengths={"ip": 40}, observed_l2_facts={}, observed_l3_facts={},
-        observed_l4_facts={"protocol": 6}, src_address=initiator,
+        observed_l4_facts={}, src_address=initiator,
         dst_address=target, src_port=10000 + host * 16 + port,
         dst_port=target_port, flags=["SYN"], sequence_facts=None,
-        fragmentation=None, raw_reference=f"capacity:{index}",
+        fragmentation=None, raw_reference=f"capacity:{index}", protocol=6,
     )
     return NetworkObservationEnvelope(
         observation_id=f"recon-capacity-{index}", schema_version="1.1",
@@ -87,7 +87,7 @@ def observation(index: int, source: int, host: int, port: int) -> NetworkObserva
         finality=Finality.CURRENT, availability_basis=AvailabilityBasis.IMMEDIATE,
         provenance_ref=f"prov:capacity:{index}", quality_ref="quality:clear",
         present_fields=frozenset({
-            "lengths", "observed_l4_facts", "src_address", "dst_address",
+            "lengths", "protocol", "observed_l4_facts", "src_address", "dst_address",
             "src_port", "dst_port", "flags", "raw_reference",
         }),
         typed_payload=payload,

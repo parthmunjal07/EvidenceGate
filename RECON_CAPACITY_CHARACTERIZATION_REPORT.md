@@ -10,9 +10,9 @@ Reproduce from the repository root with
 
 - Observations: 1024
 - Independent mechanism results: 4096
-- Elapsed seconds: 20.453894
-- Observations/second (this run only): 50.06
-- Mechanism updates/second (this run only): 200.26
+- Elapsed seconds: 30.956534
+- Observations/second (this run only): 33.08
+- Mechanism updates/second (this run only): 132.31
 
 ## Bounded state
 
@@ -20,7 +20,7 @@ Reproduce from the repository root with
 - Total retained events: 4096
 - Serialized state payload bytes (engineering proxy): 707048
 - Measured exact-set memberships: `{"h_distinct_host_memberships": 1024, "two_d_distinct_pair_memberships": 1024, "v_distinct_port_memberships": 1024}`
-- Tracemalloc current/peak bytes: 3647277 / 5811943
+- Tracemalloc current/peak bytes: 3654477 / 5705615
 - Per lane: `{"recon.2d": {"entries": 64, "retained_events": 1024, "serialized_payload_bytes": 95466}, "recon.h": {"entries": 256, "retained_events": 1024, "serialized_payload_bytes": 144042}, "recon.tcp": {"entries": 1024, "retained_events": 1024, "serialized_payload_bytes": 323498}, "recon.v": {"entries": 256, "retained_events": 1024, "serialized_payload_bytes": 144042}}`
 
 ## Reorder occupancy
@@ -32,7 +32,16 @@ Runtime error controls: 0
 
 ## Engineering interpretation
 
-The run supplies a measured point, not a final capacity decision. A follow-up
-capacity gate should test at least 2x this key/event cardinality under the target
-deployment memory limit before selecting any candidate range. No production
-capacity, horizon, or reorder value is introduced by this report.
+The run supplies a measured point, not a production-throughput claim or a final
+capacity decision. An integration boundary run repeated the same 1,024-observation
+workload with conservative candidate bounds of 1,024 state entries per lane,
+16 retained events per key, 16 reorder events per key, and 1,024 reorder events
+per lane. It retained all 4,096 mechanism events, emitted all 4,096 results, and
+reported no quality gaps or runtime errors (5,704,927-byte tracemalloc peak).
+
+Those exact values are therefore a controlled-MVP candidate inside the
+demonstrated-clean envelope. They are not approved defaults. The tested 60- and
+3,600-second measurement horizons and the historical/test horizons of 10, 30,
+60, 300, 900, 1,800, and 3,600 seconds remain configuration horizons only; none
+is a production scan threshold. Production sizing still requires deployment-
+specific load and memory validation.

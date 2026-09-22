@@ -17,7 +17,6 @@ class ReconConfig:
     state_ttl: timedelta
     initiator_role_label: str
     target_role_label: str
-    protocol_fact_key: str = "protocol"
 
     def __post_init__(self) -> None:
         if not isinstance(self.config_id, str) or not self.config_id.strip():
@@ -45,8 +44,6 @@ class ReconConfig:
             raise ValueError("role labels must be non-empty strings")
         if len(set(labels)) != len(labels):
             raise ValueError("initiator and target role labels must be distinct")
-        if not isinstance(self.protocol_fact_key, str) or not self.protocol_fact_key.strip():
-            raise ValueError("protocol_fact_key must be a non-empty string")
 
     @property
     def canonical_hash(self) -> str:
@@ -56,7 +53,6 @@ class ReconConfig:
             ],
             "initiator_role_label": self.initiator_role_label,
             "max_events_per_key": self.max_events_per_key,
-            "protocol_fact_key": self.protocol_fact_key,
             "state_ttl_microseconds": int(
                 self.state_ttl.total_seconds() * 1_000_000
             ),
