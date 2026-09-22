@@ -1,0 +1,616 @@
+{
+  "characterization": "CONTROLLED DDoS MECHANISM CAPACITY CHARACTERIZATION",
+  "generated_at": "2026-09-22T09:05:01.287097+00:00",
+  "production_sizing_claim": false,
+  "science_admitted": false,
+  "reference_window_seconds": 1,
+  "reference_syn_ttl_seconds": 5,
+  "reference_max_entries_not_adopted": 100000,
+  "replay_runner_smoke": {
+    "records_read": 2,
+    "observations_emitted": 2,
+    "persisted_results": 1
+  },
+  "ddos_a_concurrent_state_sweeps": [
+    {
+      "active_tuple_count": 32,
+      "offered_observations": 32,
+      "offered_observations_per_second": 4363.596717917835,
+      "successfully_processed_observations_per_second": 252.00997657225432,
+      "result_count": 32,
+      "results_per_second": 252.00997657225432,
+      "ingress_submit_latency_ms": {
+        "p50": 0.14109991025179625,
+        "p95": 0.15350000467151403,
+        "p99": 0.17009989824146032,
+        "mean": 0.22756561520509422
+      },
+      "state_entries_at_measurement": 32,
+      "approximate_state_payload_bytes": 52446,
+      "approximate_bytes_per_state_entry": 1638.9375,
+      "tracemalloc_current_bytes": 201740,
+      "tracemalloc_peak_bytes": 260552,
+      "reorder_occupancy_before_flush": 32,
+      "quality_gap_count": 0,
+      "state_or_processing_error_count": 0,
+      "queue_saturation_observed": false
+    },
+    {
+      "active_tuple_count": 128,
+      "offered_observations": 128,
+      "offered_observations_per_second": 6355.574522837673,
+      "successfully_processed_observations_per_second": 258.7529241068073,
+      "result_count": 128,
+      "results_per_second": 258.7529241068073,
+      "ingress_submit_latency_ms": {
+        "p50": 0.14150002971291542,
+        "p95": 0.1846000086516142,
+        "p99": 0.2367000561207533,
+        "mean": 0.15620312478858978
+      },
+      "state_entries_at_measurement": 128,
+      "approximate_state_payload_bytes": 207597,
+      "approximate_bytes_per_state_entry": 1621.8515625,
+      "tracemalloc_current_bytes": 536770,
+      "tracemalloc_peak_bytes": 761470,
+      "reorder_occupancy_before_flush": 128,
+      "quality_gap_count": 0,
+      "state_or_processing_error_count": 0,
+      "queue_saturation_observed": false
+    },
+    {
+      "active_tuple_count": 512,
+      "offered_observations": 512,
+      "offered_observations_per_second": 3715.8182834700606,
+      "successfully_processed_observations_per_second": 244.7630507269651,
+      "result_count": 512,
+      "results_per_second": 244.7630507269651,
+      "ingress_submit_latency_ms": {
+        "p50": 0.1531000016257167,
+        "p95": 0.3301999531686306,
+        "p99": 0.9813000215217471,
+        "mean": 0.19101796897302847
+      },
+      "state_entries_at_measurement": 512,
+      "approximate_state_payload_bytes": 828945,
+      "approximate_bytes_per_state_entry": 1619.033203125,
+      "tracemalloc_current_bytes": 1547427,
+      "tracemalloc_peak_bytes": 2435679,
+      "reorder_occupancy_before_flush": 512,
+      "quality_gap_count": 0,
+      "state_or_processing_error_count": 0,
+      "queue_saturation_observed": false
+    },
+    {
+      "active_tuple_count": 1024,
+      "offered_observations": 1024,
+      "offered_observations_per_second": 3533.6067040153293,
+      "successfully_processed_observations_per_second": 230.65388303412408,
+      "result_count": 1024,
+      "results_per_second": 230.65388303412408,
+      "ingress_submit_latency_ms": {
+        "p50": 0.14239992015063763,
+        "p95": 0.33629999961704016,
+        "p99": 1.0896999156102538,
+        "mean": 0.18986835971190885
+      },
+      "state_entries_at_measurement": 1024,
+      "approximate_state_payload_bytes": 1657257,
+      "approximate_bytes_per_state_entry": 1618.4150390625,
+      "tracemalloc_current_bytes": 2527859,
+      "tracemalloc_peak_bytes": 5780879,
+      "reorder_occupancy_before_flush": 1024,
+      "quality_gap_count": 0,
+      "state_or_processing_error_count": 0,
+      "queue_saturation_observed": false
+    },
+    {
+      "active_tuple_count": 2048,
+      "offered_observations": 2048,
+      "offered_observations_per_second": 3269.8370787087983,
+      "successfully_processed_observations_per_second": 214.14726022675308,
+      "result_count": 2048,
+      "results_per_second": 214.14726022675308,
+      "ingress_submit_latency_ms": {
+        "p50": 0.15559990424662828,
+        "p95": 0.3478999715298414,
+        "p99": 1.532200025394559,
+        "mean": 0.20221049652491274
+      },
+      "state_entries_at_measurement": 2048,
+      "approximate_state_payload_bytes": 3315830,
+      "approximate_bytes_per_state_entry": 1619.0576171875,
+      "tracemalloc_current_bytes": 4651611,
+      "tracemalloc_peak_bytes": 8194071,
+      "reorder_occupancy_before_flush": 2048,
+      "quality_gap_count": 0,
+      "state_or_processing_error_count": 0,
+      "queue_saturation_observed": false
+    },
+    {
+      "active_tuple_count": 4096,
+      "offered_observations": 4096,
+      "offered_observations_per_second": 3313.480226128922,
+      "successfully_processed_observations_per_second": 209.51991804902775,
+      "result_count": 4096,
+      "results_per_second": 209.51991804902775,
+      "ingress_submit_latency_ms": {
+        "p50": 0.15680002979934216,
+        "p95": 0.34659996163100004,
+        "p99": 1.272900030016899,
+        "mean": 0.20398955143718922
+      },
+      "state_entries_at_measurement": 4096,
+      "approximate_state_payload_bytes": 6637674,
+      "approximate_bytes_per_state_entry": 1620.52587890625,
+      "tracemalloc_current_bytes": 9037417,
+      "tracemalloc_peak_bytes": 17847877,
+      "reorder_occupancy_before_flush": 4096,
+      "quality_gap_count": 0,
+      "state_or_processing_error_count": 0,
+      "queue_saturation_observed": false
+    }
+  ],
+  "window_state_shape_sweeps": {
+    "DDOS-B-B0": [
+      {
+        "active_window_key_count": 32,
+        "offered_observations": 32,
+        "offered_observations_per_second": 4373.915096645993,
+        "successfully_processed_observations_per_second": 227.60135903654412,
+        "result_count": 32,
+        "results_per_second": 227.60135903654412,
+        "ingress_submit_latency_ms": {
+          "p50": 0.2145000034943223,
+          "p95": 0.31189993023872375,
+          "p99": 0.3969999961555004,
+          "mean": 0.22658125817542896
+        },
+        "state_entries_at_measurement": 32,
+        "approximate_state_payload_bytes": 48382,
+        "approximate_bytes_per_state_entry": 1511.9375,
+        "tracemalloc_current_bytes": 104214,
+        "tracemalloc_peak_bytes": 161010,
+        "reorder_occupancy_before_flush": 32,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 128,
+        "offered_observations": 128,
+        "offered_observations_per_second": 6154.289959459079,
+        "successfully_processed_observations_per_second": 217.21492791365213,
+        "result_count": 128,
+        "results_per_second": 217.21492791365213,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13400008901953697,
+          "p95": 0.21810003090649843,
+          "p99": 0.27860002592206,
+          "mean": 0.16178281293832697
+        },
+        "state_entries_at_measurement": 128,
+        "approximate_state_payload_bytes": 191282,
+        "approximate_bytes_per_state_entry": 1494.390625,
+        "tracemalloc_current_bytes": 293712,
+        "tracemalloc_peak_bytes": 510252,
+        "reorder_occupancy_before_flush": 128,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 512,
+        "offered_observations": 512,
+        "offered_observations_per_second": 3924.078281571608,
+        "successfully_processed_observations_per_second": 198.839607781093,
+        "result_count": 512,
+        "results_per_second": 198.839607781093,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13649999164044857,
+          "p95": 0.1745999325066805,
+          "p99": 0.31210004817694426,
+          "mean": 0.15446113070538559
+        },
+        "state_entries_at_measurement": 512,
+        "approximate_state_payload_bytes": 763442,
+        "approximate_bytes_per_state_entry": 1491.09765625,
+        "tracemalloc_current_bytes": 1018250,
+        "tracemalloc_peak_bytes": 1873766,
+        "reorder_occupancy_before_flush": 512,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      }
+    ],
+    "DDOS-CV-B0": [
+      {
+        "active_window_key_count": 32,
+        "offered_observations": 32,
+        "offered_observations_per_second": 7117.4377087144685,
+        "successfully_processed_observations_per_second": 217.66249524499085,
+        "result_count": 32,
+        "results_per_second": 217.66249524499085,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13310008216649294,
+          "p95": 0.14690007083117962,
+          "p99": 0.1471999567002058,
+          "mean": 0.13899687473895028
+        },
+        "state_entries_at_measurement": 32,
+        "approximate_state_payload_bytes": 52025,
+        "approximate_bytes_per_state_entry": 1625.78125,
+        "tracemalloc_current_bytes": 104137,
+        "tracemalloc_peak_bytes": 162981,
+        "reorder_occupancy_before_flush": 32,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 128,
+        "offered_observations": 128,
+        "offered_observations_per_second": 5256.004371878602,
+        "successfully_processed_observations_per_second": 213.68545137898855,
+        "result_count": 128,
+        "results_per_second": 213.68545137898855,
+        "ingress_submit_latency_ms": {
+          "p50": 0.14479993842542171,
+          "p95": 0.25310006458312273,
+          "p99": 0.5487999878823757,
+          "mean": 0.189452342056029
+        },
+        "state_entries_at_measurement": 128,
+        "approximate_state_payload_bytes": 205802,
+        "approximate_bytes_per_state_entry": 1607.828125,
+        "tracemalloc_current_bytes": 304748,
+        "tracemalloc_peak_bytes": 529480,
+        "reorder_occupancy_before_flush": 128,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 512,
+        "offered_observations": 512,
+        "offered_observations_per_second": 3576.8402397551968,
+        "successfully_processed_observations_per_second": 201.8959369185881,
+        "result_count": 512,
+        "results_per_second": 201.8959369185881,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13609998859465122,
+          "p95": 0.25040004402399063,
+          "p99": 1.0772999376058578,
+          "mean": 0.16878437349987507
+        },
+        "state_entries_at_measurement": 512,
+        "approximate_state_payload_bytes": 821622,
+        "approximate_bytes_per_state_entry": 1604.73046875,
+        "tracemalloc_current_bytes": 1046080,
+        "tracemalloc_peak_bytes": 1934364,
+        "reorder_occupancy_before_flush": 512,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      }
+    ],
+    "DDOS-D-B0": [
+      {
+        "active_window_key_count": 32,
+        "offered_observations": 32,
+        "offered_observations_per_second": 6969.5517151622325,
+        "successfully_processed_observations_per_second": 218.12064527897573,
+        "result_count": 32,
+        "results_per_second": 218.12064527897573,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13070006389170885,
+          "p95": 0.18480001017451286,
+          "p99": 0.2581999870017171,
+          "mean": 0.14200624718796462
+        },
+        "state_entries_at_measurement": 32,
+        "approximate_state_payload_bytes": 51771,
+        "approximate_bytes_per_state_entry": 1617.84375,
+        "tracemalloc_current_bytes": 101916,
+        "tracemalloc_peak_bytes": 160760,
+        "reorder_occupancy_before_flush": 32,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 128,
+        "offered_observations": 128,
+        "offered_observations_per_second": 6387.289303089392,
+        "successfully_processed_observations_per_second": 217.16097650850242,
+        "result_count": 128,
+        "results_per_second": 217.16097650850242,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13179995585232973,
+          "p95": 0.15919993165880442,
+          "p99": 0.26629993226379156,
+          "mean": 0.15585156052111415
+        },
+        "state_entries_at_measurement": 128,
+        "approximate_state_payload_bytes": 204876,
+        "approximate_bytes_per_state_entry": 1600.59375,
+        "tracemalloc_current_bytes": 302456,
+        "tracemalloc_peak_bytes": 527188,
+        "reorder_occupancy_before_flush": 128,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 512,
+        "offered_observations": 512,
+        "offered_observations_per_second": 3793.1292506921795,
+        "successfully_processed_observations_per_second": 208.40207990481568,
+        "result_count": 512,
+        "results_per_second": 208.40207990481568,
+        "ingress_submit_latency_ms": {
+          "p50": 0.1343999756500125,
+          "p95": 0.23579993285238743,
+          "p99": 0.5908999592065811,
+          "mean": 0.1694013665201055
+        },
+        "state_entries_at_measurement": 512,
+        "approximate_state_payload_bytes": 818008,
+        "approximate_bytes_per_state_entry": 1597.671875,
+        "tracemalloc_current_bytes": 1035706,
+        "tracemalloc_peak_bytes": 1923990,
+        "reorder_occupancy_before_flush": 512,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      }
+    ],
+    "DDOS-E1-B0": [
+      {
+        "active_window_key_count": 32,
+        "offered_observations": 32,
+        "offered_observations_per_second": 7504.866458719562,
+        "successfully_processed_observations_per_second": 243.01890215732178,
+        "result_count": 32,
+        "results_per_second": 243.01890215732178,
+        "ingress_submit_latency_ms": {
+          "p50": 0.1249000197276473,
+          "p95": 0.1482999650761485,
+          "p99": 0.1542000100016594,
+          "mean": 0.13147187200956978
+        },
+        "state_entries_at_measurement": 32,
+        "approximate_state_payload_bytes": 48388,
+        "approximate_bytes_per_state_entry": 1512.125,
+        "tracemalloc_current_bytes": 100148,
+        "tracemalloc_peak_bytes": 156912,
+        "reorder_occupancy_before_flush": 32,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 128,
+        "offered_observations": 128,
+        "offered_observations_per_second": 5441.390285487453,
+        "successfully_processed_observations_per_second": 222.16355715986035,
+        "result_count": 128,
+        "results_per_second": 222.16355715986035,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13910001143813133,
+          "p95": 0.3114999271929264,
+          "p99": 0.3978998865932226,
+          "mean": 0.18295390873390716
+        },
+        "state_entries_at_measurement": 128,
+        "approximate_state_payload_bytes": 191384,
+        "approximate_bytes_per_state_entry": 1495.1875,
+        "tracemalloc_current_bytes": 287026,
+        "tracemalloc_peak_bytes": 503534,
+        "reorder_occupancy_before_flush": 128,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 512,
+        "offered_observations": 512,
+        "offered_observations_per_second": 3615.270279757194,
+        "successfully_processed_observations_per_second": 208.47296848658544,
+        "result_count": 512,
+        "results_per_second": 208.47296848658544,
+        "ingress_submit_latency_ms": {
+          "p50": 0.1373999984934926,
+          "p95": 0.27630000840872526,
+          "p99": 0.4898000042885542,
+          "mean": 0.16785409957265074
+        },
+        "state_entries_at_measurement": 512,
+        "approximate_state_payload_bytes": 763928,
+        "approximate_bytes_per_state_entry": 1492.046875,
+        "tracemalloc_current_bytes": 980798,
+        "tracemalloc_peak_bytes": 1836282,
+        "reorder_occupancy_before_flush": 512,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      }
+    ],
+    "DDOS-E2-B0": [
+      {
+        "active_window_key_count": 32,
+        "offered_observations": 32,
+        "offered_observations_per_second": 5190.928830838054,
+        "successfully_processed_observations_per_second": 224.9611238912867,
+        "result_count": 32,
+        "results_per_second": 224.9611238912867,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13499998021870852,
+          "p95": 0.2618000144138932,
+          "p99": 0.3971999976783991,
+          "mean": 0.19111875371891074
+        },
+        "state_entries_at_measurement": 32,
+        "approximate_state_payload_bytes": 48644,
+        "approximate_bytes_per_state_entry": 1520.125,
+        "tracemalloc_current_bytes": 102637,
+        "tracemalloc_peak_bytes": 159433,
+        "reorder_occupancy_before_flush": 32,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 128,
+        "offered_observations": 128,
+        "offered_observations_per_second": 5675.519882194075,
+        "successfully_processed_observations_per_second": 233.1011669646916,
+        "result_count": 128,
+        "results_per_second": 233.1011669646916,
+        "ingress_submit_latency_ms": {
+          "p50": 0.1343999756500125,
+          "p95": 0.23729994427412748,
+          "p99": 0.422299955971539,
+          "mean": 0.1754617169353878
+        },
+        "state_entries_at_measurement": 128,
+        "approximate_state_payload_bytes": 192312,
+        "approximate_bytes_per_state_entry": 1502.4375,
+        "tracemalloc_current_bytes": 292081,
+        "tracemalloc_peak_bytes": 508621,
+        "reorder_occupancy_before_flush": 128,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 512,
+        "offered_observations": 512,
+        "offered_observations_per_second": 2483.9019391458096,
+        "successfully_processed_observations_per_second": 208.1331017754494,
+        "result_count": 512,
+        "results_per_second": 208.1331017754494,
+        "ingress_submit_latency_ms": {
+          "p50": 0.1642999704927206,
+          "p95": 0.35149999894201756,
+          "p99": 1.4542000135406852,
+          "mean": 0.20497617083492514
+        },
+        "state_entries_at_measurement": 512,
+        "approximate_state_payload_bytes": 767544,
+        "approximate_bytes_per_state_entry": 1499.109375,
+        "tracemalloc_current_bytes": 1276555,
+        "tracemalloc_peak_bytes": 2132071,
+        "reorder_occupancy_before_flush": 512,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      }
+    ],
+    "DDOS-E3-B0": [
+      {
+        "active_window_key_count": 32,
+        "offered_observations": 32,
+        "offered_observations_per_second": 6703.395813418453,
+        "successfully_processed_observations_per_second": 199.8033186689873,
+        "result_count": 32,
+        "results_per_second": 199.8033186689873,
+        "ingress_submit_latency_ms": {
+          "p50": 0.13689999468624592,
+          "p95": 0.152900000102818,
+          "p99": 0.16199995297938585,
+          "mean": 0.1476843717682641
+        },
+        "state_entries_at_measurement": 32,
+        "approximate_state_payload_bytes": 52733,
+        "approximate_bytes_per_state_entry": 1647.90625,
+        "tracemalloc_current_bytes": 115208,
+        "tracemalloc_peak_bytes": 174052,
+        "reorder_occupancy_before_flush": 32,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 128,
+        "offered_observations": 128,
+        "offered_observations_per_second": 5724.098465592891,
+        "successfully_processed_observations_per_second": 197.83011276278862,
+        "result_count": 128,
+        "results_per_second": 197.83011276278862,
+        "ingress_submit_latency_ms": {
+          "p50": 0.15109998639672995,
+          "p95": 0.18309999722987413,
+          "p99": 0.4373999545350671,
+          "mean": 0.17393593498127302
+        },
+        "state_entries_at_measurement": 128,
+        "approximate_state_payload_bytes": 208718,
+        "approximate_bytes_per_state_entry": 1630.609375,
+        "tracemalloc_current_bytes": 343171,
+        "tracemalloc_peak_bytes": 567903,
+        "reorder_occupancy_before_flush": 128,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      },
+      {
+        "active_window_key_count": 512,
+        "offered_observations": 512,
+        "offered_observations_per_second": 3632.97836098882,
+        "successfully_processed_observations_per_second": 200.6227376823392,
+        "result_count": 512,
+        "results_per_second": 200.6227376823392,
+        "ingress_submit_latency_ms": {
+          "p50": 0.14410004951059818,
+          "p95": 0.2490000333636999,
+          "p99": 0.8188000647351146,
+          "mean": 0.1751552749738039
+        },
+        "state_entries_at_measurement": 512,
+        "approximate_state_payload_bytes": 833370,
+        "approximate_bytes_per_state_entry": 1627.67578125,
+        "tracemalloc_current_bytes": 1133327,
+        "tracemalloc_peak_bytes": 2021611,
+        "reorder_occupancy_before_flush": 512,
+        "quality_gap_count": 0,
+        "state_or_processing_error_count": 0,
+        "queue_saturation_observed": false
+      }
+    ]
+  },
+  "bounded_payload_tests": {
+    "source_set": {
+      "configured_capacity": 256,
+      "offered_distinct_values": 257,
+      "retained_values": 256,
+      "capacity_reached": true,
+      "approximate_single_state_bytes": 18447,
+      "result_type": "QUALITY_DEGRADED",
+      "reported_lower_bound": 256
+    },
+    "attempt_set": {
+      "configured_capacity": 256,
+      "offered_distinct_values": 257,
+      "retained_values": 256,
+      "capacity_reached": true,
+      "approximate_single_state_bytes": 25875,
+      "result_type": "QUALITY_DEGRADED",
+      "reported_lower_bound": 256
+    },
+    "saturation_result": "QUALITY_DEGRADED with lower bound"
+  },
+  "tested_reorder_candidates": {
+    "same_key_boundary": {
+      "configured_per_key_capacity": 16,
+      "configured_total_capacity": 32,
+      "offered_same_key_events": 17,
+      "retained_reorder_events": 16,
+      "quality_gap_count": 1,
+      "boundary_effective": true
+    },
+    "many_key_maximum_observed": 4096,
+    "many_key_total_bound": 4104,
+    "global_total_bound_remained_effective": true
+  }
+}
