@@ -445,16 +445,11 @@ async def test_config_hash_and_structured_evidence_round_trip_sqlite_v3(tmp_path
         writer.close()
 
 
-def test_default_registry_activation_is_gated_but_zero_to_many_is_compatible():
+def test_default_registry_activation_and_zero_to_many_are_compatible():
     plugins, _ = build_mvp_provider_registry(NOW)
-    assert "c2" in plugins and plugins["c2"].manifest().mechanism_id is None
-    assert "c2.r1" not in plugins
-
-    r1 = C2R1Plugin(config(), max_state_entries=20)
-    candidates = dict(plugins)
-    del candidates[LaneTarget("c2")]
-    candidates[LANE] = r1
-    selected = set(RelevanceRouter(candidates).route(flow(0)))
+    assert "c2.r1" in plugins and plugins["c2.r1"].manifest().mechanism_id == "C2-M1"
+    assert "c2" not in plugins
+    selected = set(RelevanceRouter(plugins).route(flow(0)))
     assert selected == {"ddos", "recon", "unusual_transfer.m1", "c2.r1"}
 
 

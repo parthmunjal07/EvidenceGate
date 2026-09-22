@@ -14,7 +14,7 @@ from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.ingest.builders import DNSCanonicalBuilder
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.persistence.sqlite import SqliteWriter
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry
+from evidencegate.plugins.providers.registry import build_mvp_provider_registry, build_mvp_runtime_registration
 from evidencegate.results.finalizer import ResultEmissionContext, ResultFinalizer
 from evidencegate.results.types import ReviewFinding
 from evidencegate.routing.router import RelevanceRouter
@@ -59,7 +59,8 @@ def canonical_observation(
 
 
 def t1_parts():
-    plugins, governances = build_mvp_provider_registry(NOW)
+    registration = build_mvp_runtime_registration(NOW)
+    plugins, governances = registration.plugins, registration.governances
     lane = next(key for key in plugins if str(key) == "dns_tunnelling.t1")
     return plugins[lane], governances[lane]
 
@@ -170,13 +171,17 @@ async def test_runtime_provenance_determinism_case_distinction_and_sqlite_v3_rou
 
 @pytest.mark.asyncio
 async def test_runtime_routes_dga_and_t1_but_only_t1_emits():
-    plugins, governances = build_mvp_provider_registry(NOW)
+    registration = build_mvp_runtime_registration(NOW)
+    plugins, governances = registration.plugins, registration.governances
     emitted = []
 
     async def collect(result, lane):
         emitted.append((result, str(lane)))
 
-    supervisor = RuntimeSupervisor(plugins, governances, collect, shard_count=1)
+    supervisor = RuntimeSupervisor(
+        plugins, governances, collect, shard_count=1,
+        reorder_policies=registration.reorder_policies,
+    )
     supervisor.start_all()
     try:
         plan = await supervisor.ingest_observation(canonical_observation())

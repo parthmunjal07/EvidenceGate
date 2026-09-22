@@ -329,9 +329,9 @@ async def test_unimplemented_m6_provider_shells_remain_result_free() -> None:
     for plugin in plugins.values():
         if plugin.manifest().plugin_id in (
             "provider.encrypted_session.enc_a", "provider.unusual_transfer.m1",
-            "provider.dns_tunnelling.t1",
+            "provider.dns_tunnelling.t1", "provider.c2.r1",
         ):
-            assert plugin.manifest().mechanism_id in ("ENC-A", "CAT6-EX-M1", "DNS-T1")
+            assert plugin.manifest().mechanism_id in ("ENC-A", "CAT6-EX-M1", "DNS-T1", "C2-M1")
             continue
         else:
             assert plugin.manifest().mechanism_id is None

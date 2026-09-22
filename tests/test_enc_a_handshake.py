@@ -14,7 +14,7 @@ from evidencegate.domain.events import NetworkObservationEnvelope, VisibilityPro
 from evidencegate.domain.payloads import QUICObservation, TLSObservation
 from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.persistence.sqlite import SqliteWriter
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry
+from evidencegate.plugins.providers.registry import build_mvp_provider_registry, build_mvp_runtime_registration
 from evidencegate.routing.router import RelevanceRouter
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 
@@ -41,11 +41,12 @@ def tls(*, metadata={"sni": "example.test", "ja4": "t13d", "alpn": ["h2"]},
 
 
 def registry():
-    return build_mvp_provider_registry(NOW)
+    registration = build_mvp_runtime_registration(NOW)
+    return registration.plugins, registration.governances, registration.reorder_policies
 
 
 def test_manifest_and_structural_routing_boundaries():
-    plugins, _ = registry(); plugin = plugins[LANE]; manifest = plugin.manifest()
+    plugins, _, _ = registry(); plugin = plugins[LANE]; manifest = plugin.manifest()
     assert manifest.plugin_id == "provider.encrypted_session.enc_a"
     assert manifest.official_ps_category is OfficialPsCategory.ENCRYPTED_SESSIONS
     assert manifest.mechanism_id == "ENC-A"
@@ -62,9 +63,9 @@ def test_manifest_and_structural_routing_boundaries():
 
 @pytest.mark.asyncio
 async def test_end_to_end_factual_context_provenance_identity_and_persistence(tmp_path):
-    plugins, governances = registry(); results = []
+    plugins, governances, reorder_policies = registry(); results = []
     async def collect(result, lane): results.append((result, lane))
-    supervisor = RuntimeSupervisor(plugins, governances, collect, shard_count=1)
+    supervisor = RuntimeSupervisor(plugins, governances, collect, shard_count=1, reorder_policies=reorder_policies)
     supervisor.start_all()
     try:
         observation = replace(tls(), present_fields=frozenset({"flow_reference", "parser_version", "parsed_handshake_metadata", "tcp_reassembly_state", "gaps"}))
@@ -101,9 +102,9 @@ async def test_end_to_end_factual_context_provenance_identity_and_persistence(tm
 
 @pytest.mark.asyncio
 async def test_client_only_survives_server_only_and_degraded_quality_are_factual():
-    plugins, governances = registry(); collected = []
+    plugins, governances, reorder_policies = registry(); collected = []
     async def collect(result, lane): collected.append(result)
-    supervisor = RuntimeSupervisor(plugins, governances, collect, shard_count=1); supervisor.start_all()
+    supervisor = RuntimeSupervisor(plugins, governances, collect, shard_count=1, reorder_policies=reorder_policies); supervisor.start_all()
     try:
         client_only = tls()
         assert (await supervisor.ingest_observation(client_only)).selected_targets == (LANE,)

@@ -11,7 +11,10 @@ from evidencegate.domain.enums import (
 )
 from evidencegate.domain.events import NetworkObservationEnvelope, VisibilityProfile
 from evidencegate.domain.payloads import DNSObservation, FlowObservation, QUICObservation, TLSObservation
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry
+from evidencegate.plugins.providers.registry import (
+    C2_CONTROLLED_MVP_CAPACITY, build_mvp_provider_registry,
+    build_mvp_runtime_registration,
+)
 from evidencegate.routing.router import RelevanceRouter
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 from evidencegate.registry.plugin import PluginProcessOutcome, StateKey
@@ -66,7 +69,7 @@ def registry():
 
 def test_exact_packages_lanes_mappings_and_governance():
     plugins, governances = registry()
-    assert set(plugins) == {"ddos", "c2", "dga", "dns_tunnelling.t1", "encrypted_session.enc_a", "recon", "unusual_transfer.m1"}
+    assert set(plugins) == {"ddos", "c2.r1", "dga", "dns_tunnelling.t1", "encrypted_session.enc_a", "recon", "unusual_transfer.m1"}
     manifests = [plugin.manifest() for plugin in plugins.values()]
     assert len({m.plugin_id for m in manifests}) == 7
     assert {m.official_ps_category for m in manifests} == set(OfficialPsCategory)
@@ -84,12 +87,17 @@ def test_exact_packages_lanes_mappings_and_governance():
     dns_t1 = plugins["dns_tunnelling.t1"].manifest()
     assert dns_t1.integration_status is IntegrationStatus.BASELINE_IMPLEMENTED
     assert dns_t1.mechanism_id == "DNS-T1"
+    c2_r1 = plugins["c2.r1"].manifest()
+    assert c2_r1.mechanism_id == "C2-M1"
+    assert c2_r1.state_resource_policy.max_entries == 1024
+    assert c2_r1.governing_decision_ids == ("C2-DEC-MVP-CAPACITY-V1",)
+    assert governances["c2.r1"].governance_version == "c2-r1-mvp-0.1.0"
 
 
 def test_structural_zero_to_many_and_protocol_distinction():
     plugins, _ = registry()
     router = RelevanceRouter(plugins)
-    assert set(router.route(flow())) == {"ddos", "c2", "recon"}
+    assert set(router.route(flow())) == {"ddos", "recon"}
     assert set(router.route(dns())) == {"dga", "dns_tunnelling.t1"}
     assert router.route(tls()) == ("encrypted_session.enc_a",)
     assert router.route(quic()) == ()
@@ -99,6 +107,8 @@ def test_structural_zero_to_many_and_protocol_distinction():
 async def test_shells_remain_stateless_and_enc_a_only_emits_factual_review_context():
     plugins, _ = registry()
     for plugin in plugins.values():
+        if plugin.manifest().mechanism_id == "C2-M1":
+            continue
         candidates = (flow(), dns(), tls(), quic())
         if plugin.manifest().mechanism_id == "CAT6-EX-M1":
             candidates = (replace(
@@ -120,16 +130,20 @@ async def test_shells_remain_stateless_and_enc_a_only_emits_factual_review_conte
 
 @pytest.mark.asyncio
 async def test_runtime_constructs_every_provider_lane_with_implemented_results():
-    plugins, governances = registry()
+    registration = build_mvp_runtime_registration(NOW)
+    plugins, governances = registration.plugins, registration.governances
     results = []
     async def collector(result, lane):
         results.append((result, lane))
-    supervisor = RuntimeSupervisor(plugins, governances, collector, shard_count=1)
+    supervisor = RuntimeSupervisor(
+        plugins, governances, collector, shard_count=1,
+        reorder_policies=registration.reorder_policies,
+    )
     assert set(supervisor.dispatchers) == set(plugins) == set(supervisor.state_stores)
     supervisor.start_all()
     try:
-        assert set((await supervisor.ingest_observation(flow())).selected_targets) == {"ddos", "c2", "recon"}
-        for lane in ("ddos", "c2", "recon"):
+        assert set((await supervisor.ingest_observation(flow())).selected_targets) == {"ddos", "recon"}
+        for lane in ("ddos", "recon"):
             await supervisor.dispatchers[lane].queue.join()
         assert all(len(store) == 0 for store in supervisor.state_stores.values())
         await supervisor.ingest_observation(tls())

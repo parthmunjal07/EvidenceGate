@@ -204,10 +204,10 @@ def test_report_and_config_serialization_are_deterministic():
     assert render_report(payload) == render_report(json.loads(json.dumps(payload)))
 
 
-def test_benchmark_does_not_activate_default_c2_registry():
+def test_benchmark_default_registry_activates_c2_r1():
     plugins, _ = build_mvp_provider_registry(datetime.now(timezone.utc))
-    assert LaneTarget("c2") in plugins
-    assert LaneTarget("c2.r1") not in plugins
+    assert LaneTarget("c2.r1") in plugins
+    assert LaneTarget("c2") not in plugins
 
 
 def test_safety_ceiling_requires_explicit_override():

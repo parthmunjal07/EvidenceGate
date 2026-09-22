@@ -11,7 +11,9 @@ from evidencegate.ingest.replay import NdjsonReplaySource, ReplayCanonicalizer, 
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.c2 import C2R1Plugin
 from evidencegate.plugins.providers.c2_config import C2R1Config
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry
+from evidencegate.plugins.providers.registry import (
+    build_mvp_provider_registry, build_mvp_runtime_registration,
+)
 from evidencegate.routing.router import LaneTarget
 from evidencegate.runtime.dispatcher import EventTimeReorderPolicy
 from evidencegate.runtime.supervisor import RuntimeSupervisor
@@ -34,9 +36,11 @@ async def run_default(bundle, database, *, clock=None, canonicalizer=None):
     async def control(event):
         controls.append(event)
 
-    plugins, governances = build_mvp_provider_registry(NOW)
+    registration = build_mvp_runtime_registration(NOW)
+    plugins, governances = registration.plugins, registration.governances
     supervisor = RuntimeSupervisor(
         plugins, governances, writer, shard_count=1, control_sink=control,
+        reorder_policies=registration.reorder_policies,
     )
     summary = await ReplayRunner(
         NdjsonReplaySource(bundle), supervisor, control_sink=control,
@@ -228,7 +232,39 @@ async def test_same_time_records_are_admitted_before_next_boundary(tmp_path):
     assert len(watermark_events) == 2
 
 
-def test_default_registry_keeps_c2_r1_gated():
+def test_default_registration_activates_c2_r1_with_approved_capacity():
     plugins, _ = build_mvp_provider_registry(NOW)
-    assert LaneTarget("c2") in plugins
-    assert LaneTarget("c2.r1") not in plugins
+    registration = build_mvp_runtime_registration(NOW)
+    assert LaneTarget("c2.r1") in plugins
+    assert LaneTarget("c2") not in plugins
+    assert plugins[LaneTarget("c2.r1")].manifest().mechanism_id == "C2-M1"
+    assert registration.reorder_policies[LaneTarget("c2.r1")] == EventTimeReorderPolicy(16, 2048)
+
+
+def test_default_plugins_remain_fail_closed_without_their_registration_policy():
+    async def writer(result, target):
+        pass
+
+    registration = build_mvp_runtime_registration(NOW)
+    with pytest.raises(ValueError, match="requires an explicit event-time reorder policy"):
+        RuntimeSupervisor(registration.plugins, registration.governances, writer)
+
+
+async def test_default_c2_replay_persists_ready_measurement_and_decision_provenance(tmp_path):
+    summary, results, _, persisted = await run_default(
+        FIXTURES / "c2_r1", tmp_path / "c2-default.sqlite",
+    )
+    assert summary.records_read == 3
+    c2_results = [result for result in results if result.mechanism_id == "C2-M1"]
+    c2_persisted = [result for result in persisted if result.mechanism_id == "C2-M1"]
+    assert len(c2_results) == len(c2_persisted) == 3
+    assert [result.result_type for result in c2_results] == [
+        ResultType.INSUFFICIENT_EVIDENCE, ResultType.INSUFFICIENT_EVIDENCE,
+        ResultType.REVIEW_FINDING,
+    ]
+    assert c2_results[-1].status_snapshot.readiness.value == "READY"
+    assert c2_results[-1].evidence.to_value()["measurements"] == {
+        "event_count": 3, "history_span_seconds": 120.0, "interval_count": 2,
+        "iat_median_seconds": 60.0, "iat_mad_seconds": 0.0,
+    }
+    assert all("C2-DEC-MVP-CAPACITY-V1" in result.governing_ids for result in c2_results)

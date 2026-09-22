@@ -54,7 +54,10 @@ class C2R1Plugin:
         "API automation",
     )
 
-    def __init__(self, config: C2R1Config, *, max_state_entries: int) -> None:
+    def __init__(
+        self, config: C2R1Config, *, max_state_entries: int,
+        governing_decision_ids: tuple[str, ...] = (),
+    ) -> None:
         if not isinstance(config, C2R1Config):
             raise TypeError("config must be C2R1Config")
         if isinstance(max_state_entries, bool) or not isinstance(max_state_entries, int):
@@ -89,7 +92,7 @@ class C2R1Plugin:
             ),
             integration_status=IntegrationStatus.BASELINE_IMPLEMENTED,
             profiling_hooks_enabled=False, governing_claim_ids=(),
-            governing_decision_ids=(),
+            governing_decision_ids=governing_decision_ids,
             official_ps_category=OfficialPsCategory.C2_BEACONING,
             analytic_family=AnalyticFamily.C2,
             # The active contract names C2-R1 as the analytic path and C2-M1 as

@@ -15,7 +15,7 @@ from evidencegate.domain.enums import (
 from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.payloads import PacketObservation
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry
+from evidencegate.plugins.providers.registry import build_mvp_provider_registry, build_mvp_runtime_registration
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.registry.manifest import StateResourcePolicy
 from evidencegate.registry.plugin import (
@@ -357,9 +357,12 @@ async def test_supervisor_requires_stateful_policy_but_not_for_current_registry(
     )
     assert supervisor.dispatchers[LANE].pending_reorder_count == 0
 
-    plugins, governances = build_mvp_provider_registry(NOW)
-    current = RuntimeSupervisor(plugins, governances, writer)
-    assert set(current.dispatchers) == set(plugins)
+    registration = build_mvp_runtime_registration(NOW)
+    current = RuntimeSupervisor(
+        registration.plugins, registration.governances, writer,
+        reorder_policies=registration.reorder_policies,
+    )
+    assert set(current.dispatchers) == set(registration.plugins)
 
 
 @pytest.mark.asyncio

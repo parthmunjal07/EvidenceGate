@@ -10,7 +10,7 @@ from pathlib import Path
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner, validate_bundle
 from evidencegate.ingest.replay_schema import ReplayValidationError
 from evidencegate.persistence.sqlite import SqliteWriter
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry
+from evidencegate.plugins.providers.registry import build_mvp_runtime_registration
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 
 
@@ -39,8 +39,11 @@ async def main() -> None:
         await sqlite.write_result(result)
         persisted += 1
 
-    plugins, governances = build_mvp_provider_registry(datetime.now(timezone.utc))
-    supervisor = RuntimeSupervisor(plugins, governances, write_result)
+    registration = build_mvp_runtime_registration(datetime.now(timezone.utc))
+    supervisor = RuntimeSupervisor(
+        registration.plugins, registration.governances, write_result,
+        reorder_policies=registration.reorder_policies,
+    )
     try:
         try:
             summary = await ReplayRunner(

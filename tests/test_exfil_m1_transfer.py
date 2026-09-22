@@ -15,7 +15,7 @@ from evidencegate.domain.payloads import FlowObservation, PacketObservation
 from evidencegate.ingest.canonicalizer import FlowCanonicalizer
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.persistence.sqlite import SqliteWriter
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry
+from evidencegate.plugins.providers.registry import build_mvp_provider_registry, build_mvp_runtime_registration
 from evidencegate.registry.plugin import PluginProcessOutcome
 from evidencegate.routing.router import RelevanceRouter
 from evidencegate.runtime.supervisor import RuntimeSupervisor
@@ -37,7 +37,9 @@ def flow(counters={"bytes_c2s": 10}, *, duration=10, visibility=None, sampling=N
         visibility or VisibilityProfile(available=frozenset({VisibilityCapability.FLOW_FACTS, VisibilityCapability.FORWARD_FACTS})))
 
 
-def registry(): return build_mvp_provider_registry(NOW)
+def registry():
+    registration = build_mvp_runtime_registration(NOW)
+    return registration.plugins, registration.governances, registration.reorder_policies
 
 
 def canonical_client_only_flow(counters):
@@ -55,7 +57,7 @@ def canonical_client_only_flow(counters):
 
 
 def test_manifest_and_flow_only_routing():
-    plugins, _ = registry(); plugin = plugins[LANE]; manifest = plugin.manifest(); router = RelevanceRouter(plugins)
+    plugins, _, _ = registry(); plugin = plugins[LANE]; manifest = plugin.manifest(); router = RelevanceRouter(plugins)
     assert manifest.mechanism_id == "CAT6-EX-M1" and manifest.accepted_observation_types == (ObservationType.FLOW,)
     assert LANE in router.route(flow())
     packet = NetworkObservationEnvelope("packet", "1.1", ObservationType.PACKET, NOW, NOW, NOW, "p", SourceKind.PCAP, "1", "p", WireDirection.FORWARD, DirectionBasis.CAPTURE_INTERFACE, Finality.CURRENT, AvailabilityBasis.IMMEDIATE, "p", "", frozenset(), PacketObservation({}, {}, {}, {}, None, None, None, None, None, None, None, None), VisibilityProfile(available=frozenset({VisibilityCapability.PACKET_FACTS})))
@@ -72,13 +74,13 @@ def test_manifest_and_flow_only_routing():
 
 @pytest.mark.asyncio
 async def test_measurement_evidence_rates_sampling_state_and_persistence(tmp_path):
-    plugins, gov = registry(); plugin = plugins[LANE]; results = []
+    plugins, gov, reorder_policies = registry(); plugin = plugins[LANE]; results = []
     async def collect(result, lane): results.append((result, lane))
-    supervisor = RuntimeSupervisor(plugins, gov, collect, shard_count=1); supervisor.start_all()
+    supervisor = RuntimeSupervisor(plugins, gov, collect, shard_count=1, reorder_policies=reorder_policies); supervisor.start_all()
     try:
         observation = canonical_client_only_flow({"bytes_c2s": 10, "packets_c2s": 2, "bytes_s2c": 4})
         plan = await supervisor.ingest_observation(observation)
-        assert set(plan.selected_targets) == {"ddos", "c2", "recon", LANE}
+        assert set(plan.selected_targets) == {"ddos", "recon", LANE}
         await asyncio.gather(*(supervisor.dispatchers[lane].queue.join() for lane in plan.selected_targets))
         result, lane = next(item for item in results if item[1] == LANE)
         evidence = result.evidence.to_value()
@@ -98,7 +100,7 @@ async def test_measurement_evidence_rates_sampling_state_and_persistence(tmp_pat
 
 @pytest.mark.asyncio
 async def test_both_visibility_retains_both_counter_directions_and_reverse_rate():
-    plugins, _ = registry(); plugin = plugins[LANE]
+    plugins, _, _ = registry(); plugin = plugins[LANE]
     both = flow(
         {"bytes_c2s": 10, "packets_c2s": 2, "bytes_s2c": 4, "packets_s2c": 1},
         visibility=VisibilityProfile(available=frozenset({
@@ -116,7 +118,7 @@ async def test_both_visibility_retains_both_counter_directions_and_reverse_rate(
 
 @pytest.mark.asyncio
 async def test_unknown_and_degraded_reverse_visibility_gate_reverse_counters():
-    plugins, _ = registry(); plugin = plugins[LANE]
+    plugins, _, _ = registry(); plugin = plugins[LANE]
     unknown = flow(
         {"bytes_c2s": 10, "bytes_s2c": 4},
         visibility=VisibilityProfile(available=frozenset({
@@ -140,11 +142,11 @@ async def test_unknown_and_degraded_reverse_visibility_gate_reverse_counters():
 
 @pytest.mark.asyncio
 async def test_client_only_and_both_visibility_produce_distinct_result_ids():
-    plugins, gov = registry(); results = []
+    plugins, gov, reorder_policies = registry(); results = []
     async def collect(result, lane):
         if lane == LANE:
             results.append(result)
-    supervisor = RuntimeSupervisor(plugins, gov, collect, shard_count=1); supervisor.start_all()
+    supervisor = RuntimeSupervisor(plugins, gov, collect, shard_count=1, reorder_policies=reorder_policies); supervisor.start_all()
     try:
         client_only = canonical_client_only_flow({"bytes_c2s": 10, "bytes_s2c": 4})
         both = replace(client_only, wire_direction=WireDirection.UNKNOWN,
@@ -168,7 +170,7 @@ async def test_client_only_and_both_visibility_produce_distinct_result_ids():
 
 @pytest.mark.asyncio
 async def test_small_large_client_only_zero_duration_and_determinism():
-    plugins, gov = registry(); plugin = plugins[LANE]
+    plugins, gov, reorder_policies = registry(); plugin = plugins[LANE]
     small = flow({"packets_c2s": 1}, duration=0)
     large = flow({"bytes_c2s": 10_000_000_000}, duration=1)
     assert plugin.route(small) and plugin.route(large)
@@ -179,7 +181,7 @@ async def test_small_large_client_only_zero_duration_and_determinism():
     assert large_draft.evidence["recognized_directional_counters"] == {"bytes_c2s": 10_000_000_000}
     results = []
     async def collect(result, lane): results.append(result)
-    supervisor = RuntimeSupervisor(plugins, gov, collect, shard_count=1); supervisor.start_all()
+    supervisor = RuntimeSupervisor(plugins, gov, collect, shard_count=1, reorder_policies=reorder_policies); supervisor.start_all()
     try:
         await supervisor.ingest_observation(large); await supervisor.dispatchers[LANE].queue.join(); first = results.pop()
         await supervisor.ingest_observation(large); await supervisor.dispatchers[LANE].queue.join(); assert results.pop().result_id == first.result_id
