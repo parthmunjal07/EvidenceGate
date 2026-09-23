@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from evidencegate.api.projection import SihAlertProjection, SihStatusProjection
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -134,6 +136,17 @@ class RuntimeStatusResponse(StrictModel):
         "DEPENDENCY_MISMATCH", "MODEL_CONTRACT_MISMATCH",
     ]
     dga_model_failure_reason: str | None = None
+    alert_projection_available: bool = False
+    alert_policy_active: Literal[False] = False
+    alert_policy_version: str | None = None
+
+
+class AlertsResponse(StrictModel):
+    policy_version: str
+    policy_status: Literal["CANDIDATE_INACTIVE"] = "CANDIDATE_INACTIVE"
+    meaning_of_alert: Literal["ANALYST_ATTENTION_RECORD"] = "ANALYST_ATTENTION_RECORD"
+    alerts: list[SihAlertProjection]
+    status_items: list[SihStatusProjection]
 
 
 class ResultNotification(StrictModel):

@@ -8,6 +8,8 @@
     olderCursor: null,
     syncCursor: null,
     runtime: null,
+    alerts: [],
+    statusItems: [],
   };
 
   const el = (id) => document.getElementById(id);
@@ -92,6 +94,63 @@
       });
       timeline.append(card);
     }
+  }
+
+  function renderAlerts() {
+    const host = el("alert-timeline");
+    host.replaceChildren();
+    if (!state.alerts.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No review findings project into the candidate analyst queue.";
+      host.append(empty);
+    }
+    for (const alert of state.alerts) {
+      const card = el("alert-template").content.firstElementChild.cloneNode(true);
+      card.querySelector("time").textContent = new Date(alert.timestamp).toLocaleTimeString();
+      card.querySelector(".alert-class").textContent = alert.threat_class;
+      card.querySelector(".alert-severity").textContent = alert.severity;
+      card.querySelector(".alert-evidence").textContent = shortEvidence(alert.supporting_evidence.structured);
+      card.querySelector('[data-field="mechanism"]').textContent = alert.mechanism_id;
+      card.querySelector('[data-field="confidence"]').textContent = alert.confidence_score === null
+        ? `${alert.confidence_basis} · no numeric score`
+        : `${alert.confidence_score} · ${alert.confidence_basis} · ${alert.confidence_statement}`;
+      card.querySelector('[data-field="quality"]').textContent = pretty(alert.quality);
+      card.querySelector('[data-field="visibility"]').textContent = pretty(alert.visibility);
+      card.querySelector('[data-field="claim"]').textContent = alert.claim_ceiling;
+      card.querySelector('[data-field="source"]').textContent = alert.source_result_ids.join(", ");
+      host.append(card);
+    }
+    const statuses = el("status-timeline");
+    statuses.replaceChildren();
+    for (const item of state.statusItems) {
+      const card = document.createElement("article");
+      card.className = "status-card";
+      card.textContent = `${item.priority} · ${item.status_kind} · ${item.mechanism_id} · source result ${item.source_result_ids.join(", ")}`;
+      statuses.append(card);
+    }
+    if (!state.statusItems.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No system or quality status records.";
+      statuses.append(empty);
+    }
+  }
+
+  async function loadAlerts() {
+    if (!state.runtime?.alert_projection_available) return;
+    const response = await request("/alerts?limit=500");
+    state.alerts = response.alerts;
+    state.statusItems = response.status_items;
+    renderAlerts();
+  }
+
+  function selectView(name) {
+    const alerts = name === "alerts";
+    el("results-panel").hidden = alerts;
+    el("alerts-panel").hidden = !alerts;
+    el("results-view").classList.toggle("active", !alerts);
+    el("alerts-view").classList.toggle("active", alerts);
   }
 
   function renderFamilies(runtime) {
@@ -191,6 +250,7 @@
       if (page.results.length < 500) break;
       cursor = page.next_cursor;
     }
+    await loadAlerts();
   }
 
   function openEvents() {
@@ -247,6 +307,11 @@
       renderFamilies(runtime);
       renderReplayControls(runtime);
       await initialLoad();
+      if (runtime.alert_projection_available) {
+        el("alerts-view").disabled = false;
+        el("alert-policy-label").textContent = `${runtime.alert_policy_version} · INACTIVE`;
+        await loadAlerts();
+      }
       await monitorReplay();
       openEvents();
     } catch (error) {
@@ -265,5 +330,7 @@
     renderTimeline();
   });
   el("load-more").addEventListener("click", loadOlder);
+  el("results-view").addEventListener("click", () => selectView("results"));
+  el("alerts-view").addEventListener("click", () => selectView("alerts"));
   boot();
 })();

@@ -48,6 +48,12 @@ h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
 .replay-list button:hover, .load-more:hover { border-color: var(--mint); }
 .replay-list button:disabled { opacity: .45; cursor: wait; }
 .timeline-panel { min-width: 0; padding: 24px; }
+.view-switch { display: flex; align-items: center; gap: 8px; margin: -4px 0 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.view-switch button { padding: 8px 11px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; }
+.view-switch button.active { color: var(--text); border-color: var(--mint); background: var(--panel-2); }
+.view-switch button:disabled { opacity: .4; cursor: not-allowed; }
+.view-switch span { margin-left: auto; color: var(--amber); font-size: 10px; letter-spacing: .06em; }
+.policy-note { max-width: 360px; color: var(--muted); font-size: 12px; text-align: right; }
 .timeline-heading { margin-bottom: 20px; }
 .timeline-heading label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 select { min-width: 210px; padding: 9px; color: var(--text); border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
@@ -69,6 +75,18 @@ h3 { margin: 0 0 9px; color: var(--muted); font-size: 10px; text-transform: uppe
 pre { margin: 0; color: #d6e4df; font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .empty { padding: 70px 20px; color: var(--muted); text-align: center; border: 1px dashed var(--line); border-radius: 8px; }
 .load-more { display: block; margin: 18px auto 0; text-align: center; }
+.alert-card, .status-card { padding: 16px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
+.alert-card header { display: flex; align-items: center; gap: 12px; }
+.alert-card time { color: var(--muted); font-size: 12px; }
+.alert-severity { margin-left: auto; padding: 3px 7px; color: var(--mint); border: 1px solid #35504c; border-radius: 999px; font-size: 10px; }
+.alert-evidence { color: #c4d2ce; }
+.alert-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; }
+.alert-card dl div { min-width: 0; }
+.alert-card dl .wide { grid-column: 1 / -1; }
+.alert-card dt { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+.alert-card dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.status-heading { margin: 28px 0 12px; }
+.status-card { color: var(--muted); font-size: 12px; }
 
 @media (max-width: 1100px) {
   .workspace { grid-template-columns: 1fr; }

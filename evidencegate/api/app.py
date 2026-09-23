@@ -14,9 +14,12 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from evidencegate.api.models import (
-    HealthResponse, QualitySnapshotDto, ReplayRequest, ReplayStatusResponse,
+    AlertsResponse, HealthResponse, QualitySnapshotDto, ReplayRequest, ReplayStatusResponse,
     ResultDto, ResultsResponse, RuntimeStatusResponse, StatusSnapshotDto,
     VisibilitySnapshotDto,
+)
+from evidencegate.api.projection import (
+    POLICY_VERSION, SihAlertProjection, SihStatusProjection, project_results,
 )
 from evidencegate.api.service import (
     EvidenceGateService, ReplayBusyError, ReplayScenario,
@@ -113,6 +116,7 @@ def create_app(
     database: str | Path = "evidencegate.db", *,
     scenarios: dict[str, ReplayScenario] | None = None,
     subscriber_queue_size: int = 100,
+    candidate_alerts_enabled: bool = False,
 ) -> FastAPI:
     service = EvidenceGateService(
         Path(database), SCHEMA_PATH, REPOSITORY_ROOT,
@@ -212,6 +216,27 @@ def create_app(
             raise HTTPException(status_code=404, detail="result not found")
         return result_dto(result)
 
+    if candidate_alerts_enabled:
+        @application.get(
+            "/alerts", response_model=AlertsResponse,
+            summary="Preview the inactive candidate SIH analyst projection",
+            description=(
+                "Development/test-only deterministic projection over immutable results. "
+                "An alert is an analyst-attention record, not a confirmed attack. "
+                "The candidate policy is not active and /results remains authoritative."
+            ),
+        )
+        async def get_alerts(
+            limit: int = Query(default=500, ge=1, le=500),
+        ) -> AlertsResponse:
+            results = await service.writer.list_results(limit=limit)
+            projected = project_results(results)
+            return AlertsResponse(
+                policy_version=POLICY_VERSION,
+                alerts=[item for item in projected if isinstance(item, SihAlertProjection)],
+                status_items=[item for item in projected if isinstance(item, SihStatusProjection)],
+            )
+
     @application.get(
         "/events", summary="Stream persisted-result notifications",
         description=(
@@ -279,9 +304,17 @@ def create_app(
             supported_sources=["TYPED_NDJSON_REPLAY", "RAW_PCAP_REPLAY"],
             dga_model_readiness=service.dga_plugin.readiness.value,
             dga_model_failure_reason=service.dga_plugin.readiness_failure_reason,
+            alert_projection_available=candidate_alerts_enabled,
+            alert_policy_active=False,
+            alert_policy_version=(POLICY_VERSION if candidate_alerts_enabled else None),
         )
 
     return application
 
 
-app = create_app(os.environ.get("EVIDENCEGATE_DB", "evidencegate.db"))
+app = create_app(
+    os.environ.get("EVIDENCEGATE_DB", "evidencegate.db"),
+    candidate_alerts_enabled=(
+        os.environ.get("EVIDENCEGATE_ENABLE_CANDIDATE_ALERTS", "").strip() == "1"
+    ),
+)

@@ -46,6 +46,12 @@
       </aside>
 
       <section class="timeline-panel">
+        <nav class="view-switch" aria-label="Evidence presentation">
+          <button id="results-view" class="active" type="button">Evidence Results</button>
+          <button id="alerts-view" type="button" disabled>SIH Alerts / Analyst Queue</button>
+          <span id="alert-policy-label">Candidate policy unavailable</span>
+        </nav>
+        <section id="results-panel">
         <div class="timeline-heading">
           <div><p class="eyebrow">Immutable SQLite results</p><h2>Result timeline</h2></div>
           <label>Result type
@@ -63,6 +69,16 @@
         <div id="stream-notice" class="stream-notice" hidden></div>
         <div id="timeline" class="timeline" aria-live="polite"></div>
         <button id="load-more" class="load-more" type="button" hidden>Load older results</button>
+        </section>
+        <section id="alerts-panel" hidden>
+          <div class="timeline-heading">
+            <div><p class="eyebrow">Candidate projection · inactive</p><h2>SIH Alerts / Analyst Queue</h2></div>
+            <p class="policy-note">“Alert” means an analyst-attention record, not a confirmed attack.</p>
+          </div>
+          <div id="alert-timeline" class="timeline" aria-live="polite"></div>
+          <h2 class="status-heading">System / quality status</h2>
+          <div id="status-timeline" class="timeline"></div>
+        </section>
       </section>
     </section>
   </main>
@@ -89,6 +105,20 @@
         <section class="wide"><h3>Provenance</h3><pre data-field="provenance"></pre></section>
       </div>
     </details>
+  </template>
+  <template id="alert-template">
+    <article class="alert-card">
+      <header><time></time><strong class="alert-class"></strong><span class="alert-severity"></span></header>
+      <p class="alert-evidence"></p>
+      <dl>
+        <div><dt>Mechanism</dt><dd data-field="mechanism"></dd></div>
+        <div><dt>Confidence</dt><dd data-field="confidence"></dd></div>
+        <div><dt>Quality</dt><dd data-field="quality"></dd></div>
+        <div><dt>Visibility</dt><dd data-field="visibility"></dd></div>
+        <div class="wide"><dt>Claim ceiling</dt><dd data-field="claim"></dd></div>
+        <div class="wide"><dt>Immutable evidence</dt><dd data-field="source"></dd></div>
+      </dl>
+    </article>
   </template>
   <script src="/static/app.js" defer></script>
 </body>
