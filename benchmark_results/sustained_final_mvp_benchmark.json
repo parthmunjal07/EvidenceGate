@@ -1,0 +1,1222 @@
+{
+  "candidate_margin_obs_s": 25,
+  "candidate_replicates": [
+    {
+      "accepted_observations": 1500,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 28.702,
+        "last_quarter_mean": 33.426,
+        "peak": 113,
+        "stable": true,
+        "trend_slope_items_per_second": 0.175
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.49655,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 317.0692,
+          "p95_ms": 1182.3517,
+          "p99_ms": 1759.3116
+        },
+        "persistence": {
+          "p50_ms": 0.7831,
+          "p95_ms": 7.7715,
+          "p99_ms": 54.3491
+        },
+        "processing": {
+          "p50_ms": 235.0961,
+          "p95_ms": 1044.8326,
+          "p99_ms": 1556.2789
+        },
+        "processing_stability": {
+          "early_p95_ms": 1495.541,
+          "late_p95_ms": 1263.503,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 501,
+        "CAT6-EX-M1": 667,
+        "DDOS-A-B0": 334,
+        "DDOS-B-B0": 167,
+        "DDOS-CV-B0": 167,
+        "DDOS-D-B0": 334,
+        "DDOS-E3-B0": 167,
+        "DGA-A1-M1": 167,
+        "DNS-T1": 167,
+        "ENC-A": 166
+      },
+      "mechanism_updates": {
+        "c2.r1": 501,
+        "ddos.connection_churn": 167,
+        "ddos.reflection_victim": 167,
+        "ddos.source_diversity": 334,
+        "ddos.syn_state": 167,
+        "ddos.udp_demand": 167,
+        "dga.m1": 167,
+        "dns_tunnelling.t1": 167,
+        "encrypted_session.enc_a": 166,
+        "unusual_transfer.m1": 667
+      },
+      "memory": {
+        "reorder_peak": 27,
+        "rss_final_bytes": 227225600,
+        "rss_growth_bytes": 929792,
+        "rss_peak_bytes": 227225600,
+        "rss_start_bytes": 226295808,
+        "sqlite_final_size_bytes": 16949248,
+        "state_entries_end": 9,
+        "state_entry_peak": 50
+      },
+      "offered_observations": 1500,
+      "persisted_results": 2837,
+      "processed_mechanism_updates": 2670,
+      "processed_observations": 1500,
+      "rate_requested_obs_s": 50,
+      "rates": {
+        "accepted_obs_s": 49.29,
+        "offered_obs_s": 49.29,
+        "persisted_results_s": 91.728,
+        "processed_obs_s": 48.499,
+        "routed_updates_s": 87.737
+      },
+      "replicate": 1,
+      "routed_mechanism_updates": 2670,
+      "sustainable": true,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 1500,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 29.66,
+        "last_quarter_mean": 31.466,
+        "peak": 55,
+        "stable": true,
+        "trend_slope_items_per_second": 0.047
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.228496,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 281.6051,
+          "p95_ms": 962.8729,
+          "p99_ms": 1113.084
+        },
+        "persistence": {
+          "p50_ms": 0.8514,
+          "p95_ms": 6.936,
+          "p99_ms": 50.76
+        },
+        "processing": {
+          "p50_ms": 163.8731,
+          "p95_ms": 873.2719,
+          "p99_ms": 1011.313
+        },
+        "processing_stability": {
+          "early_p95_ms": 881.965,
+          "late_p95_ms": 863.7259,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 501,
+        "CAT6-EX-M1": 667,
+        "DDOS-A-B0": 334,
+        "DDOS-B-B0": 167,
+        "DDOS-CV-B0": 167,
+        "DDOS-D-B0": 334,
+        "DDOS-E3-B0": 167,
+        "DGA-A1-M1": 167,
+        "DNS-T1": 167,
+        "ENC-A": 166
+      },
+      "mechanism_updates": {
+        "c2.r1": 501,
+        "ddos.connection_churn": 167,
+        "ddos.reflection_victim": 167,
+        "ddos.source_diversity": 334,
+        "ddos.syn_state": 167,
+        "ddos.udp_demand": 167,
+        "dga.m1": 167,
+        "dns_tunnelling.t1": 167,
+        "encrypted_session.enc_a": 166,
+        "unusual_transfer.m1": 667
+      },
+      "memory": {
+        "reorder_peak": 18,
+        "rss_final_bytes": 232124416,
+        "rss_growth_bytes": 348160,
+        "rss_peak_bytes": 232124416,
+        "rss_start_bytes": 231776256,
+        "sqlite_final_size_bytes": 16973824,
+        "state_entries_end": 9,
+        "state_entry_peak": 51
+      },
+      "offered_observations": 1500,
+      "persisted_results": 2837,
+      "processed_mechanism_updates": 2670,
+      "processed_observations": 1500,
+      "rate_requested_obs_s": 50,
+      "rates": {
+        "accepted_obs_s": 50.027,
+        "offered_obs_s": 50.027,
+        "persisted_results_s": 93.902,
+        "processed_obs_s": 49.649,
+        "routed_updates_s": 89.048
+      },
+      "replicate": 2,
+      "routed_mechanism_updates": 2670,
+      "sustainable": true,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 1500,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 29.394,
+        "last_quarter_mean": 32.947,
+        "peak": 67,
+        "stable": true,
+        "trend_slope_items_per_second": 0.13
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.220678,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 315.9587,
+          "p95_ms": 1002.203,
+          "p99_ms": 1266.1127
+        },
+        "persistence": {
+          "p50_ms": 0.9033,
+          "p95_ms": 7.9604,
+          "p99_ms": 57.706
+        },
+        "processing": {
+          "p50_ms": 198.028,
+          "p95_ms": 873.0188,
+          "p99_ms": 1024.9503
+        },
+        "processing_stability": {
+          "early_p95_ms": 869.8247,
+          "late_p95_ms": 844.8556,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 501,
+        "CAT6-EX-M1": 667,
+        "DDOS-A-B0": 334,
+        "DDOS-B-B0": 167,
+        "DDOS-CV-B0": 167,
+        "DDOS-D-B0": 334,
+        "DDOS-E3-B0": 167,
+        "DGA-A1-M1": 167,
+        "DNS-T1": 167,
+        "ENC-A": 166
+      },
+      "mechanism_updates": {
+        "c2.r1": 501,
+        "ddos.connection_churn": 167,
+        "ddos.reflection_victim": 167,
+        "ddos.source_diversity": 334,
+        "ddos.syn_state": 167,
+        "ddos.udp_demand": 167,
+        "dga.m1": 167,
+        "dns_tunnelling.t1": 167,
+        "encrypted_session.enc_a": 166,
+        "unusual_transfer.m1": 667
+      },
+      "memory": {
+        "reorder_peak": 18,
+        "rss_final_bytes": 233070592,
+        "rss_growth_bytes": 913408,
+        "rss_peak_bytes": 233070592,
+        "rss_start_bytes": 232157184,
+        "sqlite_final_size_bytes": 16904192,
+        "state_entries_end": 9,
+        "state_entry_peak": 50
+      },
+      "offered_observations": 1500,
+      "persisted_results": 2837,
+      "processed_mechanism_updates": 2670,
+      "processed_observations": 1500,
+      "rate_requested_obs_s": 50,
+      "rates": {
+        "accepted_obs_s": 50.019,
+        "offered_obs_s": 50.019,
+        "persisted_results_s": 93.911,
+        "processed_obs_s": 49.653,
+        "routed_updates_s": 89.033
+      },
+      "replicate": 3,
+      "routed_mechanism_updates": 2670,
+      "sustainable": true,
+      "zero_drop": true
+    }
+  ],
+  "candidate_sih_demo_input_rate": 50,
+  "candidate_wording": "On the measured development machine, the controlled MVP sustained a configured offered rate of 50 input observations/s for 30 seconds with zero input/runtime drops under the declared mixed workload.",
+  "classification": "CONTROLLED SIH DEMO SUSTAINED OPERATING-RATE CHARACTERIZATION",
+  "default_target_count": 16,
+  "duration_basis": "30 seconds per measured point after separate warm-up; fixed offered count is rate multiplied by duration",
+  "environment": {
+    "captured_at": "2026-09-23T18:01:50.816058+00:00",
+    "cpu_logical": 18,
+    "cpu_model": "Intel64 Family 6 Model 170 Stepping 4, GenuineIntel",
+    "cpu_physical": 14,
+    "dependencies": {
+      "dpkt": "1.9.8",
+      "evidencegate": "0.1.0",
+      "fastapi": "0.141.1",
+      "joblib": "1.6.0",
+      "scikit-learn": "1.6.1",
+      "tldextract": "5.1.3"
+    },
+    "os": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.7",
+    "ram_total_bytes": 16568107008,
+    "sqlite": {
+      "foreign_keys": "ON",
+      "journal_mode": "WAL",
+      "synchronous": "NORMAL"
+    }
+  },
+  "first_saturation_or_limit_rate": 100,
+  "highest_repeated_sustainable_zero_drop_rate": 75,
+  "limitations": [
+    "single measured development host; results do not generalize to production sizing",
+    "typed deterministic workload rather than live capture or network line-rate input",
+    "repeated fixtures are load stimuli and are not population-level threat evidence",
+    "SSE subscriber notification loss is out of scope and recorded separately from runtime drops",
+    "raw PCAP is not used for the seven-family rate because its DNS canonical extraction is deferred"
+  ],
+  "model": {
+    "artifact_sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df",
+    "readiness": "VERIFIED_READY",
+    "rss_after_load_bytes": 220590080,
+    "rss_before_load_bytes": 42627072,
+    "rss_delta_bytes": 177963008,
+    "verification_and_load_seconds": 3.339475,
+    "warmup_duration_seconds": 3.0,
+    "warmup_excluded_from_steady_state": true,
+    "warmup_result": {
+      "accepted_observations": 75,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 7.857,
+        "last_quarter_mean": 16.571,
+        "peak": 50,
+        "stable": true,
+        "trend_slope_items_per_second": 0.313
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.070801,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 3.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 375.3977,
+          "p95_ms": 1879.1218,
+          "p99_ms": 2000.4397
+        },
+        "persistence": {
+          "p50_ms": 0.6288,
+          "p95_ms": 15.4279,
+          "p99_ms": 139.3764
+        },
+        "processing": {
+          "p50_ms": 132.6304,
+          "p95_ms": 1809.6383,
+          "p99_ms": 1902.8254
+        },
+        "processing_stability": {
+          "early_p95_ms": 1902.8254,
+          "late_p95_ms": 699.3953,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 25,
+        "CAT6-EX-M1": 33,
+        "DDOS-A-B0": 18,
+        "DDOS-B-B0": 9,
+        "DDOS-CV-B0": 9,
+        "DDOS-D-B0": 18,
+        "DDOS-E3-B0": 9,
+        "DGA-A1-M1": 8,
+        "DNS-T1": 8,
+        "ENC-A": 8
+      },
+      "mechanism_updates": {
+        "c2.r1": 25,
+        "ddos.connection_churn": 9,
+        "ddos.reflection_victim": 9,
+        "ddos.source_diversity": 18,
+        "ddos.syn_state": 9,
+        "ddos.udp_demand": 9,
+        "dga.m1": 8,
+        "dns_tunnelling.t1": 8,
+        "encrypted_session.enc_a": 8,
+        "unusual_transfer.m1": 33
+      },
+      "memory": {
+        "reorder_peak": 12,
+        "rss_final_bytes": 224800768,
+        "rss_growth_bytes": 3178496,
+        "rss_peak_bytes": 224800768,
+        "rss_start_bytes": 221622272,
+        "sqlite_final_size_bytes": 1081344,
+        "state_entries_end": 9,
+        "state_entry_peak": 24
+      },
+      "offered_observations": 75,
+      "persisted_results": 145,
+      "processed_mechanism_updates": 136,
+      "processed_observations": 75,
+      "rate_requested_obs_s": 25,
+      "rates": {
+        "accepted_obs_s": 24.882,
+        "offered_obs_s": 24.882,
+        "persisted_results_s": 47.001,
+        "processed_obs_s": 24.311,
+        "routed_updates_s": 45.119
+      },
+      "replicate": 0,
+      "routed_mechanism_updates": 136,
+      "sustainable": true,
+      "zero_drop": true
+    }
+  },
+  "production_capacity_claim": null,
+  "runs": [
+    {
+      "accepted_observations": 750,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 14.457,
+        "last_quarter_mean": 15.086,
+        "peak": 39,
+        "stable": true,
+        "trend_slope_items_per_second": 0.054
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.099577,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 242.0407,
+          "p95_ms": 1020.9987,
+          "p99_ms": 1337.7434
+        },
+        "persistence": {
+          "p50_ms": 0.7677,
+          "p95_ms": 11.4503,
+          "p99_ms": 47.874
+        },
+        "processing": {
+          "p50_ms": 158.0997,
+          "p95_ms": 946.7594,
+          "p99_ms": 1093.7305
+        },
+        "processing_stability": {
+          "early_p95_ms": 917.142,
+          "late_p95_ms": 1049.8521,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 250,
+        "CAT6-EX-M1": 333,
+        "DDOS-A-B0": 168,
+        "DDOS-B-B0": 84,
+        "DDOS-CV-B0": 84,
+        "DDOS-D-B0": 168,
+        "DDOS-E3-B0": 84,
+        "DGA-A1-M1": 83,
+        "DNS-T1": 83,
+        "ENC-A": 83
+      },
+      "mechanism_updates": {
+        "c2.r1": 250,
+        "ddos.connection_churn": 84,
+        "ddos.reflection_victim": 84,
+        "ddos.source_diversity": 168,
+        "ddos.syn_state": 84,
+        "ddos.udp_demand": 84,
+        "dga.m1": 83,
+        "dns_tunnelling.t1": 83,
+        "encrypted_session.enc_a": 83,
+        "unusual_transfer.m1": 333
+      },
+      "memory": {
+        "reorder_peak": 9,
+        "rss_final_bytes": 226291712,
+        "rss_growth_bytes": 1474560,
+        "rss_peak_bytes": 226291712,
+        "rss_start_bytes": 224817152,
+        "sqlite_final_size_bytes": 8556544,
+        "state_entries_end": 9,
+        "state_entry_peak": 30
+      },
+      "offered_observations": 750,
+      "persisted_results": 1420,
+      "processed_mechanism_updates": 1336,
+      "processed_observations": 750,
+      "rate_requested_obs_s": 25,
+      "rates": {
+        "accepted_obs_s": 25.03,
+        "offered_obs_s": 25.03,
+        "persisted_results_s": 47.234,
+        "processed_obs_s": 24.948,
+        "routed_updates_s": 44.588
+      },
+      "replicate": 1,
+      "routed_mechanism_updates": 1336,
+      "sustainable": true,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 1500,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 28.702,
+        "last_quarter_mean": 33.426,
+        "peak": 113,
+        "stable": true,
+        "trend_slope_items_per_second": 0.175
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.49655,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 317.0692,
+          "p95_ms": 1182.3517,
+          "p99_ms": 1759.3116
+        },
+        "persistence": {
+          "p50_ms": 0.7831,
+          "p95_ms": 7.7715,
+          "p99_ms": 54.3491
+        },
+        "processing": {
+          "p50_ms": 235.0961,
+          "p95_ms": 1044.8326,
+          "p99_ms": 1556.2789
+        },
+        "processing_stability": {
+          "early_p95_ms": 1495.541,
+          "late_p95_ms": 1263.503,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 501,
+        "CAT6-EX-M1": 667,
+        "DDOS-A-B0": 334,
+        "DDOS-B-B0": 167,
+        "DDOS-CV-B0": 167,
+        "DDOS-D-B0": 334,
+        "DDOS-E3-B0": 167,
+        "DGA-A1-M1": 167,
+        "DNS-T1": 167,
+        "ENC-A": 166
+      },
+      "mechanism_updates": {
+        "c2.r1": 501,
+        "ddos.connection_churn": 167,
+        "ddos.reflection_victim": 167,
+        "ddos.source_diversity": 334,
+        "ddos.syn_state": 167,
+        "ddos.udp_demand": 167,
+        "dga.m1": 167,
+        "dns_tunnelling.t1": 167,
+        "encrypted_session.enc_a": 166,
+        "unusual_transfer.m1": 667
+      },
+      "memory": {
+        "reorder_peak": 27,
+        "rss_final_bytes": 227225600,
+        "rss_growth_bytes": 929792,
+        "rss_peak_bytes": 227225600,
+        "rss_start_bytes": 226295808,
+        "sqlite_final_size_bytes": 16949248,
+        "state_entries_end": 9,
+        "state_entry_peak": 50
+      },
+      "offered_observations": 1500,
+      "persisted_results": 2837,
+      "processed_mechanism_updates": 2670,
+      "processed_observations": 1500,
+      "rate_requested_obs_s": 50,
+      "rates": {
+        "accepted_obs_s": 49.29,
+        "offered_obs_s": 49.29,
+        "persisted_results_s": 91.728,
+        "processed_obs_s": 48.499,
+        "routed_updates_s": 87.737
+      },
+      "replicate": 1,
+      "routed_mechanism_updates": 2670,
+      "sustainable": true,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 2250,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 62.22,
+        "last_quarter_mean": 58.54,
+        "peak": 175,
+        "stable": true,
+        "trend_slope_items_per_second": -0.055
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.537645,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 473.8506,
+          "p95_ms": 1347.5162,
+          "p99_ms": 1729.1206
+        },
+        "persistence": {
+          "p50_ms": 0.7877,
+          "p95_ms": 14.2276,
+          "p99_ms": 76.7577
+        },
+        "processing": {
+          "p50_ms": 327.0582,
+          "p95_ms": 1090.4684,
+          "p99_ms": 1385.4219
+        },
+        "processing_stability": {
+          "early_p95_ms": 1338.6916,
+          "late_p95_ms": 983.0925,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 750,
+        "CAT6-EX-M1": 1000,
+        "DDOS-A-B0": 500,
+        "DDOS-B-B0": 250,
+        "DDOS-CV-B0": 250,
+        "DDOS-D-B0": 500,
+        "DDOS-E3-B0": 250,
+        "DGA-A1-M1": 250,
+        "DNS-T1": 250,
+        "ENC-A": 250
+      },
+      "mechanism_updates": {
+        "c2.r1": 750,
+        "ddos.connection_churn": 250,
+        "ddos.reflection_victim": 250,
+        "ddos.source_diversity": 500,
+        "ddos.syn_state": 250,
+        "ddos.udp_demand": 250,
+        "dga.m1": 250,
+        "dns_tunnelling.t1": 250,
+        "encrypted_session.enc_a": 250,
+        "unusual_transfer.m1": 1000
+      },
+      "memory": {
+        "reorder_peak": 41,
+        "rss_final_bytes": 228139008,
+        "rss_growth_bytes": 913408,
+        "rss_peak_bytes": 228139008,
+        "rss_start_bytes": 227225600,
+        "sqlite_final_size_bytes": 25214976,
+        "state_entries_end": 9,
+        "state_entry_peak": 71
+      },
+      "offered_observations": 2250,
+      "persisted_results": 4250,
+      "processed_mechanism_updates": 4000,
+      "processed_observations": 2250,
+      "rate_requested_obs_s": 75,
+      "rates": {
+        "accepted_obs_s": 74.659,
+        "offered_obs_s": 74.659,
+        "persisted_results_s": 138.55,
+        "processed_obs_s": 73.35,
+        "routed_updates_s": 132.727
+      },
+      "replicate": 1,
+      "routed_mechanism_updates": 4000,
+      "sustainable": true,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 3000,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 52.583,
+        "last_quarter_mean": 369.375,
+        "peak": 1065,
+        "stable": false,
+        "trend_slope_items_per_second": 16.402
+      },
+      "control_error_count": 0,
+      "drain_seconds": 4.029348,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 1068.1839,
+          "p95_ms": 7665.5371,
+          "p99_ms": 8579.5443
+        },
+        "persistence": {
+          "p50_ms": 0.8424,
+          "p95_ms": 8.77,
+          "p99_ms": 76.3224
+        },
+        "processing": {
+          "p50_ms": 849.3417,
+          "p95_ms": 7417.908,
+          "p99_ms": 8262.059
+        },
+        "processing_stability": {
+          "early_p95_ms": 1303.3882,
+          "late_p95_ms": 7194.0252,
+          "stable": false
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 1000,
+        "CAT6-EX-M1": 1333,
+        "DDOS-A-B0": 668,
+        "DDOS-B-B0": 334,
+        "DDOS-CV-B0": 334,
+        "DDOS-D-B0": 668,
+        "DDOS-E3-B0": 334,
+        "DGA-A1-M1": 333,
+        "DNS-T1": 333,
+        "ENC-A": 333
+      },
+      "mechanism_updates": {
+        "c2.r1": 1000,
+        "ddos.connection_churn": 334,
+        "ddos.reflection_victim": 334,
+        "ddos.source_diversity": 668,
+        "ddos.syn_state": 334,
+        "ddos.udp_demand": 334,
+        "dga.m1": 333,
+        "dns_tunnelling.t1": 333,
+        "encrypted_session.enc_a": 333,
+        "unusual_transfer.m1": 1333
+      },
+      "memory": {
+        "reorder_peak": 158,
+        "rss_final_bytes": 230424576,
+        "rss_growth_bytes": 2265088,
+        "rss_peak_bytes": 230424576,
+        "rss_start_bytes": 228159488,
+        "sqlite_final_size_bytes": 33574912,
+        "state_entries_end": 9,
+        "state_entry_peak": 88
+      },
+      "offered_observations": 3000,
+      "persisted_results": 5670,
+      "processed_mechanism_updates": 5336,
+      "processed_observations": 3000,
+      "rate_requested_obs_s": 100,
+      "rates": {
+        "accepted_obs_s": 98.32,
+        "offered_obs_s": 98.32,
+        "persisted_results_s": 164.149,
+        "processed_obs_s": 86.851,
+        "routed_updates_s": 174.879
+      },
+      "replicate": 1,
+      "routed_mechanism_updates": 5336,
+      "sustainable": false,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 2250,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 48.612,
+        "last_quarter_mean": 52.462,
+        "peak": 100,
+        "stable": true,
+        "trend_slope_items_per_second": 0.117
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.362178,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 362.7611,
+          "p95_ms": 1033.6785,
+          "p99_ms": 1260.3324
+        },
+        "persistence": {
+          "p50_ms": 0.8027,
+          "p95_ms": 7.5835,
+          "p99_ms": 62.2561
+        },
+        "processing": {
+          "p50_ms": 234.1347,
+          "p95_ms": 879.8516,
+          "p99_ms": 1054.1569
+        },
+        "processing_stability": {
+          "early_p95_ms": 927.4926,
+          "late_p95_ms": 877.0074,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 750,
+        "CAT6-EX-M1": 1000,
+        "DDOS-A-B0": 500,
+        "DDOS-B-B0": 250,
+        "DDOS-CV-B0": 250,
+        "DDOS-D-B0": 500,
+        "DDOS-E3-B0": 250,
+        "DGA-A1-M1": 250,
+        "DNS-T1": 250,
+        "ENC-A": 250
+      },
+      "mechanism_updates": {
+        "c2.r1": 750,
+        "ddos.connection_churn": 250,
+        "ddos.reflection_victim": 250,
+        "ddos.source_diversity": 500,
+        "ddos.syn_state": 250,
+        "ddos.udp_demand": 250,
+        "dga.m1": 250,
+        "dns_tunnelling.t1": 250,
+        "encrypted_session.enc_a": 250,
+        "unusual_transfer.m1": 1000
+      },
+      "memory": {
+        "reorder_peak": 29,
+        "rss_final_bytes": 231231488,
+        "rss_growth_bytes": 839680,
+        "rss_peak_bytes": 231231488,
+        "rss_start_bytes": 230391808,
+        "sqlite_final_size_bytes": 25255936,
+        "state_entries_end": 9,
+        "state_entry_peak": 71
+      },
+      "offered_observations": 2250,
+      "persisted_results": 4250,
+      "processed_mechanism_updates": 4000,
+      "processed_observations": 2250,
+      "rate_requested_obs_s": 75,
+      "rates": {
+        "accepted_obs_s": 75.002,
+        "offered_obs_s": 75.002,
+        "persisted_results_s": 139.98,
+        "processed_obs_s": 74.107,
+        "routed_updates_s": 133.337
+      },
+      "replicate": 2,
+      "routed_mechanism_updates": 4000,
+      "sustainable": true,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 2250,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 50.035,
+        "last_quarter_mean": 52.153,
+        "peak": 137,
+        "stable": true,
+        "trend_slope_items_per_second": 0.095
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.459765,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 353.1558,
+          "p95_ms": 991.0635,
+          "p99_ms": 1293.1191
+        },
+        "persistence": {
+          "p50_ms": 0.7801,
+          "p95_ms": 7.3481,
+          "p99_ms": 54.9078
+        },
+        "processing": {
+          "p50_ms": 213.3547,
+          "p95_ms": 872.0907,
+          "p99_ms": 1121.4634
+        },
+        "processing_stability": {
+          "early_p95_ms": 987.2246,
+          "late_p95_ms": 875.7613,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 750,
+        "CAT6-EX-M1": 1000,
+        "DDOS-A-B0": 500,
+        "DDOS-B-B0": 250,
+        "DDOS-CV-B0": 250,
+        "DDOS-D-B0": 500,
+        "DDOS-E3-B0": 250,
+        "DGA-A1-M1": 250,
+        "DNS-T1": 250,
+        "ENC-A": 250
+      },
+      "mechanism_updates": {
+        "c2.r1": 750,
+        "ddos.connection_churn": 250,
+        "ddos.reflection_victim": 250,
+        "ddos.source_diversity": 500,
+        "ddos.syn_state": 250,
+        "ddos.udp_demand": 250,
+        "dga.m1": 250,
+        "dns_tunnelling.t1": 250,
+        "encrypted_session.enc_a": 250,
+        "unusual_transfer.m1": 1000
+      },
+      "memory": {
+        "reorder_peak": 35,
+        "rss_final_bytes": 231776256,
+        "rss_growth_bytes": 540672,
+        "rss_peak_bytes": 231776256,
+        "rss_start_bytes": 231235584,
+        "sqlite_final_size_bytes": 25210880,
+        "state_entries_end": 9,
+        "state_entry_peak": 71
+      },
+      "offered_observations": 2250,
+      "persisted_results": 4250,
+      "processed_mechanism_updates": 4000,
+      "processed_observations": 2250,
+      "rate_requested_obs_s": 75,
+      "rates": {
+        "accepted_obs_s": 74.956,
+        "offered_obs_s": 74.956,
+        "persisted_results_s": 139.448,
+        "processed_obs_s": 73.826,
+        "routed_updates_s": 133.256
+      },
+      "replicate": 3,
+      "routed_mechanism_updates": 4000,
+      "sustainable": true,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 1500,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 29.66,
+        "last_quarter_mean": 31.466,
+        "peak": 55,
+        "stable": true,
+        "trend_slope_items_per_second": 0.047
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.228496,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 281.6051,
+          "p95_ms": 962.8729,
+          "p99_ms": 1113.084
+        },
+        "persistence": {
+          "p50_ms": 0.8514,
+          "p95_ms": 6.936,
+          "p99_ms": 50.76
+        },
+        "processing": {
+          "p50_ms": 163.8731,
+          "p95_ms": 873.2719,
+          "p99_ms": 1011.313
+        },
+        "processing_stability": {
+          "early_p95_ms": 881.965,
+          "late_p95_ms": 863.7259,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 501,
+        "CAT6-EX-M1": 667,
+        "DDOS-A-B0": 334,
+        "DDOS-B-B0": 167,
+        "DDOS-CV-B0": 167,
+        "DDOS-D-B0": 334,
+        "DDOS-E3-B0": 167,
+        "DGA-A1-M1": 167,
+        "DNS-T1": 167,
+        "ENC-A": 166
+      },
+      "mechanism_updates": {
+        "c2.r1": 501,
+        "ddos.connection_churn": 167,
+        "ddos.reflection_victim": 167,
+        "ddos.source_diversity": 334,
+        "ddos.syn_state": 167,
+        "ddos.udp_demand": 167,
+        "dga.m1": 167,
+        "dns_tunnelling.t1": 167,
+        "encrypted_session.enc_a": 166,
+        "unusual_transfer.m1": 667
+      },
+      "memory": {
+        "reorder_peak": 18,
+        "rss_final_bytes": 232124416,
+        "rss_growth_bytes": 348160,
+        "rss_peak_bytes": 232124416,
+        "rss_start_bytes": 231776256,
+        "sqlite_final_size_bytes": 16973824,
+        "state_entries_end": 9,
+        "state_entry_peak": 51
+      },
+      "offered_observations": 1500,
+      "persisted_results": 2837,
+      "processed_mechanism_updates": 2670,
+      "processed_observations": 1500,
+      "rate_requested_obs_s": 50,
+      "rates": {
+        "accepted_obs_s": 50.027,
+        "offered_obs_s": 50.027,
+        "persisted_results_s": 93.902,
+        "processed_obs_s": 49.649,
+        "routed_updates_s": 89.048
+      },
+      "replicate": 2,
+      "routed_mechanism_updates": 2670,
+      "sustainable": true,
+      "zero_drop": true
+    },
+    {
+      "accepted_observations": 1500,
+      "backlog": {
+        "final": 0,
+        "first_quarter_mean": 29.394,
+        "last_quarter_mean": 32.947,
+        "peak": 67,
+        "stable": true,
+        "trend_slope_items_per_second": 0.13
+      },
+      "control_error_count": 0,
+      "drain_seconds": 0.220678,
+      "drops": {
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "persistence_failures": 0,
+        "queue_overflow": 0,
+        "reorder_capacity_events": 0,
+        "sse_notification_loss": null,
+        "state_capacity_events": 0
+      },
+      "duration_requested_seconds": 30.0,
+      "latency": {
+        "end_to_end_evidence": {
+          "p50_ms": 315.9587,
+          "p95_ms": 1002.203,
+          "p99_ms": 1266.1127
+        },
+        "persistence": {
+          "p50_ms": 0.9033,
+          "p95_ms": 7.9604,
+          "p99_ms": 57.706
+        },
+        "processing": {
+          "p50_ms": 198.028,
+          "p95_ms": 873.0188,
+          "p99_ms": 1024.9503
+        },
+        "processing_stability": {
+          "early_p95_ms": 869.8247,
+          "late_p95_ms": 844.8556,
+          "stable": true
+        }
+      },
+      "mechanism_results": {
+        "C2-M1": 501,
+        "CAT6-EX-M1": 667,
+        "DDOS-A-B0": 334,
+        "DDOS-B-B0": 167,
+        "DDOS-CV-B0": 167,
+        "DDOS-D-B0": 334,
+        "DDOS-E3-B0": 167,
+        "DGA-A1-M1": 167,
+        "DNS-T1": 167,
+        "ENC-A": 166
+      },
+      "mechanism_updates": {
+        "c2.r1": 501,
+        "ddos.connection_churn": 167,
+        "ddos.reflection_victim": 167,
+        "ddos.source_diversity": 334,
+        "ddos.syn_state": 167,
+        "ddos.udp_demand": 167,
+        "dga.m1": 167,
+        "dns_tunnelling.t1": 167,
+        "encrypted_session.enc_a": 166,
+        "unusual_transfer.m1": 667
+      },
+      "memory": {
+        "reorder_peak": 18,
+        "rss_final_bytes": 233070592,
+        "rss_growth_bytes": 913408,
+        "rss_peak_bytes": 233070592,
+        "rss_start_bytes": 232157184,
+        "sqlite_final_size_bytes": 16904192,
+        "state_entries_end": 9,
+        "state_entry_peak": 50
+      },
+      "offered_observations": 1500,
+      "persisted_results": 2837,
+      "processed_mechanism_updates": 2670,
+      "processed_observations": 1500,
+      "rate_requested_obs_s": 50,
+      "rates": {
+        "accepted_obs_s": 50.019,
+        "offered_obs_s": 50.019,
+        "persisted_results_s": 93.911,
+        "processed_obs_s": 49.653,
+        "routed_updates_s": 89.033
+      },
+      "replicate": 3,
+      "routed_mechanism_updates": 2670,
+      "sustainable": true,
+      "zero_drop": true
+    }
+  ],
+  "watermark": "DEVELOPMENT MACHINE / CONTROLLED MVP / NOT PRODUCTION CAPACITY",
+  "workload": {
+    "cycle_observations": 9,
+    "eligible_families": [
+      "DDoS",
+      "C2",
+      "DGA M1-R1",
+      "DNS-T1",
+      "ENC-A",
+      "Recon",
+      "Exfil-M1"
+    ],
+    "episode_policy": "unique source and role identities per nine-observation episode",
+    "event_time_policy": "fixture-relative offsets; seven-minute monotonic episode progression",
+    "interpretation_limit": "repetition is infrastructure load only, not population-level threat evidence",
+    "typed_mix_counts": {
+      "DNS": 1,
+      "FLOW": 4,
+      "PACKET": 3,
+      "TLS": 1
+    },
+    "typed_mix_proportions": {
+      "DNS": 0.1111111111111111,
+      "FLOW": 0.4444444444444444,
+      "PACKET": 0.3333333333333333,
+      "TLS": 0.1111111111111111
+    }
+  }
+}
