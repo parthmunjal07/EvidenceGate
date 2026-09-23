@@ -43,9 +43,21 @@ def test_missing_and_wrong_path_never_deserialize():
 
 @pytest.mark.parametrize(("qname", "status", "model_input"), [
     ("Example.COM.", "AVAILABLE", "example.com"),
+    ("example.com", "AVAILABLE", "example.com"),
+    ("example.com..", "ANALYTIC_UNAVAILABLE", None),
+    ("a.b.example.com", "AVAILABLE", "example.com"),
     ("a.b.example.co.uk", "AVAILABLE", "example.co.uk"),
+    ("xn--exmple-cua.com", "AVAILABLE", "xn--exmple-cua.com"),
+    ("Bücher.com", "ANALYTIC_UNAVAILABLE", None),
+    ("foo.blogspot.com", "AVAILABLE", "foo.blogspot.com"),
     ("localhost", "ANALYTIC_UNAVAILABLE", None),
+    ("internal", "ANALYTIC_UNAVAILABLE", None),
     ("example.unknown", "ANALYTIC_UNAVAILABLE", None),
+    (".", "ANALYTIC_UNAVAILABLE", None),
+    ("", "ANALYTIC_UNAVAILABLE", None),
+    ("white space.example", "ANALYTIC_UNAVAILABLE", None),
+    (".example.com", "ANALYTIC_UNAVAILABLE", None),
+    ("foo..example.com", "ANALYTIC_UNAVAILABLE", None),
     ("xn--exmple-cua.example", "ANALYTIC_UNAVAILABLE", None),
 ])
 def test_gate_b_representation_is_explicit_and_no_last_two_label_fallback(qname, status, model_input):
