@@ -1,0 +1,15 @@
+{
+  "schema_version": "evidencegate-replay-manifest-v1",
+  "source_id": "fixture-final-mvp-model-inclusive-mixed",
+  "source_kind": "DERIVED",
+  "input_observation_contract": "REPLAY_TYPED_V1",
+  "timestamp_semantics": "SOURCE_EVENT_TIME",
+  "direction_basis": "CLIENT_SERVER_ROLE",
+  "wire_direction": "FORWARD",
+  "visibility": {"available": [], "unavailable": ["REVERSE_FACTS"], "degraded": []},
+  "quality": {"packet_loss": "CLEAR", "sampling": "CLEAR", "parser": "CLEAR", "capture_gap": "CLEAR"},
+  "event_time_order": "NONDECREASING",
+  "record_count": 9,
+  "capture_start": "2026-09-23T00:00:00Z",
+  "capture_end": "2026-09-23T00:06:01Z"
+}

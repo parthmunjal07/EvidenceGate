@@ -1,0 +1,264 @@
+{
+  "classification": "CONTROLLED FINAL-MVP MODEL-INCLUSIVE STACK CHARACTERIZATION",
+  "default_target_count": 16,
+  "environment": {
+    "captured_at": "2026-09-23T16:53:39.118612+00:00",
+    "cpu_logical": 18,
+    "cpu_physical": 14,
+    "dependency_versions": {
+      "dpkt": "1.9.8",
+      "evidencegate": "0.1.0",
+      "fastapi": "0.141.1",
+      "joblib": "1.6.0",
+      "psutil": "7.0.0",
+      "pydantic": "2.13.5",
+      "scikit-learn": "1.6.1",
+      "tldextract": "5.1.3"
+    },
+    "os_platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.13.7",
+    "ram_total_bytes": 16568107008
+  },
+  "limitations": [
+    "single development host and short deterministic private-network fixtures",
+    "raw-PCAP DNS extraction is deferred, so the PCAP run does not exercise DGA",
+    "no live interface capture and no NetFlow/IPFIX/sFlow adapter",
+    "no sustained offered-rate sweep; observed replay rates are descriptive only",
+    "SSE notification drops are zero by construction because no UI subscriber is attached"
+  ],
+  "model": {
+    "artifact_sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df",
+    "iterations": 30,
+    "load_seconds": 17.189049,
+    "model_input": "ajdkskqweoiuzx.com",
+    "observed_score": 0.9851716132182514,
+    "readiness": "VERIFIED_READY",
+    "representation_latency": {
+      "p50_ms": 0.0222,
+      "p95_ms": 0.0453,
+      "p99_ms": 0.0855
+    },
+    "rss_after_load_bytes": 223756288,
+    "rss_before_load_bytes": 45629440,
+    "rss_delta_bytes": 178126848,
+    "score_regression_tolerance": 1e-12,
+    "transform_inference_latency": {
+      "p50_ms": 0.4975,
+      "p95_ms": 1.2613,
+      "p99_ms": 1.8312
+    }
+  },
+  "no_drop_region": "demonstrated for the two bounded replay points only; no offered-rate sweep exists in this harness",
+  "production_sizing_claim": false,
+  "proposed_sih_demo_throughput_target": null,
+  "runs": [
+    {
+      "active_lane_ids": [
+        "c2.r1",
+        "ddos.connection_churn",
+        "ddos.fragment_demand",
+        "ddos.icmp_demand",
+        "ddos.reflection_victim",
+        "ddos.source_diversity",
+        "ddos.syn_state",
+        "ddos.udp_demand",
+        "dga.m1",
+        "dns_tunnelling.t1",
+        "encrypted_session.enc_a",
+        "recon.2d",
+        "recon.h",
+        "recon.tcp",
+        "recon.v",
+        "unusual_transfer.m1"
+      ],
+      "active_target_count": 16,
+      "counters": {
+        "canonical_observations_emitted": 9,
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "quality_gaps": 0,
+        "records_or_packets_read": 9,
+        "reorder_capacity_events": 0,
+        "results_finalized": 21,
+        "results_persisted": 21,
+        "routed_mechanism_updates": 20,
+        "sse_notification_drops": 0,
+        "state_capacity_events": 0
+      },
+      "database": {
+        "pragmas": {
+          "foreign_keys": "ON",
+          "journal_mode": "WAL",
+          "synchronous": "NORMAL"
+        },
+        "type": "disk-backed SQLite"
+      },
+      "dga_exercised": true,
+      "mechanism_result_counts": {
+        "C2-M1": 3,
+        "CAT6-EX-M1": 4,
+        "DDOS-A-B0": 2,
+        "DDOS-B-B0": 1,
+        "DDOS-CV-B0": 1,
+        "DDOS-D-B0": 2,
+        "DDOS-E3-B0": 1,
+        "DGA-A1-M1": 1,
+        "DNS-T1": 1,
+        "ENC-A": 1,
+        "RECON-2D": 1,
+        "RECON-H": 1,
+        "RECON-TCP": 1,
+        "RECON-V": 1
+      },
+      "memory": {
+        "active_state_entries_end": 5,
+        "peak_reorder_occupancy": 1,
+        "rss_end_bytes": 227160064,
+        "rss_peak_bytes": 227160064,
+        "rss_start_bytes": 224608256,
+        "sqlite_file_size_bytes": 290816
+      },
+      "scenario": "controlled mixed DDoS/C2/DGA/DNS/ENC/Recon/Exfil",
+      "source_type": "TYPED_NDJSON",
+      "speed": 0,
+      "timing": {
+        "dga_result_persistence_latency": {
+          "p50_ms": 0.6902,
+          "p95_ms": 0.6902,
+          "p99_ms": 0.6902
+        },
+        "end_to_end_evidence_latency": {
+          "p50_ms": 7.0706,
+          "p95_ms": 41.603,
+          "p99_ms": 43.72
+        },
+        "observed_processing_rate_observations_per_second": 81.822,
+        "persistence_latency": {
+          "p50_ms": 0.7676,
+          "p95_ms": 1.7073,
+          "p99_ms": 2.1157
+        },
+        "processing_latency": {
+          "p50_ms": 0.0581,
+          "p95_ms": 0.2568,
+          "p99_ms": 0.2568
+        },
+        "replay_wall_seconds": 0.109995,
+        "structural_time_to_signal": "one admitted observation for stateless DGA/DNS/ENC/Exfil; stateful mechanisms retain their governed evidence windows"
+      },
+      "zero_drop": true
+    },
+    {
+      "active_lane_ids": [
+        "c2.r1",
+        "ddos.connection_churn",
+        "ddos.fragment_demand",
+        "ddos.icmp_demand",
+        "ddos.reflection_victim",
+        "ddos.source_diversity",
+        "ddos.syn_state",
+        "ddos.udp_demand",
+        "dga.m1",
+        "dns_tunnelling.t1",
+        "encrypted_session.enc_a",
+        "recon.2d",
+        "recon.h",
+        "recon.tcp",
+        "recon.v",
+        "unusual_transfer.m1"
+      ],
+      "active_target_count": 16,
+      "counters": {
+        "canonical_observations_emitted": 11,
+        "dropped_input": 0,
+        "dropped_runtime_work": 0,
+        "quality_gaps": 0,
+        "records_or_packets_read": 11,
+        "reorder_capacity_events": 0,
+        "results_finalized": 35,
+        "results_persisted": 35,
+        "routed_mechanism_updates": 42,
+        "sse_notification_drops": 0,
+        "state_capacity_events": 0
+      },
+      "database": {
+        "pragmas": {
+          "foreign_keys": "ON",
+          "journal_mode": "WAL",
+          "synchronous": "NORMAL"
+        },
+        "type": "disk-backed SQLite"
+      },
+      "dga_exercised": false,
+      "mechanism_result_counts": {
+        "DDOS-A-B0": 6,
+        "DDOS-B-B0": 2,
+        "DDOS-CV-B0": 1,
+        "DDOS-D-B0": 5,
+        "DDOS-E2-B0": 1,
+        "DDOS-E3-B0": 2,
+        "RECON-2D": 4,
+        "RECON-H": 4,
+        "RECON-TCP": 6,
+        "RECON-V": 4
+      },
+      "memory": {
+        "active_state_entries_end": 14,
+        "peak_reorder_occupancy": 1,
+        "rss_end_bytes": 227581952,
+        "rss_peak_bytes": 227581952,
+        "rss_start_bytes": 227184640,
+        "sqlite_file_size_bytes": 417792
+      },
+      "scenario": "controlled DDoS + Recon raw PCAP; DNS extraction deferred",
+      "source_type": "RAW_PCAP",
+      "speed": 0,
+      "timing": {
+        "dga_result_persistence_latency": {
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "end_to_end_evidence_latency": {
+          "p50_ms": 13.4633,
+          "p95_ms": 47.8102,
+          "p99_ms": 76.1705
+        },
+        "observed_processing_rate_observations_per_second": 85.454,
+        "persistence_latency": {
+          "p50_ms": 0.6001,
+          "p95_ms": 1.9769,
+          "p99_ms": 22.7563
+        },
+        "processing_latency": {
+          "p50_ms": 0.1143,
+          "p95_ms": 0.1418,
+          "p99_ms": 0.1418
+        },
+        "replay_wall_seconds": 0.128724,
+        "structural_time_to_signal": "one admitted observation for stateless DGA/DNS/ENC/Exfil; stateful mechanisms retain their governed evidence windows"
+      },
+      "zero_drop": true
+    }
+  ],
+  "target_basis": "No target proposed from short deterministic fixtures; Control Room approval remains required.",
+  "watermark": "CONTROLLED MVP CHARACTERIZATION \u2014 NOT PRODUCTION SIZING",
+  "workload_mix": {
+    "eligible_families": [
+      "DDoS",
+      "C2",
+      "DGA M1",
+      "DNS-T1",
+      "ENC-A",
+      "Recon",
+      "Exfil-M1"
+    ],
+    "raw_pcap_packets": 11,
+    "typed_records": {
+      "DNS": 1,
+      "FLOW": 4,
+      "PACKET": 3,
+      "TLS": 1
+    }
+  }
+}

@@ -61,9 +61,10 @@ async def test_real_mechanism_end_to_end_through_sqlite(tmp_path, fixture, mecha
         FIXTURES / fixture, tmp_path / f"{fixture}.sqlite",
     )
     assert summary.records_read == summary.observations_emitted == 1
-    assert len(results) == len(persisted) == 1
-    assert results[0].result_type is ResultType.REVIEW_FINDING
-    assert results[0].mechanism_id == mechanism
+    expected_count = 2 if fixture == "dns_forward" else 1
+    assert len(results) == len(persisted) == expected_count
+    result = next(item for item in results if item.mechanism_id == mechanism)
+    assert result.result_type is ResultType.REVIEW_FINDING
     assert [event.control_type for event in controls if event.source_id] == [
         ControlType.SOURCE_STARTED, ControlType.SOURCE_ENDED,
     ]

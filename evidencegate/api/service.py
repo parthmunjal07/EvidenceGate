@@ -17,6 +17,7 @@ from evidencegate.api.models import (
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner
 from evidencegate.ingest.pcap import PcapReplaySource
 from evidencegate.persistence.sqlite import SqliteWriter
+from evidencegate.plugins.providers.dga_m1 import DgaM1Plugin, DgaM1Readiness
 from evidencegate.plugins.providers.registry import build_mvp_runtime_registration
 from evidencegate.results.types import Result
 from evidencegate.runtime.supervisor import RuntimeSupervisor
@@ -48,10 +49,9 @@ class _ReplayState:
     error: str | None = None
 
 
-FAMILY_STATUS = (
+BASE_FAMILY_STATUS = (
     FamilyStatusDto(family="DDoS", status="ACTIVE FACTUAL MECHANISMS"),
     FamilyStatusDto(family="C2 / Beaconing", status="ACTIVE R1 RECURRENCE MEASUREMENT"),
-    FamilyStatusDto(family="DGA", status="SHELL / MODEL PENDING"),
     FamilyStatusDto(family="DNS Tunnelling", status="ACTIVE T1 STRUCTURAL OBSERVATION"),
     FamilyStatusDto(family="Encrypted Sessions", status="ACTIVE ENC-A HANDSHAKE EVIDENCE"),
     FamilyStatusDto(family="Reconnaissance", status="ACTIVE H/V/2D/TCP MEASUREMENTS"),
@@ -66,6 +66,7 @@ def default_scenarios(root: Path) -> dict[str, ReplayScenario]:
         ("ddos_one_way", "One-way SYN visibility", "DDoS", "ddos_syn_forward_only"),
         ("ddos_udp", "UDP demand context", "DDoS", "default_activation_udp"),
         ("c2_recurrence", "C2 recurrence measurement", "C2 / Beaconing", "c2_r1"),
+        ("dga_lexical", "DGA lexical model evidence", "DGA", "dga_lexical"),
         ("dns_observation", "DNS structural observation", "DNS Tunnelling", "dns_forward"),
         ("encrypted_session", "TLS handshake evidence", "Encrypted Sessions", "tls_handshake"),
         ("transfer_magnitude", "Transfer magnitude", "Data Exfiltration", "flow_transfer"),
@@ -96,6 +97,9 @@ class EvidenceGateService:
         self.writer = SqliteWriter(database, schema)
         self.broadcaster = ResultBroadcaster(subscriber_queue_size)
         self.scenarios = dict(scenarios or default_scenarios(repository_root))
+        # The verified immutable model is owned by one application service
+        # lifecycle and reused by every replay.
+        self.registration = build_mvp_runtime_registration(datetime.now(timezone.utc))
         self._replay = _ReplayState()
         self._task: asyncio.Task[None] | None = None
         self._started_monotonic: float | None = None
@@ -168,7 +172,7 @@ class EvidenceGateService:
         return self.replay_status()
 
     async def _run_replay(self, scenario: ReplayScenario, speed: float) -> None:
-        registration = build_mvp_runtime_registration(datetime.now(timezone.utc))
+        registration = self.registration
 
         async def writer(result: Result, _target: object) -> None:
             if await self.persist_and_publish(result):
@@ -204,17 +208,35 @@ class EvidenceGateService:
             self._started_monotonic = None
 
     def targets(self) -> list[TargetStatusDto]:
-        registration = build_mvp_runtime_registration(datetime.now(timezone.utc))
         return [
             TargetStatusDto(
                 lane_id=str(lane), mechanism_id=plugin.manifest().mechanism_id,
                 implementation=(
                     "REGISTERED_SHELL" if plugin.manifest().mechanism_id is None
+                    else "ACTIVE_LEXICAL_MODEL_LANE" if str(lane) == "dga.m1"
                     else "ACTIVE_FACTUAL_MECHANISM"
                 ),
             )
-            for lane, plugin in registration.plugins.items()
+            for lane, plugin in self.registration.plugins.items()
         ]
+
+    @property
+    def dga_plugin(self) -> DgaM1Plugin:
+        plugin = self.registration.plugins.get("dga.m1")
+        if not isinstance(plugin, DgaM1Plugin):
+            raise RuntimeError("default dga.m1 registration is missing")
+        return plugin
+
+    def family_status(self) -> list[FamilyStatusDto]:
+        readiness = self.dga_plugin.readiness
+        dga_status = (
+            "ACTIVE M1 LEXICAL MODEL EVIDENCE"
+            if readiness is DgaM1Readiness.VERIFIED_READY
+            else "ACTIVE LANE — MODEL UNAVAILABLE"
+        )
+        values = list(BASE_FAMILY_STATUS)
+        values.insert(2, FamilyStatusDto(family="DGA", status=dga_status))
+        return values
 
     def scenario_dtos(self) -> list[ScenarioDto]:
         return [

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from enum import Enum
 import hashlib
 import json
 import os
@@ -35,6 +36,17 @@ CLAIM_CEILING = (
 )
 PSL_PROVIDER = "tldextract-5.1.3-bundled-snapshot-offline-private-included"
 IDNA_POLICY = "ASCII and xn-- labels are accepted as text; Unicode and malformed IDNA are unavailable"
+PROMOTION_DECISION_ID = "C3-DEC-DGA-M1-R1-PROMOTION-V1"
+
+
+class DgaM1Readiness(str, Enum):
+    """Bounded public model readiness; absence is never reported as zero findings."""
+
+    VERIFIED_READY = "VERIFIED_READY"
+    ARTIFACT_MISSING = "ARTIFACT_MISSING"
+    ARTIFACT_HASH_MISMATCH = "ARTIFACT_HASH_MISMATCH"
+    DEPENDENCY_MISMATCH = "DEPENDENCY_MISMATCH"
+    MODEL_CONTRACT_MISMATCH = "MODEL_CONTRACT_MISMATCH"
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,14 +70,24 @@ class DgaM1RepresentationAdapter:
     """Maps a factual DNS-T1 representation to the separately governed M1 input."""
 
     def __init__(self) -> None:
+        self._extract = None
+        self.failure_reason: str | None = None
         try:
             import tldextract
-        except ImportError as exc:  # optional non-default integration dependency
-            raise RuntimeError("DGA_M1_PSL_DEPENDENCY_MISSING") from exc
+        except ImportError:
+            self.failure_reason = "DGA_M1_PSL_DEPENDENCY_MISSING"
+            return
+        if tldextract.__version__ != "5.1.3":
+            self.failure_reason = "DGA_M1_PSL_DEPENDENCY_VERSION_MISMATCH"
+            return
         # Empty URLs force use of the bundled snapshot: no network fetch or cache update.
         self._extract = tldextract.TLDExtract(
             suffix_list_urls=(), include_psl_private_domains=True,
         )
+
+    @property
+    def available(self) -> bool:
+        return self._extract is not None
 
     def adapt(self, observation: NetworkObservation) -> DgaM1RepresentationResult:
         payload = observation.typed_payload
@@ -76,6 +98,11 @@ class DgaM1RepresentationAdapter:
             qname_canonical=canonical,
             dns_representation_version=getattr(payload, "representation_version", None),
         )
+        if self._extract is None:
+            return DgaM1RepresentationResult(
+                **common, registrable_domain=None, model_input=None,
+                failure_reason=self.failure_reason or "DGA_M1_PSL_DEPENDENCY_MISSING",
+            )
         if not isinstance(rendered, str) or not isinstance(canonical, str):
             return DgaM1RepresentationResult(**common, registrable_domain=None, model_input=None,
                 failure_reason="DNS_T1_CANONICAL_REPRESENTATION_UNAVAILABLE")
@@ -100,6 +127,7 @@ class DgaM1RepresentationAdapter:
 @dataclass(frozen=True, slots=True)
 class DgaM1Verification:
     available: bool
+    readiness: DgaM1Readiness
     failure_reason: str | None = None
     loaded: dict[str, Any] | None = None
 
@@ -124,34 +152,37 @@ class DgaM1ArtifactVerifier:
 
     def verify_and_load(self, model_path: str | os.PathLike[str] | None) -> DgaM1Verification:
         if not model_path:
-            return DgaM1Verification(False, "MODEL_PATH_MISSING")
+            return DgaM1Verification(False, DgaM1Readiness.ARTIFACT_MISSING, "MODEL_PATH_MISSING")
         path = Path(model_path)
         if path.name != "DGA_M1_R1_SERIALIZED_MODEL.joblib" or not path.is_file():
-            return DgaM1Verification(False, "MODEL_PATH_OR_FILENAME_INVALID")
-        data = path.read_bytes()
+            return DgaM1Verification(False, DgaM1Readiness.ARTIFACT_MISSING, "MODEL_PATH_OR_FILENAME_INVALID")
+        try:
+            data = path.read_bytes()
+        except OSError:
+            return DgaM1Verification(False, DgaM1Readiness.ARTIFACT_MISSING, "MODEL_ARTIFACT_UNREADABLE")
         if len(data) != ARTIFACT_BYTES:
-            return DgaM1Verification(False, "ARTIFACT_BYTE_COUNT_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.ARTIFACT_HASH_MISMATCH, "ARTIFACT_BYTE_COUNT_MISMATCH")
         if hashlib.sha256(data).hexdigest() != ARTIFACT_SHA256:
-            return DgaM1Verification(False, "ARTIFACT_SHA256_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.ARTIFACT_HASH_MISMATCH, "ARTIFACT_SHA256_MISMATCH")
         try:
             import joblib
             import sklearn
         except ImportError:
-            return DgaM1Verification(False, "MODEL_DEPENDENCY_MISSING")
+            return DgaM1Verification(False, DgaM1Readiness.DEPENDENCY_MISMATCH, "MODEL_DEPENDENCY_MISSING")
         if joblib.__version__ != "1.6.0" or sklearn.__version__ != "1.6.1":
-            return DgaM1Verification(False, "MODEL_DEPENDENCY_VERSION_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.DEPENDENCY_MISMATCH, "MODEL_DEPENDENCY_VERSION_MISMATCH")
         try:
             loaded = joblib.load(path)
         except Exception:
-            return DgaM1Verification(False, "MODEL_DESERIALIZATION_FAILED")
+            return DgaM1Verification(False, DgaM1Readiness.MODEL_CONTRACT_MISMATCH, "MODEL_DESERIALIZATION_FAILED")
         if not isinstance(loaded, dict) or set(("model_id", "representation_version", "normalization", "vectorizer", "classifier", "config")) - set(loaded):
-            return DgaM1Verification(False, "MODEL_STRUCTURE_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.MODEL_CONTRACT_MISMATCH, "MODEL_STRUCTURE_MISMATCH")
         if (loaded["model_id"] != MODEL_ID or loaded["representation_version"] != REPRESENTATION_VERSION
                 or loaded["normalization"] != NORMALIZATION):
-            return DgaM1Verification(False, "MODEL_METADATA_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.MODEL_CONTRACT_MISMATCH, "MODEL_METADATA_MISMATCH")
         config = loaded["config"]
         if not isinstance(config, dict) or config.get("positive_class") != R1_POSITIVE_CLASS or config.get("label_column") != "label":
-            return DgaM1Verification(False, "R1_LABEL_SCHEMA_CONFIG_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.MODEL_CONTRACT_MISMATCH, "R1_LABEL_SCHEMA_CONFIG_MISMATCH")
         vectorizer, classifier = loaded["vectorizer"], loaded["classifier"]
         vectorizer_expectations = {"analyzer": "char", "ngram_range": (2, 5), "min_df": 2,
             "max_features": 150000, "sublinear_tf": True, "dtype": "float32", "use_idf": True,
@@ -163,15 +194,15 @@ class DgaM1ArtifactVerifier:
             classifier_params = classifier.get_params()
             class_values = classifier.classes_.tolist()
         except Exception:
-            return DgaM1Verification(False, "MODEL_COMPONENT_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.MODEL_CONTRACT_MISMATCH, "MODEL_COMPONENT_MISMATCH")
         if any(vectorizer_params.get(key) != value for key, value in vectorizer_expectations.items()):
-            return DgaM1Verification(False, "VECTORIZER_CONTRACT_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.MODEL_CONTRACT_MISMATCH, "VECTORIZER_CONTRACT_MISMATCH")
         if any(classifier_params.get(key) != value for key, value in classifier_expectations.items()):
-            return DgaM1Verification(False, "CLASSIFIER_CONTRACT_MISMATCH")
+            return DgaM1Verification(False, DgaM1Readiness.MODEL_CONTRACT_MISMATCH, "CLASSIFIER_CONTRACT_MISMATCH")
         class_failure = r1_class_semantic_failure(class_values, R1_POSITIVE_CLASS, R1_NEGATIVE_CLASS)
         if class_failure is not None:
-            return DgaM1Verification(False, class_failure)
-        return DgaM1Verification(True, loaded=loaded)
+            return DgaM1Verification(False, DgaM1Readiness.MODEL_CONTRACT_MISMATCH, class_failure)
+        return DgaM1Verification(True, DgaM1Readiness.VERIFIED_READY, loaded=loaded)
 
 
 class DgaM1ModelService:
@@ -216,7 +247,7 @@ def dga_m1_config_hash() -> str:
 
 
 class DgaM1Plugin:
-    """Explicit-only stateless lane; never included in the default registry."""
+    """Default stateless lexical-evidence lane; fail closed if M1 is unavailable."""
     _manifest = PluginManifest(
         plugin_id="provider.dga.a1.m1", plugin_version="0.1.0", analytic_version="dga-a1-m1-r1",
         taxonomy=("Network", "DGA", "Lexical Model Evidence"), accepted_observation_types=(ObservationType.DNS,),
@@ -228,7 +259,7 @@ class DgaM1Plugin:
         gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
         allowed_result_types=(ResultType.REVIEW_FINDING, ResultType.ANALYTIC_UNAVAILABLE),
         integration_status=IntegrationStatus.BASELINE_IMPLEMENTED, profiling_hooks_enabled=False,
-        governing_claim_ids=(), governing_decision_ids=("C3-DEC-M14-DGA-M1-R1",),
+        governing_claim_ids=(), governing_decision_ids=(PROMOTION_DECISION_ID,),
         official_ps_category=OfficialPsCategory.DGA_AND_DNS_TUNNELLING, analytic_family=AnalyticFamily.DGA,
         mechanism_id="DGA-A1-M1", config_hash=dga_m1_config_hash(),
     )
@@ -239,6 +270,14 @@ class DgaM1Plugin:
         self.adapter = adapter or DgaM1RepresentationAdapter()
 
     def manifest(self) -> PluginManifest: return self._manifest
+    @property
+    def readiness(self) -> DgaM1Readiness:
+        if not self.adapter.available:
+            return DgaM1Readiness.DEPENDENCY_MISMATCH
+        return self.service.verification.readiness
+    @property
+    def readiness_failure_reason(self) -> str | None:
+        return self.adapter.failure_reason or self.service.verification.failure_reason
     def model_refs(self) -> tuple[str, ...]:
         return (f"model:{MODEL_ID}", f"sha256:{ARTIFACT_SHA256}", f"drive:{ARTIFACT_DRIVE_ID}")
     def route(self, observation: NetworkObservation) -> bool:
@@ -248,10 +287,11 @@ class DgaM1Plugin:
     async def process(self, observation: NetworkObservation, context: Any, state: PluginStateSnapshot | None) -> PluginProcessOutcome:
         representation = self.adapter.adapt(observation)
         evidence = {"evidence_kind": "DGA_LEXICAL_MODEL_EVIDENCE", "representation": asdict(representation),
-            "claim_ceiling": CLAIM_CEILING, "source_shift_warning": "Score is not calibrated deployment risk."}
-        if not self.service.available or representation.status != "AVAILABLE" or not representation.model_input:
+            "claim_ceiling": CLAIM_CEILING, "source_shift_warning": "Score is not calibrated deployment risk.",
+            "model_readiness": self.readiness.value}
+        if self.readiness is not DgaM1Readiness.VERIFIED_READY or representation.status != "AVAILABLE" or not representation.model_input:
             evidence["availability"] = "ANALYTIC_UNAVAILABLE"
-            evidence["failure_reason"] = self.service.verification.failure_reason or representation.failure_reason
+            evidence["failure_reason"] = self.readiness_failure_reason or representation.failure_reason
             return PluginProcessOutcome((ResultDraft(ResultType.ANALYTIC_UNAVAILABLE, observation.observation_id, (), (),
                 reason_code=AnalyticUnavailableReason.IMPLEMENTATION_NOT_READY, evidence=evidence),))
         score = self.service.score(representation.model_input)

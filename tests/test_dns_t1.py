@@ -94,11 +94,11 @@ def test_manifest_identity_route_and_zero_to_many_boundary():
 
     plugins, _ = build_mvp_provider_registry(NOW)
     assert set(RelevanceRouter(plugins).route(canonical_observation())) == {
-        "dga", "dns_tunnelling.t1",
+        "dga.m1", "dns_tunnelling.t1",
     }
-    assert RelevanceRouter(plugins).route(canonical_observation(".")) == ("dga",)
+    assert RelevanceRouter(plugins).route(canonical_observation(".")) == ()
     assert set(RelevanceRouter(plugins).route(canonical_observation(direction=WireDirection.REVERSE))) == {
-        "dga", "dns_tunnelling.t1",
+        "dga.m1", "dns_tunnelling.t1",
     }
 
 
@@ -170,7 +170,7 @@ async def test_runtime_provenance_determinism_case_distinction_and_sqlite_v3_rou
 
 
 @pytest.mark.asyncio
-async def test_runtime_routes_dga_and_t1_but_only_t1_emits():
+async def test_runtime_routes_dga_and_t1_and_unavailable_is_explicit():
     registration = build_mvp_runtime_registration(NOW)
     plugins, governances = registration.plugins, registration.governances
     emitted = []
@@ -185,16 +185,17 @@ async def test_runtime_routes_dga_and_t1_but_only_t1_emits():
     supervisor.start_all()
     try:
         plan = await supervisor.ingest_observation(canonical_observation())
-        assert set(plan.selected_targets) == {"dga", "dns_tunnelling.t1"}
+        assert set(plan.selected_targets) == {"dga.m1", "dns_tunnelling.t1"}
         for lane in plan.selected_targets:
             await supervisor.dispatchers[lane].queue.join()
             for shard in supervisor.shards[lane]:
                 await shard.queue.join()
-        assert len(emitted) == 1
-        result, lane = emitted[0]
-        assert lane == "dns_tunnelling.t1"
-        assert isinstance(result, ReviewFinding)
-        assert result.mechanism_id == "DNS-T1"
-        assert result.parser_refs == ("DNS:dns-parser-2",)
+        assert len(emitted) == 2
+        results = {lane: result for result, lane in emitted}
+        assert isinstance(results["dns_tunnelling.t1"], ReviewFinding)
+        assert results["dns_tunnelling.t1"].mechanism_id == "DNS-T1"
+        assert results["dns_tunnelling.t1"].parser_refs == ("DNS:dns-parser-2",)
+        assert results["dga.m1"].result_type is ResultType.ANALYTIC_UNAVAILABLE
+        assert results["dga.m1"].evidence.to_value()["failure_reason"] == "MODEL_PATH_MISSING"
     finally:
         await supervisor.stop_all()

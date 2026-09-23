@@ -107,7 +107,9 @@ class ScenarioDto(StrictModel):
 class TargetStatusDto(StrictModel):
     lane_id: str
     mechanism_id: str | None
-    implementation: Literal["ACTIVE_FACTUAL_MECHANISM", "REGISTERED_SHELL"]
+    implementation: Literal[
+        "ACTIVE_FACTUAL_MECHANISM", "ACTIVE_LEXICAL_MODEL_LANE", "REGISTERED_SHELL"
+    ]
 
 
 class FamilyStatusDto(StrictModel):
@@ -127,6 +129,11 @@ class RuntimeStatusResponse(StrictModel):
     replay: ReplayStatusResponse
     scenarios: list[ScenarioDto]
     supported_sources: list[str] = Field(default_factory=list)
+    dga_model_readiness: Literal[
+        "VERIFIED_READY", "ARTIFACT_MISSING", "ARTIFACT_HASH_MISMATCH",
+        "DEPENDENCY_MISMATCH", "MODEL_CONTRACT_MISMATCH",
+    ]
+    dga_model_failure_reason: str | None = None
 
 
 class ResultNotification(StrictModel):

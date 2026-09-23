@@ -4,7 +4,7 @@ EvidenceGate is a strictly-bounded, single-host Python runtime application that
 incrementally ingests, canonicalizes, routes, and persists immutable network
 observations and factual analytic results.
 
-The implemented mechanisms are DNS-T1, ENC-A, CAT6-EX-M1, C2-R1 recurrence
+The implemented mechanisms are DGA-A1/M1-R1, DNS-T1, ENC-A, CAT6-EX-M1, C2-R1 recurrence
 measurement, DDOS-A-B0 SYN/state, and factual bounded DDoS demand/context
 mechanisms for UDP, victim reflection shape, apparent source diversity, ICMP,
 fragments, and TCP initiating-attempt churn. All seven factual DDoS mechanisms
@@ -12,6 +12,19 @@ are default active. Category-5 Recon horizontal breadth, target-port breadth,
 host-by-port geometry, and captured TCP probing-state measurements are also
 default active. The former `ddos` and `recon` provider shells are not default
 runtime targets.
+
+DGA is **DEFAULT ACTIVE M1-R1 LEXICAL MODEL EVIDENCE**. It verifies and reuses
+the exact Drive-owned artifact identified by the repository manifest. There is
+no DGA maliciousness threshold and no malware, infection, C2, tunnelling,
+exfiltration, ownership, or intent conclusion. DNS-T1 remains an independent
+structural observation; one clear-DNS observation may produce both immutable
+results without fusion. Active ML is limited to the DGA-A1/M1-R1 lexical model;
+the other mechanisms remain transparent rules, statistics, state, and context.
+
+Gate A remains `SCIENTIFICALLY_CONSISTENT_REBUILD WITH ORIGINAL-RUN TRACEABILITY
+LIMITATION`, not a bit-identical historical reproduction. Recovered R1 execution
+files remain separate history, reference a different serialization hash, and
+show a later evaluation-pipeline failure.
 
 The DDoS SYN lane uses controlled-MVP engineering bounds of 1024 state keys,
 16 reordered events per key, and 2048 reordered events lane-wide. Each DDoS
@@ -54,7 +67,7 @@ Activate it with `.venv\Scripts\Activate.ps1` on PowerShell or
 `source .venv/bin/activate` on Linux/macOS, then install the package:
 
 ```bash
-python -m pip install -e ".[test]"
+python -m pip install -e ".[test,dga-m1,benchmark]"
 ```
 
 ### Running the System
@@ -70,7 +83,10 @@ Open `http://127.0.0.1:8000/`. Choose an allowlisted replay in the left panel,
 watch persisted results arrive, and open a result to inspect its evidence,
 visibility, quality, claim limit, and provenance. The application creates and
 migrates the database automatically. Set `EVIDENCEGATE_DB` before startup to use
-a different SQLite file.
+a different SQLite file. Set `EVIDENCEGATE_DGA_MODEL` to the explicit local path
+of `DGA_M1_R1_SERIALIZED_MODEL.joblib`. If the exact artifact cannot be verified,
+the `dga.m1` lane stays registered and emits `ANALYTIC_UNAVAILABLE`; it never
+substitutes a model or reports zero detections.
 
 The API is documented at `http://127.0.0.1:8000/docs` and provides:
 
@@ -116,13 +132,14 @@ pytest
 
 python -m compileall -q evidencegate scripts
 
-# Characterize the real current 16-target stack with disk-backed SQLite
-python scripts/benchmark_current_stack.py
+# Characterize the final 16-target stack with real DGA inference and SQLite
+python scripts/benchmark_final_mvp.py
 ```
 
-This benchmark is explicitly **PRE-DGA / CONTROLLED MVP / NOT PRODUCTION
-THROUGHPUT**. The historical dummy-plugin saturation benchmark is retained only
-as superseded history and is not evidence for a throughput claim.
+This benchmark is explicitly **CONTROLLED MVP CHARACTERIZATION / NOT PRODUCTION
+SIZING**. The typed workload exercises DGA; the separate raw-PCAP workload does
+not because raw-PCAP DNS extraction remains deferred. The M13 pre-DGA benchmark
+and historical dummy-plugin saturation benchmark remain superseded history.
 
 ## Dependency and License Inventory
 The MVP runtime utilizes the following minimal open-source packages:
@@ -134,6 +151,8 @@ The MVP runtime utilizes the following minimal open-source packages:
 - `pytest` / `pytest-asyncio` (MIT / Apache) - Contract verification framework.
 - `httpx` (BSD) - ASGI integration testing only.
 - `psutil` (BSD) - Baseline system health tracking for benchmarks.
+- `scikit-learn` 1.6.1 / `joblib` 1.6.0 - verified DGA M1-R1 inference only.
+- `tldextract` 5.1.3 - offline bundled-PSL DGA representation with private suffixes.
 
 ## Explicit Scientific No-Go Boundaries
 The runtime infrastructure enforces strict boundaries separating operational plumbing from scientific analytic responsibility. 

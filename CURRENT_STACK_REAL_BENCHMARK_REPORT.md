@@ -1,5 +1,10 @@
 # Current Stack Real Benchmark Report
 
+> **PRE-DGA / SUPERSEDED FOR FINAL MVP STACK CHARACTERIZATION**
+
+This historical M13 evidence is retained unchanged below. Use
+`FINAL_MVP_MODEL_INCLUSIVE_BENCHMARK_REPORT.md` for the activated final-MVP stack.
+
 > **PRE-DGA / CONTROLLED MVP / NOT PRODUCTION THROUGHPUT**
 
 Classification: **PRE-DGA CURRENT-MVP STACK CHARACTERIZATION**. These controlled measurements are not final, production, sustained-capacity, or sizing claims. DGA model inference is not active.

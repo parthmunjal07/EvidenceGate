@@ -26,7 +26,7 @@
       const score = evidence.dga_labelled_lexical_resemblance_score;
       return score === undefined
         ? "DGA lexical model evidence unavailable"
-        : `DGA lexical model evidence · model score: ${score}`;
+        : `DGA lexical model evidence · DGA-labelled lexical resemblance score: ${score}`;
     }
     const entries = Object.entries(evidence || {}).slice(0, 3);
     if (!entries.length) return "No structured evidence fields";
@@ -237,7 +237,13 @@
       state.runtime = runtime;
       el("runtime-state").textContent = runtime.state;
       el("runtime-dot").style.background = "var(--mint)";
-      el("active-count").textContent = String(runtime.targets.filter((item) => item.implementation === "ACTIVE_FACTUAL_MECHANISM").length);
+      el("active-count").textContent = String(runtime.targets.filter((item) => item.implementation !== "REGISTERED_SHELL").length);
+      el("dga-status").textContent = runtime.dga_model_readiness === "VERIFIED_READY"
+        ? "DGA — ACTIVE LEXICAL MODEL EVIDENCE"
+        : "DGA — ACTIVE LANE — MODEL UNAVAILABLE";
+      el("dga-readiness").textContent = runtime.dga_model_readiness === "VERIFIED_READY"
+        ? "Verified DGA-A1/M1-R1 lexical review evidence; no maliciousness threshold."
+        : `${runtime.dga_model_readiness}: ${runtime.dga_model_failure_reason || "exact model unavailable"}`;
       renderFamilies(runtime);
       renderReplayControls(runtime);
       await initialLoad();

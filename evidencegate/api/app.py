@@ -19,7 +19,7 @@ from evidencegate.api.models import (
     VisibilitySnapshotDto,
 )
 from evidencegate.api.service import (
-    FAMILY_STATUS, EvidenceGateService, ReplayBusyError, ReplayScenario,
+    EvidenceGateService, ReplayBusyError, ReplayScenario,
 )
 from evidencegate.domain.enums import ResultType
 from evidencegate.results.types import AnalyticUnavailable, Result
@@ -37,7 +37,7 @@ def family_for(result: Result) -> str:
         return "DDoS"
     if lane.startswith("c2."):
         return "C2 / Beaconing"
-    if lane == "dga":
+    if lane.startswith("dga."):
         return "DGA"
     if lane.startswith("dns_tunnelling."):
         return "DNS Tunnelling"
@@ -271,12 +271,14 @@ def create_app(
             state="REPLAYING" if replay_value.state == "RUNNING" else "ONLINE",
             default_target_count=len(targets),
             active_lane_ids=[item.lane_id for item in targets],
-            targets=targets, family_status=list(FAMILY_STATUS),
+            targets=targets, family_status=service.family_status(),
             database_status="connected",
             durable_result_count=await service.writer.count_results(),
             live_subscriber_count=service.broadcaster.subscriber_count,
             replay=replay_value, scenarios=service.scenario_dtos(),
             supported_sources=["TYPED_NDJSON_REPLAY", "RAW_PCAP_REPLAY"],
+            dga_model_readiness=service.dga_plugin.readiness.value,
+            dga_model_failure_reason=service.dga_plugin.readiness_failure_reason,
         )
 
     return application

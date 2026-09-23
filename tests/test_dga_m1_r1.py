@@ -1,4 +1,4 @@
-"""M14 contract tests: verified artifact must remain fail-closed on divergence."""
+"""M15 default DGA M1-R1 activation and fail-closed contract tests."""
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,7 +11,8 @@ from evidencegate.ingest.builders import DNSCanonicalBuilder
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.plugins.providers.dga_m1 import (
     ARTIFACT_BYTES, ARTIFACT_SHA256, CLAIM_CEILING, DgaM1ArtifactVerifier,
-    DgaM1ModelService, DgaM1Plugin, DgaM1RepresentationAdapter, dga_m1_config_hash,
+    DgaM1ModelService, DgaM1Plugin, DgaM1Readiness, DgaM1RepresentationAdapter,
+    PROMOTION_DECISION_ID, dga_m1_config_hash,
     r1_class_semantic_failure,
 )
 from evidencegate.routing.router import LaneTarget
@@ -53,6 +54,36 @@ def test_missing_and_wrong_path_never_deserialize():
     assert verifier.verify_and_load("not-the-artifact.joblib").failure_reason == "MODEL_PATH_OR_FILENAME_INVALID"
 
 
+def test_same_size_wrong_sha_fails_closed(tmp_path):
+    target = tmp_path / ARTIFACT.name
+    data = bytearray(ARTIFACT.read_bytes())
+    data[-1] ^= 1
+    target.write_bytes(data)
+    value = DgaM1ArtifactVerifier().verify_and_load(target)
+    assert value.available is False
+    assert value.readiness is DgaM1Readiness.ARTIFACT_HASH_MISMATCH
+    assert value.failure_reason == "ARTIFACT_SHA256_MISMATCH"
+
+
+def test_dependency_version_mismatch_fails_closed(monkeypatch):
+    import joblib
+    monkeypatch.setattr(joblib, "__version__", "0.invalid")
+    value = DgaM1ArtifactVerifier().verify_and_load(ARTIFACT)
+    assert value.available is False
+    assert value.readiness is DgaM1Readiness.DEPENDENCY_MISMATCH
+    assert value.failure_reason == "MODEL_DEPENDENCY_VERSION_MISMATCH"
+
+
+def test_psl_dependency_mismatch_constructs_unavailable_adapter(monkeypatch):
+    import tldextract
+    monkeypatch.setattr(tldextract, "__version__", "0.invalid")
+    adapter = DgaM1RepresentationAdapter()
+    assert adapter.available is False
+    result = adapter.adapt(observation("example.com"))
+    assert result.status == "ANALYTIC_UNAVAILABLE"
+    assert result.failure_reason == "DGA_M1_PSL_DEPENDENCY_VERSION_MISMATCH"
+
+
 @pytest.mark.parametrize(("qname", "status", "model_input"), [
     ("Example.COM.", "AVAILABLE", "example.com"),
     ("example.com", "AVAILABLE", "example.com"),
@@ -92,6 +123,18 @@ async def test_plugin_emits_review_finding_with_semantic_score_and_model_provena
     assert 0 <= evidence["dga_labelled_lexical_resemblance_score"] <= 1
     assert "sha256:" + ARTIFACT_SHA256 in plugin.model_refs()
     assert len(dga_m1_config_hash()) == 64
+
+
+@pytest.mark.asyncio
+async def test_missing_model_emits_truthful_unavailable_with_model_refs():
+    plugin = DgaM1Plugin(model_path="missing/DGA_M1_R1_SERIALIZED_MODEL.joblib")
+    outcome = await plugin.process(observation("example.com"), None, None)
+    draft = outcome.result_drafts[0]
+    assert draft.result_type is ResultType.ANALYTIC_UNAVAILABLE
+    assert "dga_labelled_lexical_resemblance_score" not in draft.evidence
+    assert draft.evidence["model_readiness"] == "ARTIFACT_MISSING"
+    assert draft.evidence["failure_reason"] == "MODEL_PATH_OR_FILENAME_INVALID"
+    assert "model:DGA-A1-M1-R1" in plugin.model_refs()
 
 
 def test_score_uses_semantic_positive_class_index():
@@ -150,5 +193,59 @@ async def test_dga_m1_and_dns_t1_route_zero_to_many_without_score_fusion():
             await supervisor.shards[lane][0].queue.join()
         assert {lane for _, lane in emitted} == {"dga.m1", "dns_tunnelling.t1"}
         assert all("DNS_NAME_STRUCTURE" not in result.evidence.canonical_json or result.mechanism_id == "DNS-T1" for result, _ in emitted)
+    finally:
+        await supervisor.stop_all()
+
+
+def test_default_registry_exact_activation_governance_and_no_reorder(monkeypatch):
+    monkeypatch.setenv("EVIDENCEGATE_DGA_MODEL", str(ARTIFACT.resolve()))
+    from evidencegate.plugins.providers.registry import build_mvp_runtime_registration
+    registration = build_mvp_runtime_registration(NOW)
+    expected = {
+        "ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim",
+        "ddos.source_diversity", "ddos.icmp_demand", "ddos.fragment_demand",
+        "ddos.connection_churn", "c2.r1", "dga.m1", "dns_tunnelling.t1",
+        "encrypted_session.enc_a", "recon.h", "recon.v", "recon.2d",
+        "recon.tcp", "unusual_transfer.m1",
+    }
+    assert set(map(str, registration.plugins)) == expected
+    assert len(registration.plugins) == 16 and "dga" not in registration.plugins
+    assert "dga.m1" not in registration.reorder_policies
+    plugin = registration.plugins["dga.m1"]
+    governance = registration.governances["dga.m1"]
+    assert plugin.service.verification.readiness is DgaM1Readiness.VERIFIED_READY
+    assert governance.scientific_phase == "DGA-labelled lexical review evidence"
+    assert governance.scientific_blockers == ()
+    assert governance.claim_ceiling == CLAIM_CEILING
+    assert plugin.manifest().governing_decision_ids == (PROMOTION_DECISION_ID,)
+
+
+@pytest.mark.asyncio
+async def test_default_registry_dns_zero_to_many_and_pinned_score(monkeypatch):
+    monkeypatch.setenv("EVIDENCEGATE_DGA_MODEL", str(ARTIFACT.resolve()))
+    from evidencegate.plugins.providers.registry import build_mvp_runtime_registration
+    registration = build_mvp_runtime_registration(NOW)
+    emitted = []
+    async def collect(result, lane): emitted.append((result, str(lane)))
+    supervisor = RuntimeSupervisor(
+        registration.plugins, registration.governances, collect, shard_count=1,
+        reorder_policies=registration.reorder_policies,
+    )
+    supervisor.start_all()
+    try:
+        plan = await supervisor.ingest_observation(observation("ajdkskqweoiuzx.com"))
+        assert set(plan.selected_targets) == {"dga.m1", "dns_tunnelling.t1"}
+        for lane in (LaneTarget("dga.m1"), LaneTarget("dns_tunnelling.t1")):
+            await supervisor.dispatchers[lane].queue.join()
+            await supervisor.shards[lane][0].queue.join()
+        dga = next(result for result, lane in emitted if lane == "dga.m1")
+        assert dga.evidence.to_value()["dga_labelled_lexical_resemblance_score"] == pytest.approx(
+            0.9851716132182514, abs=1e-12
+        )
+        assert PROMOTION_DECISION_ID in dga.governing_ids
+        assert dga.model_refs == (
+            "model:DGA-A1-M1-R1", "sha256:" + ARTIFACT_SHA256,
+            "drive:16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y",
+        )
     finally:
         await supervisor.stop_all()

@@ -323,13 +323,7 @@ async def test_v2_to_v3_migration_preserves_existing_row_and_identity(tmp_path) 
     writer.close()
 
 
-@pytest.mark.asyncio
-async def test_remaining_dga_provider_shell_remains_result_free() -> None:
+def test_default_registry_has_no_remaining_provider_shell() -> None:
     plugins, _ = build_mvp_provider_registry(NOW)
-    shell = plugins["dga"]
-    assert shell.manifest().mechanism_id is None
-    assert (await shell.process(None, {}, None)).result_drafts == ()
-    assert all(
-        plugin.manifest().mechanism_id is not None
-        for lane, plugin in plugins.items() if lane != "dga"
-    )
+    assert "dga" not in plugins and "dga.m1" in plugins
+    assert all(plugin.manifest().mechanism_id is not None for plugin in plugins.values())

@@ -4,6 +4,8 @@
   "expected_filename": "DGA_M1_R1_SERIALIZED_MODEL.joblib",
   "expected_bytes": 5720970,
   "expected_sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df",
+  "governing_decision_id": "C3-DEC-DGA-M1-R1-PROMOTION-V1",
+  "governing_decision_drive_id": "1pn8L96FOiKxKySiBZfEk_p7hT89zBqtq3dIa5q1LL9g",
   "representation_version": "DGA_M1_REPRESENTATION_v1",
   "normalization": "str(value).strip().lower().rstrip('.')",
   "dependency_contract": {

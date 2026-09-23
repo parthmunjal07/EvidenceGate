@@ -78,7 +78,7 @@ def registry():
 EXPECTED_TARGETS = {
     "ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim",
     "ddos.source_diversity", "ddos.icmp_demand", "ddos.fragment_demand",
-    "ddos.connection_churn", "c2.r1", "dga", "dns_tunnelling.t1",
+    "ddos.connection_churn", "c2.r1", "dga.m1", "dns_tunnelling.t1",
     "encrypted_session.enc_a", "recon.h", "recon.v", "recon.2d",
     "recon.tcp", "unusual_transfer.m1",
 }
@@ -147,6 +147,9 @@ def test_exact_packages_lanes_mappings_and_governance():
     assert c2_r1.state_resource_policy.max_entries == 1024
     assert c2_r1.governing_decision_ids == ("C2-DEC-MVP-CAPACITY-V1",)
     assert governances["c2.r1"].governance_version == "c2-r1-mvp-0.1.0"
+    dga_m1 = plugins["dga.m1"].manifest()
+    assert dga_m1.mechanism_id == "DGA-A1-M1"
+    assert dga_m1.governing_decision_ids == ("C3-DEC-DGA-M1-R1-PROMOTION-V1",)
     activated = tuple(
         plugin for lane, plugin in plugins.items()
         if str(lane).startswith(("ddos.", "recon."))
@@ -166,7 +169,7 @@ def test_structural_zero_to_many_and_protocol_distinction():
         "recon.h", "recon.v", "recon.2d", "recon.tcp",
     }
     assert router.route(flow()) == ()
-    assert set(router.route(dns())) == {"dga", "dns_tunnelling.t1"}
+    assert set(router.route(dns())) == {"dga.m1", "dns_tunnelling.t1"}
     assert router.route(tls()) == ("encrypted_session.enc_a",)
     assert router.route(quic()) == ()
 
@@ -174,7 +177,7 @@ def test_structural_zero_to_many_and_protocol_distinction():
 @pytest.mark.asyncio
 async def test_remaining_stateless_defaults_emit_only_factual_context():
     plugins, _ = registry()
-    for lane in ("dga", "dns_tunnelling.t1", "encrypted_session.enc_a", "unusual_transfer.m1"):
+    for lane in ("dga.m1", "dns_tunnelling.t1", "encrypted_session.enc_a", "unusual_transfer.m1"):
         plugin = plugins[lane]
         candidates = (flow(), dns(), tls(), quic())
         if plugin.manifest().mechanism_id == "CAT6-EX-M1":
@@ -185,7 +188,7 @@ async def test_remaining_stateless_defaults_emit_only_factual_context():
         value = next(v for v in candidates if plugin.route(v))
         assert plugin.state_key(value) is None
         outcome = await plugin.process(value, None, None)
-        if plugin.manifest().mechanism_id in ("ENC-A", "CAT6-EX-M1", "DNS-T1"):
+        if plugin.manifest().mechanism_id in ("DGA-A1-M1", "ENC-A", "CAT6-EX-M1", "DNS-T1"):
             assert len(outcome.result_drafts) == 1
             assert outcome.state_transition is None
         else:

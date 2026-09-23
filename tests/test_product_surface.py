@@ -74,18 +74,19 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         assert runtime["default_target_count"] == 16
         assert runtime["database_status"] == "connected"
         assert len(runtime["active_lane_ids"]) == 16
-        dga = next(item for item in runtime["targets"] if item["lane_id"] == "dga")
+        dga = next(item for item in runtime["targets"] if item["lane_id"] == "dga.m1")
         assert dga == {
-            "lane_id": "dga", "mechanism_id": None,
-            "implementation": "REGISTERED_SHELL",
+            "lane_id": "dga.m1", "mechanism_id": "DGA-A1-M1",
+            "implementation": "ACTIVE_LEXICAL_MODEL_LANE",
         }
         dga_family = next(item for item in runtime["family_status"] if item["family"] == "DGA")
-        assert dga_family["status"] == "SHELL / MODEL PENDING"
+        assert dga_family["status"] == "ACTIVE LANE — MODEL UNAVAILABLE"
+        assert runtime["dga_model_readiness"] == "ARTIFACT_MISSING"
         schema = (await client.get("/openapi.json")).json()
         assert {"/health", "/results", "/results/{result_id}", "/events", "/replay", "/replay/status", "/runtime"} <= set(schema["paths"])
         dashboard = await client.get("/")
         assert dashboard.status_code == 200
-        assert "Passive" in dashboard.text and "ANALYTIC / MODEL NOT ACTIVE" in dashboard.text
+        assert "Passive" in dashboard.text and "DGA — ACTIVE LEXICAL MODEL EVIDENCE" in dashboard.text
         browser_logic = (await client.get("/static/app.js")).text
         assert "stream_gap" in browser_logic and "syncCursor" in browser_logic
         assert "new EventSource" in browser_logic
@@ -242,6 +243,36 @@ async def test_allowlist_rejects_paths_and_mixed_replay_is_zero_to_many(tmp_path
         assert {"DDoS", "Reconnaissance"} <= families
         assert all(item["result_type"] != "THREAT_ALERT" for item in results)
         assert all("confidence" not in item and "severity" not in item for item in results)
+
+
+@pytest.mark.asyncio
+async def test_dga_demo_runs_real_model_persists_rest_and_publishes(tmp_path, monkeypatch):
+    model = Path("artifacts/dga/local/DGA_M1_R1_SERIALIZED_MODEL.joblib").resolve()
+    monkeypatch.setenv("EVIDENCEGATE_DGA_MODEL", str(model))
+    async with client_for(tmp_path / "dga-demo.db") as (client, service):
+        runtime = (await client.get("/runtime")).json()
+        assert runtime["dga_model_readiness"] == "VERIFIED_READY"
+        dga_family = next(item for item in runtime["family_status"] if item["family"] == "DGA")
+        assert dga_family["status"] == "ACTIVE M1 LEXICAL MODEL EVIDENCE"
+        subscription = service.broadcaster.subscribe()
+        response = await client.post("/replay", json={"scenario": "dga_lexical", "speed": 0})
+        assert response.status_code == 202
+        status = await service.wait_for_replay()
+        assert status.state == "COMPLETED" and status.results_persisted == 2
+        notifications = [await asyncio.wait_for(subscription.get(), timeout=1) for _ in range(2)]
+        assert {item.mechanism_id for item in notifications} == {"DGA-A1-M1", "DNS-T1"}
+        results = (await client.get("/results", params={"limit": 10})).json()["results"]
+        dga = next(item for item in results if item["mechanism_id"] == "DGA-A1-M1")
+        assert dga["result_type"] == "REVIEW_FINDING"
+        assert dga["evidence"]["dga_labelled_lexical_resemblance_score"] == pytest.approx(
+            0.9851716132182514, abs=1e-12
+        )
+        assert "C3-DEC-DGA-M1-R1-PROMOTION-V1" in dga["governing_ids"]
+        assert "sha256:39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df" in dga["model_refs"]
+        assert dga["config_hash"] and dga["source_observation_ids"]
+        assert dga["visibility_snapshot"]["available"]
+        assert dga["quality_snapshot"]["parser"] == "CLEAR"
+        assert dga["claim_ceiling"].startswith("DGA_LABELLED_LEXICAL_REVIEW_EVIDENCE_ONLY")
 
 
 @pytest.mark.asyncio

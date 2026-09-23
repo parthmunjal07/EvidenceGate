@@ -20,7 +20,8 @@ from .ddos_measurements import (
     DdosIcmpDemandPlugin, DdosReflectionVictimPlugin,
     DdosSourceDiversityPlugin, DdosUdpDemandPlugin,
 )
-from .dns_dga import DgaShellPlugin, DnsT1StructuralPlugin
+from .dga_m1 import CLAIM_CEILING as DGA_M1_CLAIM_CEILING, DgaM1Plugin
+from .dns_dga import DnsT1StructuralPlugin
 from .encrypted import EncAHandshakePlugin
 from .exfil import ExfilM1TransferPlugin
 from .recon import (
@@ -84,7 +85,9 @@ class MvpRuntimeRegistration:
     reorder_policies: Mapping[LaneTarget, EventTimeReorderPolicy]
 
 
-def build_mvp_provider_registry(effective_at: datetime) -> tuple[dict[LaneTarget, AnalyticPlugin], dict[LaneTarget, LaneGovernance]]:
+def build_mvp_provider_registry(
+    effective_at: datetime, *, dga_model_path: str | None = None,
+) -> tuple[dict[LaneTarget, AnalyticPlugin], dict[LaneTarget, LaneGovernance]]:
     """Return the default MVP providers for inspection and isolated tests."""
     ddos_capacity = DDOS_CONTROLLED_MVP_CAPACITY
     recon_capacity = RECON_CONTROLLED_MVP_CAPACITY
@@ -134,7 +137,7 @@ def build_mvp_provider_registry(effective_at: datetime) -> tuple[dict[LaneTarget
             max_state_entries=C2_CONTROLLED_MVP_CAPACITY.max_state_entries,
             governing_decision_ids=(C2_CONTROLLED_MVP_CAPACITY.decision_id,),
         ),
-        LaneTarget("dga"): DgaShellPlugin(),
+        LaneTarget("dga.m1"): DgaM1Plugin(model_path=dga_model_path),
         LaneTarget("dns_tunnelling.t1"): DnsT1StructuralPlugin(),
         LaneTarget("encrypted_session.enc_a"): EncAHandshakePlugin(),
         LaneTarget("recon.h"): ReconHPlugin(
@@ -196,6 +199,15 @@ def build_mvp_provider_registry(effective_at: datetime) -> tuple[dict[LaneTarget
         governance_version="dns-t1-0.1.0", effective_at=effective_at,
         allowed_result_types=(ResultType.REVIEW_FINDING,), ingest_permitted=True,
     )
+    dga_m1_lane = LaneTarget("dga.m1")
+    governances[dga_m1_lane] = LaneGovernance(
+        analytic_lane=str(dga_m1_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="DGA-labelled lexical review evidence", scientific_blockers=(),
+        claim_ceiling=DGA_M1_CLAIM_CEILING,
+        governance_version="dga-m1-r1-default-1.0.0", effective_at=effective_at,
+        allowed_result_types=(ResultType.REVIEW_FINDING, ResultType.ANALYTIC_UNAVAILABLE),
+        ingest_permitted=True,
+    )
     c2_r1_lane = LaneTarget("c2.r1")
     governances[c2_r1_lane] = LaneGovernance(
         analytic_lane=str(c2_r1_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
@@ -256,9 +268,13 @@ def build_mvp_provider_registry(effective_at: datetime) -> tuple[dict[LaneTarget
     return plugins, governances
 
 
-def build_mvp_runtime_registration(effective_at: datetime) -> MvpRuntimeRegistration:
+def build_mvp_runtime_registration(
+    effective_at: datetime, *, dga_model_path: str | None = None,
+) -> MvpRuntimeRegistration:
     """Return all required default runtime inputs as one atomic registration."""
-    plugins, governances = build_mvp_provider_registry(effective_at)
+    plugins, governances = build_mvp_provider_registry(
+        effective_at, dga_model_path=dga_model_path,
+    )
     c2_capacity = C2_CONTROLLED_MVP_CAPACITY
     ddos_capacity = DDOS_CONTROLLED_MVP_CAPACITY
     recon_capacity = RECON_CONTROLLED_MVP_CAPACITY
