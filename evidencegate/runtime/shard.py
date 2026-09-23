@@ -389,6 +389,7 @@ class LaneShard:
                                 state_version=state.version if state is not None else None,
                                 config_hash=self.plugin.manifest().config_hash,
                                 parser_refs=parser_refs_from_observation(observation),
+                                model_refs=tuple(getattr(self.plugin, "model_refs", lambda: ())()),
                             ),
                         )
 

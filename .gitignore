@@ -39,3 +39,6 @@ htmlcov/
 # Secrets / local config
 .env
 *.env.local
+
+# Canonical DGA model bytes are Drive-owned and verified at runtime.
+artifacts/dga/local/

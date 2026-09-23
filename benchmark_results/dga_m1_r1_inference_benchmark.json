@@ -1,0 +1,15 @@
+{
+  "artifact": {
+    "bytes": 5720970,
+    "sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df",
+    "drive_id": "16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y"
+  },
+  "status": "NOT_RUN_FAIL_CLOSED",
+  "blocker": "CLASS_ORDER_MISMATCH: embedded classifier classes are ['benign', 'dga'], required frozen contract is [0, 1]",
+  "model_load_time_seconds": null,
+  "representation_seconds": null,
+  "transform_inference_latency_ms": {"p50": null, "p95": null, "p99": null},
+  "names_per_second": null,
+  "rss_delta_bytes": null,
+  "note": "No inference microbenchmark is reported because using this divergent artifact would violate the fail-closed model contract."
+}

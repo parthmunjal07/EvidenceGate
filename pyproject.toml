@@ -25,6 +25,11 @@ test = [
 benchmark = [
     "psutil>=5.9,<8"
 ]
+dga-m1 = [
+    "joblib==1.6.0",
+    "scikit-learn==1.6.1",
+    "tldextract==5.1.3",
+]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

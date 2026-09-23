@@ -22,6 +22,12 @@
   }
 
   function shortEvidence(evidence) {
+    if (evidence && evidence.evidence_kind === "DGA_LEXICAL_MODEL_EVIDENCE") {
+      const score = evidence.dga_labelled_lexical_resemblance_score;
+      return score === undefined
+        ? "DGA lexical model evidence unavailable"
+        : `DGA lexical model evidence · model score: ${score}`;
+    }
     const entries = Object.entries(evidence || {}).slice(0, 3);
     if (!entries.length) return "No structured evidence fields";
     return entries.map(([key, value]) => `${key}: ${typeof value === "object" ? "…" : value}`).join(" · ");
