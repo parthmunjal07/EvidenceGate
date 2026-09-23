@@ -1,52 +1,38 @@
-# DGA M1-R1 integration gate report
+# DGA M1-R1 integration gate report — M14A reconciliation
 
-## Artifact intake and Gate A
+## Preserved M14 history and correction
 
-The local, Drive-owned artifact was retrieved from Drive ID `16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y` and was checked before deserialization. Its filename is `DGA_M1_R1_SERIALIZED_MODEL.joblib`, its byte count is `5,720,970`, and its SHA-256 is `39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df`: both match the supplied identity.
+M14 verified the Drive-owned R1 artifact (`5,720,970` bytes, SHA-256 `39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df`) and then blocked it because `classifier.classes_` was `['benign', 'dga']`, rather than historical M1's `[0, 1]`. That was a false comparison across label encodings, not a byte, feature, or model-family finding.
 
-Static pickle inspection stopped at the joblib array boundary (as expected for a joblib stream); only after identity acceptance was the object loaded. It is a dictionary containing `model_id`, `representation_version`, `normalization`, `vectorizer`, `classifier`, `config`, and `environment`.
+M14A read the authoritative R1 config (Drive `1LvmseXW42TagQD0akPAR47tokt8rzV5e`) and training/evaluation scripts. The config declares `label_column: label` and `positive_class: dga`; training passes that column directly to `fit`, and evaluation selects the `dga` probability column. The original prepared parity utility's `int(pred)` is an **R1 execution-kit parity script defect**, not artifact corruption.
 
-| Contract | Observed | Status |
-|---|---|---|
-| model ID | `DGA-A1-M1-R1` | pass |
-| representation | `DGA_M1_REPRESENTATION_v1` | pass |
-| normalization | `str(value).strip().lower().rstrip('.')` | pass |
-| vectorizer | char TF-IDF, 2–5 grams, min_df 2, max_features 150000, sublinear float32, IDF/smooth/l2/lowercase | pass |
-| classifier | LogisticRegression, C 2.0, liblinear, balanced, max_iter 200, random_state 26145 | pass |
-| class order | `['benign', 'dga']` | **fail**: frozen contract requires `[0, 1]` |
-| artifact environment | sklearn 1.6.1, joblib 1.6.0; numpy 2.1.3, scipy 1.16.3, Python 3.13.15 | recorded |
+The strict corrected contract is exactly two classes `{benign, dga}`, exactly one configured positive `dga`, and exactly one admitted negative `benign`. It rejects `clean/dga`, `benign/malware`, numeric labels, absent/duplicated positives, and multiclass models. Scores are selected by `classes.index('dga')`; no hard-coded `[0][1]` remains.
 
-The local integration environment uses the exact required sklearn `1.6.1` and joblib `1.6.0`. The verifier rejects the artifact at its class-order contract after hash validation and before any inference. There is no fallback model or label coercion.
+## Post-hoc immutable artifact validation
 
-The authorized `M1_R1_EXECUTION/09_run_outputs` folder (Drive ID `1EeQvOSCYMkAv36vOZkv6DXYrWET2qXSF`) is empty. Required R1 records such as the run manifest, leakage report, parity results, and metrics were therefore not found. This is a traceability gap. Historical references and the recovered source map support only comparison; they do not prove this R1 run.
+This is `POST_HOC_R1_ARTIFACT_VALIDATION`, not a reconstruction of original `09_run_outputs`. Train, validation, and test bytes were downloaded from their frozen Drive IDs and hash-checked before reading. Labels are object values: train `dga=160082`, `benign=159917`; validation `dga=19960`, `benign=20040`; test retains `dga=69957`, `benign=20043`, `ood=200000` across its declared roles.
 
-Gate-A candidate classification: **REPRODUCTION_DIVERGENCE**. Evidence: the artifact hash is accepted and most embedded model configuration agrees, but the required class contract diverges and R1 run outputs are absent. This is not a promotion decision.
+| Dataset | AUROC | Historical reference | Delta |
+|---|---:|---:|---:|
+| Validation (40,000) | 0.9934089761 | 0.9934168537 | -0.0000078775 |
+| Known test (40,000) | 0.9936135380 | 0.9936188955 | -0.0000053575 |
 
-## Gate B and live integration
+Accuracy, precision, recall, F1, PR-AUC, deterministic representative scores, and exact input identities are in `benchmark_results/dga_m1_r1_posthoc_validation.json`. The historical model was serialized under sklearn 1.8.0, unlike R1's required 1.6.1; its warning and incompatibility in the R1 environment were not suppressed. Historical fixture scoring instead ran in an isolated 1.8.0 environment. Diagnostic vocabulary comparison finds 150,000 terms in each model, 145,705 shared terms with equal shared IDF, small aligned coefficient/intercept differences, and no claim of binary equivalence.
 
-`DgaM1RepresentationAdapter` is separate from DNS-T1 and maps factual canonical DNS input through `tldextract==5.1.3` with its bundled PSL snapshot, empty suffix-list URLs, and private suffixes enabled. It has no network fetch path. It maps a valid public-suffix name to PSL-provided registrable domain, then applies the frozen M1 normalization. It does not use last-two-label logic.
+Original R1 `09_run_outputs` remains empty. Gate-A candidate classification is **SCIENTIFICALLY_CONSISTENT_REBUILD WITH ORIGINAL-RUN TRACEABILITY LIMITATION**, not strong reproduction.
 
-| Case | Outcome |
-|---|---|
-| `Example.COM.` | `example.com` model input |
-| `a.b.example.co.uk` | `example.co.uk` model input |
-| `localhost`, unknown suffix | `ANALYTIC_UNAVAILABLE` |
-| Unicode | `ANALYTIC_UNAVAILABLE`; exact Unicode policy is not authorized |
-| malformed/root/empty/whitespace | left to factual DNS-T1 rejection, then unavailable in M1 |
-| `xn--` label under an unknown suffix | unavailable, no fallback |
+## Gate B measured representation audit
 
-Gate B: **PASS_WITH_EXPLICIT_UNAVAILABLE_CASES** for the representation layer. IDNA policy is ASCII / pre-existing `xn--` text only; Unicode and invalid IDNA are unavailable. Private suffix behavior is supplied by the pinned local PSL snapshot. Unknown and internal suffixes are unavailable.
+The audit applies the current offline `tldextract 5.1.3` bundled snapshot with no suffix-list URLs and private domains enabled to every frozen train, validation, and known-test input (399,999 rows). Exact eTLD+1 parity is `399,805 / 399,999` (`99.9514999%`). There are zero available changed-by-PSL strings and `194` unavailable strings (`0.0485001%`), all unknown/internal under the chosen private-suffix policy; Unicode count is zero. Enabling private suffixes changes exactly those 194 rows relative to public-only extraction. No last-two-label fallback, Unicode repair, or unknown-suffix scoring is used.
 
-The non-default, stateless `dga.m1` plugin (`DGA-A1-M1`) is implemented. It carries deterministic representation configuration hash `394a7638455e2bf1d5b2fc1d87294203549e78818645cd8183a7ceabf482f5cd` and typed model refs for the model ID, SHA-256, and Drive ID. Runtime finalization now accepts plugin-owned model refs, preserving them through normal SQLite/API/SSE/dashboard pathways. With this artifact it emits `ANALYTIC_UNAVAILABLE`, not a review score.
+This supports the registrable-domain live policy while retaining explicit unavailable cases. Gate B is **PASS_WITH_EXPLICIT_UNAVAILABLE_CASES**, pending the final human promotion decision. Full categories/examples are in `benchmark_results/dga_m1_r1_representation_audit.json`.
 
-The claim ceiling is exactly `DGA_LABELLED_LEXICAL_REVIEW_EVIDENCE_ONLY;NO_MALWARE_CONFIRMATION;NO_INFECTION_INFERENCE;NO_C2_INFERENCE;NO_DNS_TUNNEL_INFERENCE;NO_EXFILTRATION_INFERENCE;NO_DOMAIN_OWNERSHIP_OR_INTENT`. No alert projection, severity, confidence, threshold, or retraining was added. The default `dga` lane remains the shell; `dga.m1` is not registered by default.
+## Non-default product integration and measurement
 
-## Tests and benchmark
+`dga.m1` now emits a `REVIEW_FINDING` for admitted input, carrying `dga_labelled_lexical_resemblance_score`, `positive_class: dga`, resolved class index, exact classifier classes, claim ceiling, configuration hash, and typed model refs. The score means **DGA-labelled lexical resemblance**, never attack, infection, malware, C2, tunnel, or exfiltration probability. Default `dga` remains the shell.
 
-`tests/test_dga_m1_r1.py` covers artifact identity, missing/wrong paths, the detected class-contract divergence, explicit Gate-B mapping, absence of a score on unavailability, config hash, claim ceiling, and model refs. The DGA card text is model-specific and calls any future numeric value a model score.
+The controlled model microbenchmark recorded verified load `2.426s`, representation p50/p95/p99 `0.0023/0.0176/0.0262ms`, inference p50/p95/p99 `0.426/0.821/2.548ms`, `2,096` names/s, and `166,985,728` RSS bytes. It is not a whole-stack benchmark.
 
-`benchmark_results/dga_m1_r1_inference_benchmark.json` intentionally records no inference timings. Measuring or emitting scores from an artifact rejected by its contract would not be a valid M1 benchmark.
+Frozen no-tuning challenge measurements cover unknown family, OOD, CrUX broad, and CrUX machine-looking; their quantiles and historical-0.5 comparison rates are in `benchmark_results/dga_m1_r1_challenge_measurement.json`. A 0.5 comparison rate is not a production threshold.
 
-## Human gate
-
-Human Gate required: **yes**. Do not activate `dga.m1` or alter the default DGA shell. Control Room must resolve the class-order divergence and missing R1 run-output traceability before a promotion decision.
+No retraining, threshold tuning, model modification, ThreatAlert, severity, or default activation occurred. Human Gate required: **yes** — Control Room must decide final DGA promotion.

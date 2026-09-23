@@ -1,0 +1,31 @@
+{
+  "scope_rows": 399999,
+  "exact_parity_count": 399805,
+  "exact_parity_rate": 0.9995149987874969,
+  "changed_by_psl_count": 0,
+  "unavailable_count": 194,
+  "unavailable_rate": 0.00048500121250303127,
+  "categories": {
+    "exact": 399805,
+    "unknown_or_internal_suffix": 194
+  },
+  "representative_examples": {
+    "unknown_or_internal_suffix": [
+      "isa-geek.com",
+      "boomla.net",
+      "jelastic.team",
+      "notion.site",
+      "dyndns.tv",
+      "opencraft.hosting",
+      "fem.jp",
+      "blogspot.jp",
+      "akamaized-staging.net",
+      "krellian.net"
+    ]
+  },
+  "private_psl_changed_count": 194,
+  "private_psl_changed_rate": 0.00048500121250303127,
+  "unknown_suffix_count": 194,
+  "unicode_count": 0,
+  "policy": "tldextract 5.1.3 bundled snapshot; suffix_list_urls=(); private domains enabled"
+}

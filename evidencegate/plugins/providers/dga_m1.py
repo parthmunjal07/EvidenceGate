@@ -26,6 +26,8 @@ NORMALIZATION = "str(value).strip().lower().rstrip('.')"
 ARTIFACT_BYTES = 5720970
 ARTIFACT_SHA256 = "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df"
 ARTIFACT_DRIVE_ID = "16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y"
+R1_POSITIVE_CLASS = "dga"
+R1_NEGATIVE_CLASS = "benign"
 CLAIM_CEILING = (
     "DGA_LABELLED_LEXICAL_REVIEW_EVIDENCE_ONLY;NO_MALWARE_CONFIRMATION;"
     "NO_INFECTION_INFERENCE;NO_C2_INFERENCE;NO_DNS_TUNNEL_INFERENCE;"
@@ -102,6 +104,21 @@ class DgaM1Verification:
     loaded: dict[str, Any] | None = None
 
 
+def r1_class_semantic_failure(classes: Sequence[object], positive_class: object,
+                              negative_class: object) -> str | None:
+    """Return a strict R1 semantic-contract failure without assuming numeric labels."""
+    values = list(classes)
+    if len(values) != 2:
+        return "R1_CLASS_COUNT_MISMATCH"
+    if values.count(positive_class) != 1:
+        return "R1_POSITIVE_CLASS_MISSING_OR_AMBIGUOUS"
+    if values.count(negative_class) != 1:
+        return "R1_NEGATIVE_CLASS_MISMATCH"
+    if set(values) != {positive_class, negative_class}:
+        return "R1_CLASS_SEMANTIC_CONTRACT_MISMATCH"
+    return None
+
+
 class DgaM1ArtifactVerifier:
     """Validates identity before joblib's pickle-based deserialization."""
 
@@ -127,11 +144,14 @@ class DgaM1ArtifactVerifier:
             loaded = joblib.load(path)
         except Exception:
             return DgaM1Verification(False, "MODEL_DESERIALIZATION_FAILED")
-        if not isinstance(loaded, dict) or set(("model_id", "representation_version", "normalization", "vectorizer", "classifier")) - set(loaded):
+        if not isinstance(loaded, dict) or set(("model_id", "representation_version", "normalization", "vectorizer", "classifier", "config")) - set(loaded):
             return DgaM1Verification(False, "MODEL_STRUCTURE_MISMATCH")
         if (loaded["model_id"] != MODEL_ID or loaded["representation_version"] != REPRESENTATION_VERSION
                 or loaded["normalization"] != NORMALIZATION):
             return DgaM1Verification(False, "MODEL_METADATA_MISMATCH")
+        config = loaded["config"]
+        if not isinstance(config, dict) or config.get("positive_class") != R1_POSITIVE_CLASS or config.get("label_column") != "label":
+            return DgaM1Verification(False, "R1_LABEL_SCHEMA_CONFIG_MISMATCH")
         vectorizer, classifier = loaded["vectorizer"], loaded["classifier"]
         vectorizer_expectations = {"analyzer": "char", "ngram_range": (2, 5), "min_df": 2,
             "max_features": 150000, "sublinear_tf": True, "dtype": "float32", "use_idf": True,
@@ -148,8 +168,9 @@ class DgaM1ArtifactVerifier:
             return DgaM1Verification(False, "VECTORIZER_CONTRACT_MISMATCH")
         if any(classifier_params.get(key) != value for key, value in classifier_expectations.items()):
             return DgaM1Verification(False, "CLASSIFIER_CONTRACT_MISMATCH")
-        if class_values != [0, 1]:
-            return DgaM1Verification(False, "CLASS_ORDER_MISMATCH")
+        class_failure = r1_class_semantic_failure(class_values, R1_POSITIVE_CLASS, R1_NEGATIVE_CLASS)
+        if class_failure is not None:
+            return DgaM1Verification(False, class_failure)
         return DgaM1Verification(True, loaded=loaded)
 
 
@@ -167,7 +188,24 @@ class DgaM1ModelService:
         if not self.verification.available or self.verification.loaded is None:
             raise RuntimeError(self.verification.failure_reason or "MODEL_UNAVAILABLE")
         model = self.verification.loaded
-        return float(model["classifier"].predict_proba(model["vectorizer"].transform([model_input]))[0][1])
+        positive_index = self.positive_class_index
+        return float(model["classifier"].predict_proba(model["vectorizer"].transform([model_input]))[0][positive_index])
+
+    @property
+    def positive_class(self) -> str:
+        return R1_POSITIVE_CLASS
+
+    @property
+    def positive_class_index(self) -> int:
+        if not self.verification.available or self.verification.loaded is None:
+            raise RuntimeError(self.verification.failure_reason or "MODEL_UNAVAILABLE")
+        return list(self.verification.loaded["classifier"].classes_).index(R1_POSITIVE_CLASS)
+
+    @property
+    def classifier_classes(self) -> list[str]:
+        if not self.verification.available or self.verification.loaded is None:
+            return []
+        return list(self.verification.loaded["classifier"].classes_)
 
 
 def dga_m1_config_hash() -> str:
@@ -219,6 +257,9 @@ class DgaM1Plugin:
         score = self.service.score(representation.model_input)
         evidence["availability"] = "AVAILABLE"
         evidence["dga_labelled_lexical_resemblance_score"] = score
+        evidence["positive_class"] = self.service.positive_class
+        evidence["positive_class_index"] = self.service.positive_class_index
+        evidence["classifier_classes"] = self.service.classifier_classes
         return PluginProcessOutcome((ResultDraft(ResultType.REVIEW_FINDING, observation.observation_id, (), (), evidence=evidence),))
 
     async def on_quality_gap(self, gap: QualityGap, context: Any, state: Any) -> Sequence[ResultDraft]: return ()

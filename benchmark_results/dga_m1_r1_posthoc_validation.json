@@ -1,0 +1,160 @@
+{
+  "kind": "POST_HOC_R1_ARTIFACT_VALIDATION",
+  "artifact_sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df",
+  "input_verification": {
+    "train": {
+      "sha256": "32e469d50bdc367eed324b796d9bf2b43200b735d504319e91ea7564aa503c0c",
+      "rows": 319999,
+      "label_dtype": "object",
+      "label_counts": {
+        "dga": 160082,
+        "benign": 159917
+      }
+    },
+    "validation": {
+      "sha256": "69100d0372926e178d8dc47f6a342df957d8e3ca8191db9b9d0be067fd1528de",
+      "rows": 40000,
+      "label_dtype": "object",
+      "label_counts": {
+        "benign": 20040,
+        "dga": 19960
+      }
+    },
+    "test": {
+      "sha256": "2b3d376929e5ffc26837f4a220bc9d421039ad7aa9cad105ccff8ffb3374ada0",
+      "rows": 290000,
+      "label_dtype": "object",
+      "label_counts": {
+        "ood": 200000,
+        "dga": 69957,
+        "benign": 20043
+      }
+    }
+  },
+  "classes": [
+    "benign",
+    "dga"
+  ],
+  "positive_class": "dga",
+  "positive_class_index": 1,
+  "validation": {
+    "rows": 40000,
+    "positive_rows": 19960,
+    "label_counts": {
+      "benign": 20040,
+      "dga": 19960
+    },
+    "accuracy": 0.96465,
+    "precision": 0.9691863995142683,
+    "recall": 0.9596693386773547,
+    "f1": 0.9644043902930218,
+    "auroc": 0.9934089761359045,
+    "pr_auc": 0.9937876742138422
+  },
+  "known_test": {
+    "rows": 40000,
+    "positive_rows": 19957,
+    "label_counts": {
+      "benign": 20043,
+      "dga": 19957
+    },
+    "accuracy": 0.965925,
+    "precision": 0.9688823885414565,
+    "recall": 0.9626196322092498,
+    "f1": 0.9657408571069499,
+    "auroc": 0.9936135379785792,
+    "pr_auc": 0.9934059219589566
+  },
+  "historical_reference": {
+    "validation_auroc": 0.9934168536674146,
+    "known_test_auroc": 0.9936188955033447
+  },
+  "auroc_delta": {
+    "validation": -7.877531510103175e-06,
+    "known_test": -5.35752476549245e-06
+  },
+  "deterministic_fixture": [
+    {
+      "row_index": 0,
+      "domain": "warcraftmovies.com",
+      "r1_score": 0.009744089360900227
+    },
+    {
+      "row_index": 3636,
+      "domain": "ciscowebservers.net",
+      "r1_score": 0.07830108720507238
+    },
+    {
+      "row_index": 7272,
+      "domain": "engelglobal.com",
+      "r1_score": 0.0035237077940252874
+    },
+    {
+      "row_index": 10908,
+      "domain": "uyqftvvfvtwgaoja.eu",
+      "r1_score": 0.9992469363915879
+    },
+    {
+      "row_index": 14545,
+      "domain": "istore.kg",
+      "r1_score": 0.024294205067139918
+    },
+    {
+      "row_index": 18181,
+      "domain": "solelyhelping.win",
+      "r1_score": 0.5727674006405199
+    },
+    {
+      "row_index": 21817,
+      "domain": "fhqi.co.cr",
+      "r1_score": 0.9310665709170551
+    },
+    {
+      "row_index": 25453,
+      "domain": "quicket.co.za",
+      "r1_score": 0.02488706944639035
+    },
+    {
+      "row_index": 29090,
+      "domain": "chiappaarmsale.com",
+      "r1_score": 0.03068078973066216
+    },
+    {
+      "row_index": 32726,
+      "domain": "ocuucmqqawwmgygi.org",
+      "r1_score": 0.9991216593569349
+    },
+    {
+      "row_index": 36362,
+      "domain": "monkestation.com",
+      "r1_score": 0.035401445778892184
+    },
+    {
+      "row_index": 39999,
+      "domain": "huaytoday.club",
+      "r1_score": 0.00852374351023014
+    }
+  ],
+  "historical_comparison": {
+    "status": "UNAVAILABLE_IN_R1_ENVIRONMENT",
+    "exception_type": "AttributeError",
+    "detail": "'LogisticRegression' object has no attribute 'multi_class'",
+    "artifact_sklearn_version": "1.8.0",
+    "isolated_historical_environment": {
+      "sklearn": "1.8.0",
+      "deterministic_fixture_historical_scores": [0.00943060632976046, 0.07798053965193422, 0.0035005628882478824, 0.9992535888672057, 0.024341561325983942, 0.5701515055377506, 0.9305814257333382, 0.02495081280971339, 0.03039646572148324, 0.9991116725238198, 0.03529636691715996, 0.008571304363729765],
+      "note": "Historical prediction was run only in its matching sklearn environment; R1 remained loaded only under its exact 1.6.1 contract."
+    }
+  },
+  "parameter_comparison_diagnostic": {
+    "r1_vocabulary_size": 150000,
+    "historical_vocabulary_size": 150000,
+    "shared_vocabulary_count": 145705,
+    "shared_idf_equal_count": 145705,
+    "aligned_coefficient_mean_absolute_difference": 0.00427417532967393,
+    "aligned_coefficient_max_absolute_difference": 0.1838555077169629,
+    "intercept_difference_r1_minus_historical": 0.0011730702721952646,
+    "warning": "Structural comparison emitted sklearn 1.8.0-versus-1.6.1 incompatibility warnings; it is diagnostic, not parity proof."
+  },
+  "original_run_outputs": "MISSING; this is post-hoc validation, not original output recreation"
+}

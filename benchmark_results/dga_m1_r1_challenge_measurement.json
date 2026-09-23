@@ -1,0 +1,53 @@
+{
+  "kind": "POST_HOC_CHALLENGE_MEASUREMENT_NO_TUNING",
+  "evaluations": {
+    "unknown_family": {
+      "rows": 50000,
+      "quantiles": {
+        "0.01": 0.015444564888707666,
+        "0.05": 0.04811388762266706,
+        "0.5": 0.6856400547767305,
+        "0.95": 0.9995993999231777,
+        "0.99": 0.9999058401175542
+      },
+      "score_at_or_above_historical_0_5_rate": 0.60242,
+      "note": "0.5 is a historical comparison point, not a production threshold."
+    },
+    "ood": {
+      "rows": 200000,
+      "quantiles": {
+        "0.01": 0.000765295794986218,
+        "0.05": 0.002900959701005533,
+        "0.5": 0.06406785448040273,
+        "0.95": 0.8573612680819994,
+        "0.99": 0.9865260521176039
+      },
+      "score_at_or_above_historical_0_5_rate": 0.13236,
+      "note": "0.5 is a historical comparison point, not a production threshold."
+    },
+    "crux_broad": {
+      "rows": 1000000,
+      "quantiles": {
+        "0.01": 0.0005652530303555207,
+        "0.05": 0.002262805974650525,
+        "0.5": 0.044133712965248095,
+        "0.95": 0.4334141622447256,
+        "0.99": 0.725577054135883
+      },
+      "score_at_or_above_historical_0_5_rate": 0.036128,
+      "note": "0.5 is a historical comparison point, not a production threshold."
+    },
+    "crux_machine_looking": {
+      "rows": 250000,
+      "quantiles": {
+        "0.01": 0.0007010698143051809,
+        "0.05": 0.002935743655088017,
+        "0.5": 0.06711987176153296,
+        "0.95": 0.5283948789626882,
+        "0.99": 0.7937026294209878
+      },
+      "score_at_or_above_historical_0_5_rate": 0.0573,
+      "note": "0.5 is a historical comparison point, not a production threshold."
+    }
+  }
+}

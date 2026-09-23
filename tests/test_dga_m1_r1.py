@@ -4,14 +4,18 @@ from pathlib import Path
 
 import pytest
 
-from evidencegate.domain.enums import DirectionBasis, ResultType, SourceKind, TimestampSemantics, WireDirection
+from evidencegate.domain.enums import DirectionBasis, ResultType, ScientificStatus, SourceKind, TimestampSemantics, WireDirection
+from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.payloads import DNSObservation
 from evidencegate.ingest.builders import DNSCanonicalBuilder
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.plugins.providers.dga_m1 import (
     ARTIFACT_BYTES, ARTIFACT_SHA256, CLAIM_CEILING, DgaM1ArtifactVerifier,
-    DgaM1Plugin, DgaM1RepresentationAdapter, dga_m1_config_hash,
+    DgaM1ModelService, DgaM1Plugin, DgaM1RepresentationAdapter, dga_m1_config_hash,
+    r1_class_semantic_failure,
 )
+from evidencegate.routing.router import LaneTarget
+from evidencegate.runtime.supervisor import RuntimeSupervisor
 
 NOW = datetime(2026, 9, 23, tzinfo=timezone.utc)
 ARTIFACT = Path("artifacts/dga/local/DGA_M1_R1_SERIALIZED_MODEL.joblib")
@@ -26,13 +30,20 @@ def observation(qname: str):
         {"qname", "qtype", "qclass", "raw_qname_ref", "parser_version"}, clear_dns_fields=True)
 
 
-def test_m1_artifact_identity_then_embedded_contract_fail_closed():
+def test_m1_artifact_identity_then_exact_r1_string_label_contract_passes():
     assert ARTIFACT.stat().st_size == ARTIFACT_BYTES
     verifier = DgaM1ArtifactVerifier()
     value = verifier.verify_and_load(ARTIFACT)
-    # The byte identity is accepted before joblib.load; the frozen class order is not.
-    assert value.available is False
-    assert value.failure_reason == "CLASS_ORDER_MISMATCH"
+    assert value.available is True
+    assert value.loaded["classifier"].classes_.tolist() == ["benign", "dga"]
+
+
+def test_r1_semantic_contract_rejects_wrong_negative_missing_positive_and_multiclass():
+    assert r1_class_semantic_failure(["benign", "dga"], "dga", "benign") is None
+    assert r1_class_semantic_failure(["clean", "dga"], "dga", "benign") == "R1_NEGATIVE_CLASS_MISMATCH"
+    assert r1_class_semantic_failure(["benign", "malware"], "dga", "benign") == "R1_POSITIVE_CLASS_MISSING_OR_AMBIGUOUS"
+    assert r1_class_semantic_failure(["benign", "dga", "other"], "dga", "benign") == "R1_CLASS_COUNT_MISMATCH"
+    assert r1_class_semantic_failure(["dga", "benign"], "dga", "benign") is None
 
 
 def test_missing_and_wrong_path_never_deserialize():
@@ -67,14 +78,48 @@ def test_gate_b_representation_is_explicit_and_no_last_two_label_fallback(qname,
 
 
 @pytest.mark.asyncio
-async def test_plugin_emits_typed_unavailability_with_model_provenance():
+async def test_plugin_emits_review_finding_with_semantic_score_and_model_provenance():
     plugin = DgaM1Plugin(model_path=str(ARTIFACT))
     outcome = await plugin.process(observation("example.com"), None, None)
     draft = outcome.result_drafts[0]
-    assert draft.result_type is ResultType.ANALYTIC_UNAVAILABLE
+    assert draft.result_type is ResultType.REVIEW_FINDING
     evidence = draft.evidence
-    assert evidence["failure_reason"] == "CLASS_ORDER_MISMATCH"
     assert evidence["claim_ceiling"] == CLAIM_CEILING
-    assert "score" not in evidence
+    assert evidence["positive_class"] == "dga"
+    assert evidence["positive_class_index"] == 1
+    assert evidence["classifier_classes"] == ["benign", "dga"]
+    assert 0 <= evidence["dga_labelled_lexical_resemblance_score"] <= 1
     assert "sha256:" + ARTIFACT_SHA256 in plugin.model_refs()
     assert len(dga_m1_config_hash()) == 64
+
+
+def test_score_uses_semantic_positive_class_index():
+    service = DgaM1ModelService(str(ARTIFACT))
+    assert service.positive_class == "dga"
+    assert service.positive_class_index == list(service.classifier_classes).index("dga")
+
+
+@pytest.mark.asyncio
+async def test_explicit_nondefault_runtime_emits_provenance_bearing_review_finding():
+    plugin = DgaM1Plugin(model_path=str(ARTIFACT))
+    lane = LaneTarget("dga.m1")
+    governance = LaneGovernance(
+        analytic_lane="dga.m1", scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="explicit non-default lexical evidence", scientific_blockers=(),
+        claim_ceiling=CLAIM_CEILING, governance_version="dga-m1-r1-0.1.0", effective_at=NOW,
+        allowed_result_types=(ResultType.REVIEW_FINDING, ResultType.ANALYTIC_UNAVAILABLE), ingest_permitted=True,
+    )
+    emitted = []
+    async def collect(result, result_lane): emitted.append((result, result_lane))
+    supervisor = RuntimeSupervisor({lane: plugin}, {lane: governance}, collect, shard_count=1)
+    supervisor.start_all()
+    try:
+        await supervisor.ingest_observation(observation("example.com"))
+        await supervisor.dispatchers[lane].queue.join()
+        await supervisor.shards[lane][0].queue.join()
+        result, result_lane = emitted[0]
+        assert str(result_lane) == "dga.m1" and result.result_type is ResultType.REVIEW_FINDING
+        assert result.model_refs and "sha256:" + ARTIFACT_SHA256 in result.model_refs
+        assert result.evidence.to_value()["positive_class"] == "dga"
+    finally:
+        await supervisor.stop_all()

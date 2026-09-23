@@ -4,12 +4,12 @@
     "sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df",
     "drive_id": "16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y"
   },
-  "status": "NOT_RUN_FAIL_CLOSED",
-  "blocker": "CLASS_ORDER_MISMATCH: embedded classifier classes are ['benign', 'dga'], required frozen contract is [0, 1]",
-  "model_load_time_seconds": null,
-  "representation_seconds": null,
-  "transform_inference_latency_ms": {"p50": null, "p95": null, "p99": null},
-  "names_per_second": null,
-  "rss_delta_bytes": null,
-  "note": "No inference microbenchmark is reported because using this divergent artifact would violate the fail-closed model contract."
+  "status": "POST_HOC_VERIFIED_MODEL_MICROBENCHMARK",
+  "class_semantics": {"classes": ["benign", "dga"], "positive_class": "dga", "positive_class_index": 1},
+  "model_load_time_seconds": 2.425536199938506,
+  "representation_latency_ms": {"p50": 0.002300017513334751, "p95": 0.01759990700520575, "p99": 0.02624908229336138},
+  "transform_inference_latency_ms": {"p50": 0.42639998719096184, "p95": 0.821039953734725, "p99": 2.5481230637524264},
+  "names_per_second": 2096.03794355153,
+  "rss_delta_bytes": 166985728,
+  "measurement": "1,000 controlled repeated names; model-only measurement, not whole-stack throughput."
 }
