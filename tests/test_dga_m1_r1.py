@@ -16,6 +16,7 @@ from evidencegate.plugins.providers.dga_m1 import (
 )
 from evidencegate.routing.router import LaneTarget
 from evidencegate.runtime.supervisor import RuntimeSupervisor
+from evidencegate.plugins.providers.registry import build_mvp_provider_registry
 
 NOW = datetime(2026, 9, 23, tzinfo=timezone.utc)
 ARTIFACT = Path("artifacts/dga/local/DGA_M1_R1_SERIALIZED_MODEL.joblib")
@@ -121,5 +122,33 @@ async def test_explicit_nondefault_runtime_emits_provenance_bearing_review_findi
         assert str(result_lane) == "dga.m1" and result.result_type is ResultType.REVIEW_FINDING
         assert result.model_refs and "sha256:" + ARTIFACT_SHA256 in result.model_refs
         assert result.evidence.to_value()["positive_class"] == "dga"
+    finally:
+        await supervisor.stop_all()
+
+
+@pytest.mark.asyncio
+async def test_dga_m1_and_dns_t1_route_zero_to_many_without_score_fusion():
+    dga_lane, t1_lane = LaneTarget("dga.m1"), LaneTarget("dns_tunnelling.t1")
+    default_plugins, default_governances = build_mvp_provider_registry(NOW)
+    plugin = DgaM1Plugin(model_path=str(ARTIFACT))
+    governance = LaneGovernance(
+        analytic_lane="dga.m1", scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="explicit non-default lexical evidence", scientific_blockers=(),
+        claim_ceiling=CLAIM_CEILING, governance_version="dga-m1-r1-0.1.0", effective_at=NOW,
+        allowed_result_types=(ResultType.REVIEW_FINDING, ResultType.ANALYTIC_UNAVAILABLE), ingest_permitted=True,
+    )
+    emitted = []
+    async def collect(result, lane): emitted.append((result, str(lane)))
+    supervisor = RuntimeSupervisor({dga_lane: plugin, t1_lane: default_plugins[t1_lane]},
+        {dga_lane: governance, t1_lane: default_governances[t1_lane]}, collect, shard_count=1)
+    supervisor.start_all()
+    try:
+        plan = await supervisor.ingest_observation(observation("example.com"))
+        assert set(plan.selected_targets) == {"dga.m1", "dns_tunnelling.t1"}
+        for lane in (dga_lane, t1_lane):
+            await supervisor.dispatchers[lane].queue.join()
+            await supervisor.shards[lane][0].queue.join()
+        assert {lane for _, lane in emitted} == {"dga.m1", "dns_tunnelling.t1"}
+        assert all("DNS_NAME_STRUCTURE" not in result.evidence.canonical_json or result.mechanism_id == "DNS-T1" for result, _ in emitted)
     finally:
         await supervisor.stop_all()
