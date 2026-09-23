@@ -96,6 +96,13 @@ The API is documented at `http://127.0.0.1:8000/docs` and provides:
 - `POST /replay` and `GET /replay/status`
 - `GET /runtime`
 
+The candidate SIH analyst projection is deliberately absent by default. For
+development or Human-Gate review only, set
+`EVIDENCEGATE_ENABLE_CANDIDATE_ALERTS=1` before startup. This adds `GET /alerts`
+and the separate dashboard analyst queue, while reporting the policy as
+`CANDIDATE_INACTIVE`. An alert means an analyst-attention record, not a confirmed
+attack; `/results` remains the immutable scientific authority.
+
 `POST /replay` accepts only scenario IDs returned by `GET /runtime`; it never
 accepts filesystem paths or network locations. Example:
 
@@ -134,12 +141,20 @@ python -m compileall -q evidencegate scripts
 
 # Characterize the final 16-target stack with real DGA inference and SQLite
 python scripts/benchmark_final_mvp.py
+
+# Run the sustained offered-rate characterization (several minutes)
+python scripts/benchmark_sustained_final_mvp.py --duration 30 --warmup 3
 ```
 
 This benchmark is explicitly **CONTROLLED MVP CHARACTERIZATION / NOT PRODUCTION
 SIZING**. The typed workload exercises DGA; the separate raw-PCAP workload does
 not because raw-PCAP DNS extraction remains deferred. The M13 pre-DGA benchmark
 and historical dummy-plugin saturation benchmark remain superseded history.
+The sustained benchmark records requested and actual offered/accepted/processed
+rates, routed updates, persisted results, all drop classes, queue/reorder
+backlog, post-offer drain, latency, memory, state, and SQLite size. Its candidate
+rate is controlled-demo evidence on the measured machine, never production
+capacity.
 
 ## Dependency and License Inventory
 The MVP runtime utilizes the following minimal open-source packages:
