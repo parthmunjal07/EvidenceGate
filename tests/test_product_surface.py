@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -94,34 +95,41 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         assert {"/health", "/results", "/results/{result_id}", "/alerts", "/events", "/replay", "/replay/status", "/runtime"} <= set(schema["paths"])
         dashboard = await client.get("/")
         assert dashboard.status_code == 200
-        for label in ("Overview", "Analyst Alerts", "Evidence Results", "Replay"):
-            assert label in dashboard.text
-        assert "page-system" in dashboard.text
-        assert "results are the scientific authority" in dashboard.text.lower()
-        assert "not confirmed malicious activity" in dashboard.text
-        browser_logic = (await client.get("/static/app.js")).text
-        assert "stream_gap" in browser_logic and "syncCursor" in browser_logic
-        assert "new EventSource" in browser_logic
+        assert '<div id="root"></div>' in dashboard.text
+        assert "/assets/" in dashboard.text
+        assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', dashboard.text)
+        assert len(assets) >= 2
+        built_assets = [await client.get(path) for path in assets]
+        assert all(asset.status_code == 200 and asset.content for asset in built_assets)
+        bundle = "\n".join(asset.text for asset in built_assets)
+        assert "Analyst Alerts" in bundle and "Evidence Results" in bundle
+        assert "Not calibrated attack probability" in bundle
+        assert "Numeric attack probability is not defined by this analytic." in bundle
+        assert "stream_gap" in bundle
+        assert (await client.get("/health")).status_code == 200
+        assert (await client.get("/runtime")).status_code == 200
+        assert (await client.get("/results")).status_code == 200
+        assert (await client.get("/alerts")).status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_operator_console_preserves_scientific_and_presentation_boundaries(tmp_path):
     async with client_for(tmp_path / "console.db") as (client, _service):
         page = (await client.get("/")).text
-        logic = (await client.get("/static/app.js")).text
-        styles = (await client.get("/static/styles.css")).text
-        assert 'id="page-alerts"' in page and 'id="page-results"' in page
-        assert 'id="page-system"' in page and 'id="page-replay"' in page
-        assert 'id="alert-inspector"' in page and 'id="result-inspector"' in page
-        assert "DGA-labelled lexical resemblance score" in logic
-        assert "not calibrated attack probability" in logic
-        assert "Numeric attack probability: not defined by this analytic." in logic
-        assert "claim_ceiling" in logic
-        assert "runtime.targets" in logic and "runtime.default_target_count" in logic
-        assert "EVIDENCEGATE_ENABLE_CANDIDATE_ALERTS" not in page + logic
-        assert "global risk" not in (page + logic).lower()
-        assert "prefers-reduced-motion: reduce" in styles
-        assert "@media (max-width: 760px)" in styles
+        assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', page)
+        bundle = "\n".join([(await client.get(path)).text for path in assets])
+        assert 'id="root"' in page
+        assert "DGA-labelled lexical resemblance score" in bundle
+        assert "Not calibrated attack probability" in bundle
+        assert "Numeric attack probability is not defined by this analytic." in bundle
+        assert "claim_ceiling" in bundle
+        assert "default_target_count" in bundle and "dga_model_readiness" in bundle
+        assert "EVIDENCEGATE_ENABLE_CANDIDATE_ALERTS" not in page + bundle
+        assert "global risk" not in (page + bundle).lower()
+        css = next(path for path in assets if path.endswith(".css"))
+        styles = (await client.get(css)).text
+        assert "prefers-reduced-motion:reduce" in styles
+        assert "width<=760px" in styles
 
 
 @pytest.mark.asyncio

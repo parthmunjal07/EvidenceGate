@@ -141,6 +141,9 @@ def create_app(
         lifespan=lifespan,
     )
     application.state.service = service
+    application.mount(
+        "/assets", StaticFiles(directory=STATIC_ROOT / "assets"), name="assets",
+    )
     application.mount("/static", StaticFiles(directory=STATIC_ROOT), name="static")
 
     @application.get("/", include_in_schema=False)

@@ -17,6 +17,9 @@ build/
 venv/
 env/
 ENV/
+node_modules/
+frontend/.frontend-clean-check/
+frontend/evidencegate/
 
 # Test & coverage
 .pytest_cache/

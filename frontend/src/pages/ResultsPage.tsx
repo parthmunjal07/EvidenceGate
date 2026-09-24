@@ -1,0 +1,124 @@
+import { useMemo, useState } from "react";
+import { EmptyState, PageHeading } from "../components/common/Primitives";
+import {
+  ResultInspector,
+  ResultTable,
+} from "../components/inspector/Inspectors";
+import { useEvidence } from "../state/EvidenceContext";
+import { filterResults } from "../utils/filters";
+import type { ResultDto } from "../api/types";
+
+export function ResultsPage({
+  initialResultId = null,
+}: {
+  initialResultId?: string | null;
+}) {
+  const { state, loadOlder } = useEvidence();
+  const [search, setSearch] = useState("");
+  const [family, setFamily] = useState("");
+  const [resultType, setResultType] = useState("");
+  const [selectedId, setSelectedId] = useState(initialResultId);
+  const all = state.orderedResults
+    .map((id) => state.results.get(id))
+    .filter((item): item is ResultDto => Boolean(item));
+  const items = useMemo(
+    () => filterResults(all, { search, family, resultType }),
+    [all, search, family, resultType],
+  );
+  const families = [...new Set(all.map((item) => item.family))].sort();
+  const selected = selectedId ? (state.results.get(selectedId) ?? null) : null;
+  return (
+    <section className="page active-page" aria-labelledby="results-title">
+      <PageHeading
+        eyebrow="SCIENTIFIC AUTHORITY / IMMUTABLE SQLITE RESULTS"
+        title="Evidence Results"
+        deck="Factual analytic results with source, quality, visibility, and claim limits."
+        meta={
+          <span className="status-chip neutral">AUTHORITATIVE RECORDS</span>
+        }
+      />
+      <div className="results-callout">
+        <strong>Scientific authority</strong>
+        <span>
+          /results contains immutable results. Analyst Alerts are a separate,
+          versioned presentation projection.
+        </span>
+      </div>
+      <div className="filter-bar">
+        <label className="search-control">
+          <span aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            placeholder="Search entity, lane, mechanism, result ID"
+            aria-label="Search evidence results"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <label>
+          Family
+          <select value={family} onChange={(e) => setFamily(e.target.value)}>
+            <option value="">All families</option>
+            {families.map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Result type
+          <select
+            value={resultType}
+            onChange={(e) => setResultType(e.target.value)}
+          >
+            <option value="">All factual statuses</option>
+            {[
+              "REVIEW_FINDING",
+              "QUALITY_DEGRADED",
+              "INSUFFICIENT_EVIDENCE",
+              "PREREQUISITE_MISSING",
+              "ANALYTIC_UNAVAILABLE",
+              "PLUGIN_STATUS",
+            ].map((value) => (
+              <option value={value} key={value}>
+                {value.replaceAll("_", " ").toLowerCase()}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="result-total" role="status" aria-live="polite">
+          {items.length} records
+        </span>
+      </div>
+      {state.streamState === "reconnecting" && (
+        <div className="stream-notice" role="status">
+          Live stream reconnecting; durable REST results remain available.
+        </div>
+      )}
+      <div className="investigation-layout results-layout">
+        <section className="panel table-panel">
+          {items.length ? (
+            <ResultTable
+              results={items}
+              selectedId={selected?.result_id ?? null}
+              onSelect={(result) => setSelectedId(result.result_id)}
+            />
+          ) : (
+            <EmptyState>No results match this view.</EmptyState>
+          )}
+          {state.nextCursor && (
+            <button
+              className="secondary-button load-more"
+              onClick={() => void loadOlder()}
+            >
+              Load older results
+            </button>
+          )}
+        </section>
+        <ResultInspector
+          result={selected}
+          onClose={() => setSelectedId(null)}
+        />
+      </div>
+    </section>
+  );
+}

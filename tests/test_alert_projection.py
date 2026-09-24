@@ -201,11 +201,8 @@ async def test_active_endpoint_is_default_and_refresh_is_deterministic(tmp_path)
         assert runtime["alert_policy_active"] is True
         assert runtime["alert_policy_version"] == POLICY_VERSION
         dashboard = await client.get("/")
-        browser_logic = await client.get("/static/app.js")
-        assert "Analyst Alerts" in dashboard.text
-        assert "System &amp; Evidence Status" in dashboard.text
-        assert "Evidence Results" in dashboard.text
-        assert 'request("/alerts?limit=500")' in browser_logic.text
+        assert '<div id="root"></div>' in dashboard.text
+        assert "/assets/" in dashboard.text
 
 
 def test_alert_endpoint_is_present_by_default_and_explicitly_disableable():

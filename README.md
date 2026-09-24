@@ -90,6 +90,23 @@ of `DGA_M1_R1_SERIALIZED_MODEL.joblib`. If the exact artifact cannot be verified
 the `dga.m1` lane stays registered and emits `ANALYTIC_UNAVAILABLE`; it never
 substitutes a model or reports zero detections.
 
+The React/TypeScript console source is in `frontend/src`. Its reproducible Vite
+build is committed under `evidencegate/api/static`, so a normal demo launch uses
+only the Python/FastAPI process above. Node/npm are needed only when changing the
+frontend. From a clean checkout, rebuild it with:
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+For frontend development, start FastAPI as above and run `npm run dev` in
+`frontend`; Vite proxies the existing API routes and SSE connection to port
+8000. See [`frontend/README.md`](frontend/README.md) and
+[`UI_REACT_MIGRATION_REPORT.md`](UI_REACT_MIGRATION_REPORT.md) for the source
+layout, architecture, test commands, and generated-asset policy.
+
 The API is documented at `http://127.0.0.1:8000/docs` and provides:
 
 - `GET /health`
