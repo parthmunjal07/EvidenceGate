@@ -1,5 +1,9 @@
 # Final Alert and Throughput Policy Gate
 
+> Historical M16 gate record. **PROMOTED** by `MVP-DEC-FINAL-ALERT-THROUGHPUT-V1`
+> (approved 2026-09-23). The active implementation is `SIH_ALERT_POLICY_V1`;
+> see `SIH_ALERT_POLICY_V1.md` and `FINAL_MVP_IMPLEMENTATION_CLOSURE.md`.
+
 ## Gate status
 
 M16 implementation and controlled measurement are complete. The sustained-rate evidence supports a **candidate controlled SIH demo offered-input rate of 50 observations/s** on the measured development machine. The alert projection is implemented as `SIH_ALERT_POLICY_V1_CANDIDATE`, but it is deliberately inactive by default pending the final Human Gate.

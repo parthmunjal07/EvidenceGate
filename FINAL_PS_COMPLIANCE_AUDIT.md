@@ -16,16 +16,16 @@ claim 100% problem-statement completion or production readiness.
 | No payload decryption | PASS | ENC-A uses visible handshake metadata only. |
 | Streaming incremental | PASS | Records/packets are canonicalized and routed incrementally. |
 | Bounded evidence latency | PASS FOR CONTROLLED MVP | Stateless lanes signal on one admitted observation; stateful windows and capacities are explicit. No production SLA. |
-| Throughput characterization | PASS WITH SUSTAINED CONTROLLED EVIDENCE | On the measured development machine, 50 offered typed observations/s is the candidate demo target after three 30-second zero-drop runs; 75 passed three runs and 100 showed growing backlog/latency. Not production sizing or an SLA. |
+| Throughput characterization | PASS WITH SUSTAINED CONTROLLED EVIDENCE | Approved 50 offered observations/s controlled demo point, with three M16 sustained repetitions and one M17 post-activation acceptance. No production capacity or SLA claim. |
 | Ingest | PASS FOR IMPLEMENTED SOURCES | Typed NDJSON and offline raw PCAP. |
 | Feature extraction | PASS | Factual canonical and mechanism-specific evidence construction. |
 | Active model inference | PASS | Verified DGA-A1/M1-R1 vectorizer/classifier inference. |
-| Alert/result output | IMPLEMENTED CANDIDATE / NOT YET ACTIVE | Immutable evidence results remain authoritative; the versioned candidate analyst projection is opt-in and read-only. |
-| Dashboard | PASS / CANDIDATE QUEUE INACTIVE | The scientific result view remains; the opt-in candidate adds a separate analyst queue and system/quality status view. |
+| Alert/result output | PASS FOR CONTROLLED MVP | `/results` remains immutable scientific evidence; active `/alerts` is a versioned SIH analyst presentation. |
+| Dashboard | PASS | Evidence Results, Analyst Alerts, and System & Evidence Status are active by default. |
 | Six official threat categories | PASS AS BOUNDED EVIDENCE | DDoS, C2, combined DGA/DNS category, encrypted, recon, and exfiltration have active mechanisms. |
-| Standardized alert schema | IMPLEMENTED CANDIDATE / NOT YET ACTIVE | `SIH_ALERT_POLICY_V1_CANDIDATE` is deterministic, provenance-preserving, and absent by default pending Human Gate. |
-| Confidence | DEFINED PER BASIS / HUMAN-GATE PENDING | DGA uses its lexical `MODEL_SCORE`; all non-DGA numeric scores are null with mandatory `STATISTICAL_SUPPORT` or `OBSERVED_EVIDENCE` basis. |
-| Severity | OPERATIONAL POLICY CANDIDATE / HUMAN-GATE PENDING | `REVIEW` means analyst priority only; system/quality `INFO`/`ATTENTION` stays separate. |
+| Standardized alert schema | PASS — SIH_ALERT_POLICY_V1 ACTIVE | Deterministic, provenance-preserving projections are available by default. |
+| Confidence | PASS WITH BASIS-AWARE SEMANTICS | DGA uses its lexical `MODEL_SCORE`; all non-DGA numeric scores are null with mandatory `STATISTICAL_SUPPORT` or `OBSERVED_EVIDENCE` basis. |
+| Severity | PASS AS OPERATIONAL ANALYST PRIORITY | `REVIEW` means analyst priority only; system/quality `INFO`/`ATTENTION` stays separate. |
 
 ## Family status
 
@@ -41,13 +41,22 @@ claim 100% problem-statement completion or production readiness.
 
 ## Remaining gaps
 
-- Standardized SIH alert projection is implemented but not active pending the final Human Gate.
-- The official/demo consumer must accept nullable numeric confidence for transparent mechanisms; no fake probability is supplied.
-- Operational priority semantics remain candidate policy, not scientific severity.
+- Non-DGA numeric attack probability is not defined; no fake probability is supplied.
+- `REVIEW` is operational analyst priority, not scientific severity or impact.
 - Raw-PCAP DNS extraction is deferred, so raw PCAP does not exercise DGA/DNS-T1.
 - Live interface capture is deferred.
 - NetFlow/IPFIX/sFlow adapters are deferred.
 - The sustained benchmark is a single-host controlled characterization, not production sizing or an SLA.
+
+On the measured development machine, the controlled MVP sustained a configured offered rate of 50 input observations/s for 30 seconds with zero input/runtime drops under the declared mixed workload.
+
+The M17 post-activation acceptance used the normal application SQLite writer,
+verified active `SIH_ALERT_POLICY_V1` and dashboard availability, and passed
+with 1,500/1,500 offered/processed observations, zero queue/state/reorder/
+persistence failures, stable backlog (peak 70, final zero), and a 0.201802 s
+drain. `/alerts` was read before and after the measured phase; its query-time
+projection was not continuously exercised during the rate interval. See
+`SUSTAINED_FINAL_MVP_BENCHMARK_REPORT.md` for full latency and RSS evidence.
 
 No DGA score is fed into DNS-T1, C2, or a global score. Activating the one ML
 lane does not upgrade any other mechanism’s conclusion and does not make the

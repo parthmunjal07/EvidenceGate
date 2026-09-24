@@ -92,16 +92,27 @@ The API is documented at `http://127.0.0.1:8000/docs` and provides:
 
 - `GET /health`
 - `GET /results` and `GET /results/{result_id}`
+- `GET /alerts` (analyst alerts and separate status projections)
 - `GET /events` (Server-Sent Events)
 - `POST /replay` and `GET /replay/status`
 - `GET /runtime`
 
-The candidate SIH analyst projection is deliberately absent by default. For
-development or Human-Gate review only, set
-`EVIDENCEGATE_ENABLE_CANDIDATE_ALERTS=1` before startup. This adds `GET /alerts`
-and the separate dashboard analyst queue, while reporting the policy as
-`CANDIDATE_INACTIVE`. An alert means an analyst-attention record, not a confirmed
-attack; `/results` remains the immutable scientific authority.
+`GET /alerts` is active by default under `SIH_ALERT_POLICY_V1`. It derives a
+bounded, deterministic analyst queue and a separate system/evidence status view
+from the newest 500 persisted Results. An alert means an analyst-attention
+record, not confirmed malicious activity. `/results` and
+`/results/{result_id}` remain the immutable scientific authority; `/alerts` is
+versioned SIH analyst presentation. Each projected record links to its source
+Result. The dashboard exposes Evidence Results, Analyst Alerts, and System &
+Evidence Status without a feature flag. For development only,
+`EVIDENCEGATE_DISABLE_ALERTS=1` disables the endpoint.
+
+On the measured development machine, the controlled MVP sustained a configured offered rate of 50 input observations/s for 30 seconds with zero input/runtime drops under the declared mixed workload.
+
+This is a controlled SIH demo operating claim, not production capacity or an
+SLA. Active ML is limited to DGA-A1/M1-R1. See
+[`SIH_ALERT_POLICY_V1.md`](SIH_ALERT_POLICY_V1.md) and
+[`FINAL_MVP_IMPLEMENTATION_CLOSURE.md`](FINAL_MVP_IMPLEMENTATION_CLOSURE.md).
 
 `POST /replay` accepts only scenario IDs returned by `GET /runtime`; it never
 accepts filesystem paths or network locations. Example:
@@ -144,6 +155,9 @@ python scripts/benchmark_final_mvp.py
 
 # Run the sustained offered-rate characterization (several minutes)
 python scripts/benchmark_sustained_final_mvp.py --duration 30 --warmup 3
+
+# Run exactly one post-activation 50 obs/s acceptance point
+python -m scripts.accept_final_mvp_rate
 ```
 
 This benchmark is explicitly **CONTROLLED MVP CHARACTERIZATION / NOT PRODUCTION
@@ -152,9 +166,9 @@ not because raw-PCAP DNS extraction remains deferred. The M13 pre-DGA benchmark
 and historical dummy-plugin saturation benchmark remain superseded history.
 The sustained benchmark records requested and actual offered/accepted/processed
 rates, routed updates, persisted results, all drop classes, queue/reorder
-backlog, post-offer drain, latency, memory, state, and SQLite size. Its candidate
-rate is controlled-demo evidence on the measured machine, never production
-capacity.
+backlog, post-offer drain, latency, memory, state, and SQLite size. M16's
+candidate rate became the approved 50 obs/s controlled demo point after the
+Human Gate and M17 post-activation acceptance. It is never production capacity.
 
 ## Dependency and License Inventory
 The MVP runtime utilizes the following minimal open-source packages:

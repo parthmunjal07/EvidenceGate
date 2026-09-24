@@ -1,6 +1,6 @@
-"""Pure, inactive SIH presentation projections over immutable results.
+"""Pure, active SIH presentation projections over immutable results.
 
-The candidate policy in this module is deliberately separate from result
+The policy in this module is deliberately separate from result
 finalization and persistence. It never changes, replaces, or writes a
 scientific :class:`~evidencegate.results.types.Result`.
 """
@@ -18,15 +18,14 @@ from evidencegate.domain.enums import ResultType
 from evidencegate.results.types import Result
 
 
-POLICY_VERSION = "SIH_ALERT_POLICY_V1_CANDIDATE"
-SCHEMA_VERSION = "1.0-candidate"
+POLICY_VERSION = "SIH_ALERT_POLICY_V1"
+SCHEMA_VERSION = "1.0"
 
 
 class ConfidenceBasis(str, Enum):
     """What a confidence field actually represents; never omit this basis."""
 
     MODEL_SCORE = "MODEL_SCORE"
-    RULE_MATCH = "RULE_MATCH"
     STATISTICAL_SUPPORT = "STATISTICAL_SUPPORT"
     OBSERVED_EVIDENCE = "OBSERVED_EVIDENCE"
 
@@ -51,7 +50,7 @@ class StatusPriority(str, Enum):
 
 
 class SihAlertProjection(BaseModel):
-    """Candidate analyst-attention record backed by one immutable result.
+    """Analyst-attention record backed by one immutable result.
 
     ``alert`` means analyst attention, not a confirmed malicious attack.
     Numeric confidence is nullable and is meaningful only with its mandatory
@@ -114,7 +113,7 @@ ProjectionRecord = SihAlertProjection | SihStatusProjection
 
 
 class ProjectionPolicyError(ValueError):
-    """An admitted source result violates the explicit candidate contract."""
+    """An admitted source result violates the explicit projection contract."""
 
 
 def _stable_id(kind: str, result_id: str) -> str:
@@ -205,12 +204,12 @@ _STATUS_POLICY: dict[ResultType, tuple[StatusKind, StatusPriority]] = {
 
 
 def project_result(result: Result) -> tuple[ProjectionRecord, ...]:
-    """Project one result into zero or one candidate presentation records.
+    """Project one result into zero or one V1 presentation records.
 
     Review findings become analyst evidence alerts. Operational and evidence
     lifecycle results remain visibly separate status items. Existing
     ``THREAT_ALERT`` and correlation results are not reinterpreted by this
-    candidate, which also prevents implicit cross-family fusion.
+    policy, which also prevents implicit cross-family fusion.
     """
     common = {
         "timestamp": result.created_time,

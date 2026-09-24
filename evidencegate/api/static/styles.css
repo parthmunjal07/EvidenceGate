@@ -23,7 +23,7 @@ h1 { margin: 0; font-size: clamp(35px, 5vw, 58px); line-height: .95; letter-spac
 .runtime-pill { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border: 1px solid var(--line); background: #0b1717cc; border-radius: 999px; font-size: 12px; letter-spacing: .08em; }
 #runtime-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
 main { width: min(1500px, calc(100% - 56px)); margin: 0 auto 80px; }
-.summary { display: grid; grid-template-columns: repeat(4, 1fr); margin: -22px 0 30px; border: 1px solid var(--line); background: #0b1717; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px #0006; }
+.summary { display: grid; grid-template-columns: repeat(6, 1fr); margin: -22px 0 30px; border: 1px solid var(--line); background: #0b1717; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px #0006; }
 .summary article { min-height: 105px; padding: 22px 25px; border-right: 1px solid var(--line); display: flex; flex-direction: column; justify-content: space-between; }
 .summary article:last-child { border: 0; }
 .summary span { color: var(--muted); font-size: 12px; }

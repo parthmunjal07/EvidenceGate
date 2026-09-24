@@ -73,7 +73,15 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         runtime = (await client.get("/runtime")).json()
         assert runtime["default_target_count"] == 16
         assert runtime["database_status"] == "connected"
-        assert len(runtime["active_lane_ids"]) == 16
+        assert runtime["active_lane_ids"] == [
+            "ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim",
+            "ddos.source_diversity", "ddos.icmp_demand", "ddos.fragment_demand",
+            "ddos.connection_churn", "c2.r1", "dga.m1",
+            "dns_tunnelling.t1", "encrypted_session.enc_a", "recon.h",
+            "recon.v", "recon.2d", "recon.tcp", "unusual_transfer.m1",
+        ]
+        assert runtime["alert_policy_active"] is True
+        assert runtime["alert_policy_version"] == "SIH_ALERT_POLICY_V1"
         dga = next(item for item in runtime["targets"] if item["lane_id"] == "dga.m1")
         assert dga == {
             "lane_id": "dga.m1", "mechanism_id": "DGA-A1-M1",
@@ -83,7 +91,7 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         assert dga_family["status"] == "ACTIVE LANE — MODEL UNAVAILABLE"
         assert runtime["dga_model_readiness"] == "ARTIFACT_MISSING"
         schema = (await client.get("/openapi.json")).json()
-        assert {"/health", "/results", "/results/{result_id}", "/events", "/replay", "/replay/status", "/runtime"} <= set(schema["paths"])
+        assert {"/health", "/results", "/results/{result_id}", "/alerts", "/events", "/replay", "/replay/status", "/runtime"} <= set(schema["paths"])
         dashboard = await client.get("/")
         assert dashboard.status_code == 200
         assert "Passive" in dashboard.text and "DGA — ACTIVE LEXICAL MODEL EVIDENCE" in dashboard.text
@@ -326,9 +334,9 @@ async def test_restart_preserves_durable_results(tmp_path):
         assert [item["result_id"] for item in restored] == [result.result_id]
 
 
-def test_projection_contract_is_not_wired_to_active_api():
+def test_active_projection_contract_is_wired_to_default_api():
     app = create_app(":memory:")
     schema = app.openapi()
     serialized = str(schema)
-    assert "SihAlertProjection" not in serialized
-    assert not any(route.path.endswith("alerts") for route in app.routes)
+    assert "SihAlertProjection" in serialized
+    assert any(route.path == "/alerts" for route in app.routes)

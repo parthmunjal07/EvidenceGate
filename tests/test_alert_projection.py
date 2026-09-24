@@ -1,4 +1,4 @@
-"""Candidate SIH projection policy and gated product-surface tests."""
+"""Active SIH projection policy and product-surface tests."""
 from __future__ import annotations
 
 import dataclasses
@@ -78,7 +78,7 @@ def test_non_dga_review_projection_has_basis_without_fake_number(
     lane, mechanism, threat_class, basis,
 ):
     source = result_for(lane, mechanism)
-    before = source.evidence.canonical_json
+    before = dataclasses.asdict(source)
     (projected,) = project_result(source)
     assert isinstance(projected, SihAlertProjection)
     assert projected.threat_class == threat_class
@@ -90,7 +90,10 @@ def test_non_dga_review_projection_has_basis_without_fake_number(
     assert projected.provenance_refs == source.provenance_refs
     assert projected.quality_refs == source.quality_refs
     assert projected.parser_refs == source.parser_refs
-    assert source.evidence.canonical_json == before
+    assert dataclasses.asdict(source) == before
+    assert projected == project_result(source)[0]
+    other = result_for(lane, mechanism, suffix="other")
+    assert projected.alert_id != project_result(other)[0].alert_id
 
 
 def test_dga_model_score_is_labelled_and_not_an_attack_probability():
@@ -112,16 +115,16 @@ def test_dga_model_score_is_labelled_and_not_an_attack_probability():
 
 
 @pytest.mark.parametrize(
-    ("result_class", "result_type", "kind"),
+    ("result_class", "result_type", "kind", "priority"),
     (
-        (QualityDegraded, ResultType.QUALITY_DEGRADED, StatusKind.QUALITY_NOTIFICATION),
-        (PrerequisiteMissing, ResultType.PREREQUISITE_MISSING, StatusKind.CAPABILITY_NOTIFICATION),
-        (InsufficientEvidence, ResultType.INSUFFICIENT_EVIDENCE, StatusKind.EVIDENCE_STATUS),
-        (AnalyticUnavailable, ResultType.ANALYTIC_UNAVAILABLE, StatusKind.SYSTEM_CAPABILITY_STATUS),
-        (PluginStatus, ResultType.PLUGIN_STATUS, StatusKind.PLUGIN_STATUS),
+        (QualityDegraded, ResultType.QUALITY_DEGRADED, StatusKind.QUALITY_NOTIFICATION, "ATTENTION"),
+        (PrerequisiteMissing, ResultType.PREREQUISITE_MISSING, StatusKind.CAPABILITY_NOTIFICATION, "ATTENTION"),
+        (InsufficientEvidence, ResultType.INSUFFICIENT_EVIDENCE, StatusKind.EVIDENCE_STATUS, "INFO"),
+        (AnalyticUnavailable, ResultType.ANALYTIC_UNAVAILABLE, StatusKind.SYSTEM_CAPABILITY_STATUS, "ATTENTION"),
+        (PluginStatus, ResultType.PLUGIN_STATUS, StatusKind.PLUGIN_STATUS, "INFO"),
     ),
 )
-def test_non_review_results_are_separate_status_items(result_class, result_type, kind):
+def test_non_review_results_are_separate_status_items(result_class, result_type, kind, priority):
     source = result_for(
         "dns_tunnelling.t1", "DNS-T1", result_class=result_class,
         result_type=result_type,
@@ -129,6 +132,9 @@ def test_non_review_results_are_separate_status_items(result_class, result_type,
     (projected,) = project_result(source)
     assert isinstance(projected, SihStatusProjection)
     assert projected.status_kind is kind
+    assert projected.priority.value == priority
+    assert projected.status_id == project_result(source)[0].status_id
+    assert projected.claim_ceiling == source.claim_ceiling
     serialized = projected.model_dump()
     assert "threat_class" not in serialized
     assert "confidence_score" not in serialized
@@ -148,11 +154,17 @@ def test_one_observation_can_produce_multiple_unfused_projections():
     }
     assert len({item.alert_id for item in projected if isinstance(item, SihAlertProjection)}) == 2
     assert all(len(item.source_result_ids) == 1 for item in projected)
+    assert {item.confidence_basis for item in projected} == {
+        ConfidenceBasis.MODEL_SCORE, ConfidenceBasis.OBSERVED_EVIDENCE,
+    }
+    assert {item.claim_ceiling for item in projected} == {
+        dns.claim_ceiling, dga.claim_ceiling,
+    }
 
 
 @asynccontextmanager
-async def candidate_client(database):
-    app = create_app(database, candidate_alerts_enabled=True)
+async def active_client(database):
+    app = create_app(database)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test",
@@ -161,8 +173,8 @@ async def candidate_client(database):
 
 
 @pytest.mark.asyncio
-async def test_candidate_endpoint_is_explicit_inactive_and_resync_is_deterministic(tmp_path):
-    async with candidate_client(tmp_path / "alerts.db") as (client, service):
+async def test_active_endpoint_is_default_and_refresh_is_deterministic(tmp_path):
+    async with active_client(tmp_path / "alerts.db") as (client, service):
         dga = result_for(
             "dga.m1", "DGA-A1-M1",
             evidence={"dga_labelled_lexical_resemblance_score": 0.9},
@@ -177,7 +189,8 @@ async def test_candidate_endpoint_is_explicit_inactive_and_resync_is_determinist
         first = (await client.get("/alerts")).json()
         second = (await client.get("/alerts")).json()
         assert first == second
-        assert first["policy_status"] == "CANDIDATE_INACTIVE"
+        assert first["policy_status"] == "ACTIVE"
+        assert first["policy_version"] == "SIH_ALERT_POLICY_V1"
         assert first["meaning_of_alert"] == "ANALYST_ATTENTION_RECORD"
         assert len(first["alerts"]) == len(first["status_items"]) == 1
         assert first["alerts"][0]["source_result_ids"] == [dga.result_id]
@@ -185,13 +198,18 @@ async def test_candidate_endpoint_is_explicit_inactive_and_resync_is_determinist
         assert result_body["result_id"] == dga.result_id
         runtime = (await client.get("/runtime")).json()
         assert runtime["alert_projection_available"] is True
-        assert runtime["alert_policy_active"] is False
+        assert runtime["alert_policy_active"] is True
+        assert runtime["alert_policy_version"] == POLICY_VERSION
         dashboard = await client.get("/")
         browser_logic = await client.get("/static/app.js")
-        assert "SIH Alerts / Analyst Queue" in dashboard.text
+        assert "Analyst Alerts" in dashboard.text
+        assert "System &amp; Evidence Status" in dashboard.text
+        assert "Evidence Results" in dashboard.text
         assert 'request("/alerts?limit=500")' in browser_logic.text
 
 
-def test_candidate_endpoint_is_absent_by_default():
+def test_alert_endpoint_is_present_by_default_and_explicitly_disableable():
     app = create_app(":memory:")
-    assert "/alerts" not in app.openapi()["paths"]
+    assert "/alerts" in app.openapi()["paths"]
+    disabled = create_app(":memory:", alerts_enabled=False)
+    assert "/alerts" not in disabled.openapi()["paths"]

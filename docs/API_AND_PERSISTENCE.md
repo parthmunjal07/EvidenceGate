@@ -42,6 +42,13 @@ paths, URLs, and extra request fields are rejected. One replay may run at a time
 reports the exact 16-lane registration, DGA shell state, family readiness,
 database state, subscriber count, replay state, and available scenario metadata.
 
-The current API returns immutable evidence result semantics. It does not project
-them into standardized SIH alerts. `SihAlertProjection` and `ConfidenceBasis`
-exist as inactive design contracts only and are not included in an active route.
+`GET /alerts` is active by default under `SIH_ALERT_POLICY_V1`. It projects up
+to the newest 500 immutable Results at query time into separate analyst alerts
+and system/evidence status records. It has no independent alert table. An alert
+is an analyst-attention record, not a confirmed attack. Each record carries its
+source Result ID for lookup through `GET /results/{result_id}`. `/results`
+remains the scientific authority; `/alerts` is versioned SIH analyst
+presentation. The dashboard exposes both views and keeps status outside the
+analyst alert count. Numeric confidence is nullable: only DGA carries its
+actual lexical model score; other mechanisms carry a mandatory factual basis.
+`EVIDENCEGATE_DISABLE_ALERTS=1` is an optional development opt-out.

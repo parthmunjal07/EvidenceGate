@@ -197,7 +197,7 @@ async def run_rate_point(
     registration: MvpRuntimeRegistration,
     templates: tuple[NetworkObservation, ...],
     *, rate: int, duration_seconds: float, replicate: int,
-    root: Path = ROOT, keep_database: bool = False,
+    root: Path = ROOT, keep_database: bool = False, probe_alerts: bool = False,
 ) -> dict[str, Any]:
     """Offer observations at a clocked rate, then drain and measure exact work."""
     run_id = f"r{rate}-rep{replicate}"
@@ -206,8 +206,41 @@ async def run_rate_point(
     fd, database_name = tempfile.mkstemp(prefix=f"sustained-{run_id}-", suffix=".db", dir=results_dir)
     os.close(fd)
     database = Path(database_name)
-    writer = SqliteWriter(database, root / "evidencegate" / "persistence" / "schema.sql")
-    writer.connect()
+    api_context = None
+    api_client = None
+    api_probe_results: list[dict[str, Any]] = []
+    if probe_alerts:
+        import httpx
+        from evidencegate.api.app import create_app
+
+        application = create_app(database)
+        application.state.service.registration = registration
+        api_context = application.router.lifespan_context(application)
+        await api_context.__aenter__()
+        # Measure the live application's SQLite writer with the warmed registry.
+        writer = application.state.service.writer
+        api_client = httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=application), base_url="http://acceptance",
+        )
+        runtime_response = await api_client.get("/runtime")
+        runtime_response.raise_for_status()
+        runtime_status = runtime_response.json()
+        if not runtime_status["alert_policy_active"] or runtime_status["alert_policy_version"] != "SIH_ALERT_POLICY_V1":
+            raise RuntimeError("active SIH alert policy unavailable during acceptance")
+        dashboard_response = await api_client.get("/")
+        dashboard_response.raise_for_status()
+        if "Analyst Alerts" not in dashboard_response.text:
+            raise RuntimeError("analyst dashboard unavailable during acceptance")
+        before_alerts = await api_client.get("/alerts?limit=500")
+        before_alerts.raise_for_status()
+        api_probe_results.append({
+            "phase": "before_measured_load", "http_status": before_alerts.status_code,
+            "policy_version": runtime_status["alert_policy_version"],
+            "dashboard_http_status": dashboard_response.status_code,
+        })
+    else:
+        writer = SqliteWriter(database, root / "evidencegate" / "persistence" / "schema.sql")
+        writer.connect()
     process = psutil.Process()
     rss_start = process.memory_info().rss
     rss_peak = rss_start
@@ -358,7 +391,26 @@ async def run_rate_point(
         state_entries = sum(len(store) for store in supervisor.state_stores.values())
         state_entry_peak = max(state_entry_peak, state_entries)
         reorder_peak = max((item.peak_pending_reorder_total for item in supervisor.dispatchers.values()), default=0)
-        writer.close()
+        if api_client is not None:
+            try:
+                response = await api_client.get("/alerts?limit=500")
+                response.raise_for_status()
+                body = response.json()
+                api_probe_results.append({
+                    "phase": "after_measured_load_and_drain",
+                    "http_status": response.status_code,
+                    "policy_version": body["policy_version"],
+                    "alert_count": len(body["alerts"]),
+                    "status_count": len(body["status_items"]),
+                })
+            except Exception as exc:
+                api_probe_results.append({"error": f"{type(exc).__name__}: {exc}"})
+        if api_client is not None:
+            await api_client.aclose()
+        if api_context is not None:
+            await api_context.__aexit__(None, None, None)
+        else:
+            writer.close()
 
     sqlite_size = database.stat().st_size
     if not keep_database:
@@ -391,6 +443,12 @@ async def run_rate_point(
         zero_drop and backlog["stable"] and final_queue["total"] == 0
         and drain_seconds <= max(5.0, duration_seconds * 0.25)
         and completed == accepted and latency_trend["stable"]
+        and (not probe_alerts or (
+            len(api_probe_results) == 2 and all(
+                item.get("policy_version") == "SIH_ALERT_POLICY_V1"
+                for item in api_probe_results
+            )
+        ))
     )
     return {
         "rate_requested_obs_s": rate,
@@ -441,6 +499,13 @@ async def run_rate_point(
         "control_error_count": len(error_controls),
         "zero_drop": zero_drop,
         "sustainable": sustainable,
+        "api_probe": {
+            "enabled": probe_alerts,
+            "query_path": "/alerts?limit=500" if probe_alerts else None,
+            "during_measured_load": False,
+            "application_started_during_load": probe_alerts,
+            "samples": api_probe_results,
+        },
     }
 
 

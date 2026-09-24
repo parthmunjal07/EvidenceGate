@@ -1,5 +1,51 @@
 # Sustained Final MVP Benchmark Report
 
+## M17 post-activation acceptance (2026-09-25)
+
+The approved 50 offered observations/s controlled demo point **passed** with
+`SIH_ALERT_POLICY_V1` active. The normal FastAPI application, its SQLite writer,
+dashboard, and `/alerts` route were available throughout the measured run.
+The warmed 16-target registration and the same declared nine-observation
+mixed workload were used. A separate 3-second warm-up was excluded. The
+projection runs at query time, outside the ingestion hot path. `/alerts`
+was queried before measured load and after full drain; it was **not** queried
+continuously during the 30-second measured phase because repeated 500-result
+reads distorted preliminary measurements.
+
+| Measure | Post-activation result |
+|---|---:|
+| Configured offered rate / duration | 50 observations/s / 30 s |
+| Actual offered rate | 50.009 observations/s |
+| Offered / accepted / processed | 1,500 / 1,500 / 1,500 |
+| Persisted immutable Results | 2,837 |
+| Input drops / runtime work drops | 0 / 0 |
+| Queue overflow / state-capacity / reorder-capacity events | 0 / 0 / 0 |
+| Persistence failures | 0 |
+| Peak / final backlog | 70 / 0 |
+| Backlog slope | -0.029 items/s |
+| Post-offer drain | 0.201802 s |
+| Processing p50 / p95 / p99 | 186.3378 / 883.2264 / 1,017.04 ms |
+| End-to-end evidence p50 / p95 / p99 | 312.552 / 983.132 / 1,165.4749 ms |
+| Early / late processing p95 | 896.2601 / 883.6355 ms |
+| Peak RSS | 244,203,520 bytes |
+| `/alerts` pre / post HTTP status | 200 / 200 |
+| Post-run bounded projection | 411 analyst alerts / 89 separate status items |
+
+The final measurement is stored in
+`benchmark_results/final_mvp_acceptance.json`. Preliminary setup runs at
+50 observations/s failed the sustained criterion: periodic 500-result reads
+created growing backlog in two runs, and a run using a separate measurement
+writer from the application writer also grew backlog. The acceptance harness
+was corrected to use the normal application's writer and to keep the optional
+large API reads outside the measured interval. The final run above is the
+post-correction acceptance evidence; the earlier failures are not presented
+as passes.
+
+On the measured development machine, the controlled MVP sustained a configured offered rate of 50 input observations/s for 30 seconds with zero input/runtime drops under the declared mixed workload.
+
+This is a controlled SIH demo operating claim, not production capacity or an
+SLA. The historical M16 sweep and its candidate wording remain below.
+
 > **DEVELOPMENT MACHINE / CONTROLLED MVP / NOT PRODUCTION CAPACITY**
 
 Classification: **CONTROLLED SIH DEMO SUSTAINED OPERATING-RATE CHARACTERIZATION**. This measures offered typed input observations on one development machine. It is not production capacity, an SLA, network line rate, or attacks per second.

@@ -1,0 +1,283 @@
+{
+  "classification": "POST-ACTIVATION CONTROLLED MVP ACCEPTANCE",
+  "default_targets": [
+    "ddos.syn_state",
+    "ddos.udp_demand",
+    "ddos.reflection_victim",
+    "ddos.source_diversity",
+    "ddos.icmp_demand",
+    "ddos.fragment_demand",
+    "ddos.connection_churn",
+    "c2.r1",
+    "dga.m1",
+    "dns_tunnelling.t1",
+    "encrypted_session.enc_a",
+    "recon.h",
+    "recon.v",
+    "recon.2d",
+    "recon.tcp",
+    "unusual_transfer.m1"
+  ],
+  "environment": {
+    "captured_at": "2026-09-24T19:06:33.147436+00:00",
+    "cpu_logical": 18,
+    "cpu_model": "Intel64 Family 6 Model 170 Stepping 4, GenuineIntel",
+    "cpu_physical": 14,
+    "dependencies": {
+      "dpkt": "1.9.8",
+      "evidencegate": "0.1.0",
+      "fastapi": "0.141.1",
+      "joblib": "1.6.0",
+      "scikit-learn": "1.6.1",
+      "tldextract": "5.1.3"
+    },
+    "os": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.7",
+    "ram_total_bytes": 16568107008,
+    "sqlite": {
+      "foreign_keys": "ON",
+      "journal_mode": "WAL",
+      "synchronous": "NORMAL"
+    }
+  },
+  "measured": {
+    "accepted_observations": 1500,
+    "api_probe": {
+      "application_started_during_load": true,
+      "during_measured_load": false,
+      "enabled": true,
+      "query_path": "/alerts?limit=500",
+      "samples": [
+        {
+          "dashboard_http_status": 200,
+          "http_status": 200,
+          "phase": "before_measured_load",
+          "policy_version": "SIH_ALERT_POLICY_V1"
+        },
+        {
+          "alert_count": 411,
+          "http_status": 200,
+          "phase": "after_measured_load_and_drain",
+          "policy_version": "SIH_ALERT_POLICY_V1",
+          "status_count": 89
+        }
+      ]
+    },
+    "backlog": {
+      "final": 0,
+      "first_quarter_mean": 32.495,
+      "last_quarter_mean": 31.979,
+      "peak": 70,
+      "stable": true,
+      "trend_slope_items_per_second": -0.029
+    },
+    "control_error_count": 0,
+    "drain_seconds": 0.201802,
+    "drops": {
+      "dropped_input": 0,
+      "dropped_runtime_work": 0,
+      "persistence_failures": 0,
+      "queue_overflow": 0,
+      "reorder_capacity_events": 0,
+      "sse_notification_loss": null,
+      "state_capacity_events": 0
+    },
+    "duration_requested_seconds": 30.0,
+    "latency": {
+      "end_to_end_evidence": {
+        "p50_ms": 312.552,
+        "p95_ms": 983.132,
+        "p99_ms": 1165.4749
+      },
+      "persistence": {
+        "p50_ms": 1.1354,
+        "p95_ms": 4.3944,
+        "p99_ms": 58.6272
+      },
+      "processing": {
+        "p50_ms": 186.3378,
+        "p95_ms": 883.2264,
+        "p99_ms": 1017.04
+      },
+      "processing_stability": {
+        "early_p95_ms": 896.2601,
+        "late_p95_ms": 883.6355,
+        "stable": true
+      }
+    },
+    "mechanism_results": {
+      "C2-M1": 501,
+      "CAT6-EX-M1": 667,
+      "DDOS-A-B0": 334,
+      "DDOS-B-B0": 167,
+      "DDOS-CV-B0": 167,
+      "DDOS-D-B0": 334,
+      "DDOS-E3-B0": 167,
+      "DGA-A1-M1": 167,
+      "DNS-T1": 167,
+      "ENC-A": 166
+    },
+    "mechanism_updates": {
+      "c2.r1": 501,
+      "ddos.connection_churn": 167,
+      "ddos.reflection_victim": 167,
+      "ddos.source_diversity": 334,
+      "ddos.syn_state": 167,
+      "ddos.udp_demand": 167,
+      "dga.m1": 167,
+      "dns_tunnelling.t1": 167,
+      "encrypted_session.enc_a": 166,
+      "unusual_transfer.m1": 667
+    },
+    "memory": {
+      "reorder_peak": 18,
+      "rss_final_bytes": 244203520,
+      "rss_growth_bytes": 5500928,
+      "rss_peak_bytes": 244203520,
+      "rss_start_bytes": 238702592,
+      "sqlite_final_size_bytes": 16904192,
+      "state_entries_end": 9,
+      "state_entry_peak": 51
+    },
+    "offered_observations": 1500,
+    "persisted_results": 2837,
+    "processed_mechanism_updates": 2670,
+    "processed_observations": 1500,
+    "rate_requested_obs_s": 50,
+    "rates": {
+      "accepted_obs_s": 50.009,
+      "offered_obs_s": 50.009,
+      "persisted_results_s": 93.952,
+      "processed_obs_s": 49.675,
+      "routed_updates_s": 89.016
+    },
+    "replicate": 1,
+    "routed_mechanism_updates": 2670,
+    "sustainable": true,
+    "zero_drop": true
+  },
+  "model_sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df",
+  "policy_version": "SIH_ALERT_POLICY_V1",
+  "warmup": {
+    "accepted_observations": 75,
+    "api_probe": {
+      "application_started_during_load": false,
+      "during_measured_load": false,
+      "enabled": false,
+      "query_path": null,
+      "samples": []
+    },
+    "backlog": {
+      "final": 0,
+      "first_quarter_mean": 10.8,
+      "last_quarter_mean": 10.0,
+      "peak": 28,
+      "stable": true,
+      "trend_slope_items_per_second": -0.565
+    },
+    "control_error_count": 0,
+    "drain_seconds": 0.254133,
+    "drops": {
+      "dropped_input": 0,
+      "dropped_runtime_work": 0,
+      "persistence_failures": 0,
+      "queue_overflow": 0,
+      "reorder_capacity_events": 0,
+      "sse_notification_loss": null,
+      "state_capacity_events": 0
+    },
+    "duration_requested_seconds": 3.0,
+    "latency": {
+      "end_to_end_evidence": {
+        "p50_ms": 261.662,
+        "p95_ms": 1056.916,
+        "p99_ms": 1235.9976
+      },
+      "persistence": {
+        "p50_ms": 1.176,
+        "p95_ms": 8.4651,
+        "p99_ms": 61.6061
+      },
+      "processing": {
+        "p50_ms": 198.0308,
+        "p95_ms": 897.8453,
+        "p99_ms": 1020.6401
+      },
+      "processing_stability": {
+        "early_p95_ms": 1020.6401,
+        "late_p95_ms": 696.2279,
+        "stable": true
+      }
+    },
+    "mechanism_results": {
+      "C2-M1": 25,
+      "CAT6-EX-M1": 33,
+      "DDOS-A-B0": 18,
+      "DDOS-B-B0": 9,
+      "DDOS-CV-B0": 9,
+      "DDOS-D-B0": 18,
+      "DDOS-E3-B0": 9,
+      "DGA-A1-M1": 8,
+      "DNS-T1": 8,
+      "ENC-A": 8
+    },
+    "mechanism_updates": {
+      "c2.r1": 25,
+      "ddos.connection_churn": 9,
+      "ddos.reflection_victim": 9,
+      "ddos.source_diversity": 18,
+      "ddos.syn_state": 9,
+      "ddos.udp_demand": 9,
+      "dga.m1": 8,
+      "dns_tunnelling.t1": 8,
+      "encrypted_session.enc_a": 8,
+      "unusual_transfer.m1": 33
+    },
+    "memory": {
+      "reorder_peak": 9,
+      "rss_final_bytes": 223096832,
+      "rss_growth_bytes": 2990080,
+      "rss_peak_bytes": 223096832,
+      "rss_start_bytes": 220106752,
+      "sqlite_final_size_bytes": 1081344,
+      "state_entries_end": 9,
+      "state_entry_peak": 24
+    },
+    "offered_observations": 75,
+    "persisted_results": 145,
+    "processed_mechanism_updates": 136,
+    "processed_observations": 75,
+    "rate_requested_obs_s": 25,
+    "rates": {
+      "accepted_obs_s": 25.1,
+      "offered_obs_s": 25.1,
+      "persisted_results_s": 44.723,
+      "processed_obs_s": 23.132,
+      "routed_updates_s": 45.514
+    },
+    "replicate": 0,
+    "routed_mechanism_updates": 136,
+    "sustainable": true,
+    "zero_drop": true
+  },
+  "workload": {
+    "eligible_families": [
+      "DDoS",
+      "C2",
+      "DGA M1-R1",
+      "DNS-T1",
+      "ENC-A",
+      "Recon",
+      "Exfil-M1"
+    ],
+    "fixture": "tests/fixtures/replay/final_mvp_mixed",
+    "typed_mix_counts": {
+      "DNS": 1,
+      "FLOW": 4,
+      "PACKET": 3,
+      "TLS": 1
+    },
+    "warmup_excluded": true,
+    "warmup_seconds": 3.0
+  }
+}

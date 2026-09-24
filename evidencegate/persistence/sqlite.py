@@ -252,7 +252,11 @@ class SqliteWriter:
         )
         async with self._lock:
             conn = self._require_connection()
-            return tuple(self._read_result(conn, row) for row in conn.execute(sql, params).fetchall())
+            # A bounded page can require hundreds of child-row reconstructions.
+            # Keep its connection lock, but leave the event loop free for ingest.
+            return await asyncio.to_thread(
+                lambda: tuple(self._read_result(conn, row) for row in conn.execute(sql, params).fetchall())
+            )
 
     @staticmethod
     def cursor_for(result: Result) -> str:

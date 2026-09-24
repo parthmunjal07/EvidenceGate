@@ -102,23 +102,30 @@
     if (!state.alerts.length) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = "No review findings project into the candidate analyst queue.";
+      empty.textContent = "No review findings in the current analyst queue.";
       host.append(empty);
     }
     for (const alert of state.alerts) {
       const card = el("alert-template").content.firstElementChild.cloneNode(true);
       card.querySelector("time").textContent = new Date(alert.timestamp).toLocaleTimeString();
       card.querySelector(".alert-class").textContent = alert.threat_class;
-      card.querySelector(".alert-severity").textContent = alert.severity;
+      card.querySelector(".alert-severity").textContent = `${alert.severity} · analyst priority`;
       card.querySelector(".alert-evidence").textContent = shortEvidence(alert.supporting_evidence.structured);
       card.querySelector('[data-field="mechanism"]').textContent = alert.mechanism_id;
       card.querySelector('[data-field="confidence"]').textContent = alert.confidence_score === null
-        ? `${alert.confidence_basis} · no numeric score`
-        : `${alert.confidence_score} · ${alert.confidence_basis} · ${alert.confidence_statement}`;
+        ? `${alert.confidence_basis}: ${alert.confidence_statement}. Numeric attack probability: not defined by this analytic.`
+        : `DGA-labelled lexical resemblance score: ${alert.confidence_score}. Basis: ${alert.confidence_basis}. ${alert.confidence_statement}.`;
+      card.querySelector('[data-field="evidence"]').textContent = pretty(alert.supporting_evidence);
       card.querySelector('[data-field="quality"]').textContent = pretty(alert.quality);
       card.querySelector('[data-field="visibility"]').textContent = pretty(alert.visibility);
       card.querySelector('[data-field="claim"]').textContent = alert.claim_ceiling;
-      card.querySelector('[data-field="source"]').textContent = alert.source_result_ids.join(", ");
+      const source = card.querySelector('[data-field="source"]');
+      for (const id of alert.source_result_ids) {
+        const link = document.createElement("a");
+        link.href = `/results/${encodeURIComponent(id)}`;
+        link.textContent = id;
+        source.append(link);
+      }
       host.append(card);
     }
     const statuses = el("status-timeline");
@@ -126,7 +133,26 @@
     for (const item of state.statusItems) {
       const card = document.createElement("article");
       card.className = "status-card";
-      card.textContent = `${item.priority} · ${item.status_kind} · ${item.mechanism_id} · source result ${item.source_result_ids.join(", ")}`;
+      const title = document.createElement("strong");
+      title.textContent = `${item.priority} · ${item.status_kind} · ${item.mechanism_id}`;
+      const details = document.createElement("pre");
+      details.textContent = pretty({
+        result_type: item.result_type,
+        supporting_evidence: item.supporting_evidence,
+        missing_prerequisites: item.missing_prerequisites,
+        visibility: item.visibility,
+        quality: item.quality,
+        claim_ceiling: item.claim_ceiling,
+        governing_ids: item.governing_ids,
+        provenance_refs: item.provenance_refs,
+      });
+      card.append(title, details);
+      for (const id of item.source_result_ids) {
+        const link = document.createElement("a");
+        link.href = `/results/${encodeURIComponent(id)}`;
+        link.textContent = `Source result ${id}`;
+        card.append(link);
+      }
       statuses.append(card);
     }
     if (!state.statusItems.length) {
@@ -142,6 +168,8 @@
     const response = await request("/alerts?limit=500");
     state.alerts = response.alerts;
     state.statusItems = response.status_items;
+    el("alert-count").textContent = String(state.alerts.length);
+    el("status-count").textContent = String(state.statusItems.length);
     renderAlerts();
   }
 
@@ -307,10 +335,12 @@
       renderFamilies(runtime);
       renderReplayControls(runtime);
       await initialLoad();
+      el("alerts-view").disabled = !runtime.alert_projection_available;
       if (runtime.alert_projection_available) {
-        el("alerts-view").disabled = false;
-        el("alert-policy-label").textContent = `${runtime.alert_policy_version} · INACTIVE`;
+        el("alert-policy-label").textContent = `${runtime.alert_policy_version} · ACTIVE`;
         await loadAlerts();
+      } else {
+        el("alert-policy-label").textContent = "Alert projection disabled for development";
       }
       await monitorReplay();
       openEvents();

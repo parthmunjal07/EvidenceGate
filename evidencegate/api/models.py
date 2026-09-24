@@ -137,13 +137,13 @@ class RuntimeStatusResponse(StrictModel):
     ]
     dga_model_failure_reason: str | None = None
     alert_projection_available: bool = False
-    alert_policy_active: Literal[False] = False
+    alert_policy_active: bool = True
     alert_policy_version: str | None = None
 
 
 class AlertsResponse(StrictModel):
     policy_version: str
-    policy_status: Literal["CANDIDATE_INACTIVE"] = "CANDIDATE_INACTIVE"
+    policy_status: Literal["ACTIVE"] = "ACTIVE"
     meaning_of_alert: Literal["ANALYST_ATTENTION_RECORD"] = "ANALYST_ATTENTION_RECORD"
     alerts: list[SihAlertProjection]
     status_items: list[SihStatusProjection]
