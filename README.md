@@ -79,9 +79,11 @@ stored in `evidencegate.db` by default.
 python -m uvicorn evidencegate.api.app:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000/`. Choose an allowlisted replay in the left panel,
-watch persisted results arrive, and open a result to inspect its evidence,
-visibility, quality, claim limit, and provenance. The application creates and
+Open `http://127.0.0.1:8000/` to use the EvidenceGate Operations Console. Its
+sections are Overview, Analyst Alerts, Evidence Results, System & Evidence
+Status, and Replay. Choose an allowlisted scenario on Replay, follow persisted
+results in the Overview flow, and select a result to inspect its evidence,
+visibility, quality, claim ceiling, and provenance. The application creates and
 migrates the database automatically. Set `EVIDENCEGATE_DB` before startup to use
 a different SQLite file. Set `EVIDENCEGATE_DGA_MODEL` to the explicit local path
 of `DGA_M1_R1_SERIALIZED_MODEL.joblib`. If the exact artifact cannot be verified,
@@ -103,8 +105,9 @@ from the newest 500 persisted Results. An alert means an analyst-attention
 record, not confirmed malicious activity. `/results` and
 `/results/{result_id}` remain the immutable scientific authority; `/alerts` is
 versioned SIH analyst presentation. Each projected record links to its source
-Result. The dashboard exposes Evidence Results, Analyst Alerts, and System &
-Evidence Status without a feature flag. For development only,
+Result. The console keeps Evidence Results as scientific authority, Analyst
+Alerts as the versioned attention queue, and System & Evidence Status as a
+separate operational view. For development only,
 `EVIDENCEGATE_DISABLE_ALERTS=1` disables the endpoint.
 
 On the measured development machine, the controlled MVP sustained a configured offered rate of 50 input observations/s for 30 seconds with zero input/runtime drops under the declared mixed workload.

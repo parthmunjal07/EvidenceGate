@@ -94,10 +94,34 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         assert {"/health", "/results", "/results/{result_id}", "/alerts", "/events", "/replay", "/replay/status", "/runtime"} <= set(schema["paths"])
         dashboard = await client.get("/")
         assert dashboard.status_code == 200
-        assert "Passive" in dashboard.text and "DGA — ACTIVE LEXICAL MODEL EVIDENCE" in dashboard.text
+        for label in ("Overview", "Analyst Alerts", "Evidence Results", "Replay"):
+            assert label in dashboard.text
+        assert "page-system" in dashboard.text
+        assert "results are the scientific authority" in dashboard.text.lower()
+        assert "not confirmed malicious activity" in dashboard.text
         browser_logic = (await client.get("/static/app.js")).text
         assert "stream_gap" in browser_logic and "syncCursor" in browser_logic
         assert "new EventSource" in browser_logic
+
+
+@pytest.mark.asyncio
+async def test_operator_console_preserves_scientific_and_presentation_boundaries(tmp_path):
+    async with client_for(tmp_path / "console.db") as (client, _service):
+        page = (await client.get("/")).text
+        logic = (await client.get("/static/app.js")).text
+        styles = (await client.get("/static/styles.css")).text
+        assert 'id="page-alerts"' in page and 'id="page-results"' in page
+        assert 'id="page-system"' in page and 'id="page-replay"' in page
+        assert 'id="alert-inspector"' in page and 'id="result-inspector"' in page
+        assert "DGA-labelled lexical resemblance score" in logic
+        assert "not calibrated attack probability" in logic
+        assert "Numeric attack probability: not defined by this analytic." in logic
+        assert "claim_ceiling" in logic
+        assert "runtime.targets" in logic and "runtime.default_target_count" in logic
+        assert "EVIDENCEGATE_ENABLE_CANDIDATE_ALERTS" not in page + logic
+        assert "global risk" not in (page + logic).lower()
+        assert "prefers-reduced-motion: reduce" in styles
+        assert "@media (max-width: 760px)" in styles
 
 
 @pytest.mark.asyncio
