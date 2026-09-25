@@ -8,6 +8,7 @@ import { useEvidence } from "../state/EvidenceContext";
 import { filterResults } from "../utils/filters";
 import type { ResultDto } from "../api/types";
 import { resultsSourceNote } from "../utils/copy";
+import { friendlyCategory } from "../utils/formatting";
 
 export function ResultsPage({
   initialResultId = null,
@@ -45,18 +46,18 @@ export function ResultsPage({
           <span aria-hidden="true">⌕</span>
           <input
             type="search"
-            placeholder="Search entity, lane, mechanism, result ID"
+            placeholder="Search IP, domain, flow or result ID"
             aria-label="Search evidence results"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
         <label>
-          Family
+          Category
           <select value={family} onChange={(e) => setFamily(e.target.value)}>
-            <option value="">All families</option>
+            <option value="">All categories</option>
             {families.map((value) => (
-              <option key={value}>{value}</option>
+              <option key={value} value={value}>{friendlyCategory(value)}</option>
             ))}
           </select>
         </label>
@@ -66,7 +67,7 @@ export function ResultsPage({
             value={resultType}
             onChange={(e) => setResultType(e.target.value)}
           >
-            <option value="">All factual statuses</option>
+            <option value="">All result types</option>
             {[
               "REVIEW_FINDING",
               "QUALITY_DEGRADED",
@@ -76,7 +77,7 @@ export function ResultsPage({
               "PLUGIN_STATUS",
             ].map((value) => (
               <option value={value} key={value}>
-                {value.replaceAll("_", " ").toLowerCase()}
+                {value.replaceAll("_", " ").toLowerCase().replace(/^./, (char) => char.toUpperCase())}
               </option>
             ))}
           </select>

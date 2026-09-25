@@ -87,10 +87,12 @@ const result: ResultDto = {
 };
 
 describe("evidence table and inspector components", () => {
-  it("renders alert table rows and keyboard selection", () => {
+  it("renders analyst-first alert columns and keyboard selection without mechanism IDs", () => {
     const select = vi.fn();
     render(<AlertTable alerts={[alert]} selectedId={null} onSelect={select} />);
-    const row = screen.getByText("DGA-A1-M1").closest("tr");
+    expect(screen.getByText("Why surfaced")).toBeInTheDocument();
+    expect(screen.queryByText("Mechanism")).not.toBeInTheDocument();
+    const row = screen.getByText(/lexical resemblance score was recorded for review/).closest("tr");
     expect(row).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(row!, { key: "Enter" });
     expect(select).toHaveBeenCalledWith(alert);
@@ -100,10 +102,14 @@ describe("evidence table and inspector components", () => {
       <AlertInspector alert={alert} onClose={vi.fn()} onResult={vi.fn()} />,
     );
     expect(
-      screen.getByText(/Not calibrated attack probability/),
+      screen.getByText(/Not calibrated attack probability/i),
     ).toBeInTheDocument();
+    expect(screen.getByText("What this evidence supports")).toBeInTheDocument();
+    expect(screen.getByText(alert.claim_ceiling).closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("SIH_ALERT_POLICY_V1").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Technical details"));
     expect(screen.getByText(alert.claim_ceiling)).toBeInTheDocument();
-    expect(screen.getByText("Claim limit")).toBeInTheDocument();
+    expect(screen.getByText("Mechanism ID")).toBeInTheDocument();
   });
   it("renders results as scientific records and keeps non-DGA probability undefined", () => {
     render(
@@ -112,12 +118,9 @@ describe("evidence table and inspector components", () => {
         <ResultInspector result={result} onClose={vi.fn()} />
       </>,
     );
-    expect(screen.getByText("DNS Tunnelling")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Numeric attack probability is not defined by this analytic.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getAllByText("DNS evidence")).toHaveLength(2);
+    expect(screen.getAllByText("DNS name structure")).toHaveLength(2);
+    expect(screen.getByText("Observed evidence; no attack probability is implied.")).toBeInTheDocument();
   });
   it("closes an open inspector with Escape", () => {
     const close = vi.fn();

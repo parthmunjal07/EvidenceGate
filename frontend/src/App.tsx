@@ -6,7 +6,6 @@ import type { PageKey } from "./state/types";
 import { OverviewPage } from "./pages/OverviewPage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { ResultsPage } from "./pages/ResultsPage";
-import { SystemStatusPage } from "./pages/SystemStatusPage";
 import { ReplayPage } from "./pages/ReplayPage";
 import type { SihAlertProjection } from "./api/types";
 
@@ -14,7 +13,6 @@ const pageKeys: PageKey[] = [
   "overview",
   "alerts",
   "results",
-  "system",
   "replay",
 ];
 function routeFromHash(): PageKey {
@@ -38,9 +36,7 @@ function ConsoleApp() {
     if (location.hash !== `#/${next}`) location.hash = `/${next}`;
     window.scrollTo({
       top: 0,
-      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "instant"
-        : "smooth",
+      behavior: "instant",
     });
   }, []);
   async function openResult(id: string) {
@@ -65,15 +61,11 @@ function ConsoleApp() {
       {page === "alerts" && (
         <AlertsPage
           initialAlert={initialAlert}
-          navigate={navigate}
           clearInitial={() => setInitialAlert(null)}
           openResult={(id) => void openResult(id)}
         />
       )}
       {page === "results" && <ResultsPage initialResultId={sourceResultId} />}
-      {page === "system" && (
-        <SystemStatusPage onResult={(id) => void openResult(id)} />
-      )}
       {page === "replay" && <ReplayPage navigate={navigate} />}
     </AppShell>
   );

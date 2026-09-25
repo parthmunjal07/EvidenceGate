@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { QualitySnapshot, VisibilitySnapshot } from "../../api/types";
-import { pretty, readable } from "../../utils/formatting";
+import { claimSemantics, pretty, readable } from "../../utils/formatting";
 
 export function PageHeading({
   titleId,
@@ -78,7 +78,14 @@ export function CodeBlock({ label, value }: { label: string; value: unknown }) {
   );
 }
 export function ClaimCeiling({ text }: { text: string }) {
-  return <p className="claim-text">{text}</p>;
+  const claim = claimSemantics(text);
+  return <div className="claim-semantics">
+    <h4>What this evidence supports</h4>
+    {claim.supports.length ? <ul>{claim.supports.map((item) => <li key={item}>{item}</li>)}</ul> : <p>Evidence was observed; no additional conclusion is drawn.</p>}
+    <h4>What this evidence does not establish</h4>
+    {claim.limitations.length ? <ul>{claim.limitations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No additional limitation was reported.</p>}
+    {claim.hasUnknown && <p>Additional technical limitation. See the exact claim under Technical details.</p>}
+  </div>;
 }
 export function QualitySnapshotView({ value }: { value: QualitySnapshot }) {
   const labels: Record<string, string> = {
@@ -88,6 +95,7 @@ export function QualitySnapshotView({ value }: { value: QualitySnapshot }) {
     capture_gap: "Capture gaps",
   };
   const stateLabel = (state: string) => ({ CLEAR: "Clear", DEGRADED: "Degraded", UNKNOWN: "Unknown" }[state] ?? "Unknown");
+  if (Object.values(value).every((state) => state === "UNKNOWN")) return <div className="quality-summary">Capture quality: Not reported <details><summary>View quality details</summary><Snapshot rows={Object.entries(value).map(([key, state]) => [labels[key] ?? readable(key), stateLabel(state)])} /></details></div>;
   return (
     <Snapshot
       rows={Object.entries(value).map(([key, state]) => [

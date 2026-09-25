@@ -16,9 +16,12 @@ export function threatClassLabel(value: string) {
   const labels: Record<string, string> = {
     C2: "C2",
     DGA: "DGA",
-    DOS: "DDoS",
+    DOS: "DDoS evidence",
+    DDOS: "DDoS evidence",
     DNS_TUNNELING: "DNS tunnelling",
-    RECONNAISSANCE: "Reconnaissance",
+    RECONNAISSANCE: "Reconnaissance evidence",
+    DATA_EXFILTRATION: "Data transfer",
+    ENCRYPTED_SESSION: "Encrypted-session evidence",
   };
   return labels[value] ?? readable(value);
 }
@@ -53,6 +56,13 @@ export function summarizeReference(value: string, mechanismId?: string | null) {
       const second = endpoint(tuple[1]);
       if (first && second) return `Target ${parsed[0]} · ${parsed[1]} · TCP · ${first} ↔ ${second}`;
     }
+    if (Array.isArray(parsed) && parsed.length === 4 && typeof parsed[0] === "string"
+      && typeof parsed[1] === "string" && typeof parsed[2] === "string"
+      && typeof parsed[3] === "string" && /^(FORWARD|REVERSE)$/i.test(parsed[2])
+      && !Number.isNaN(Date.parse(parsed[3]))) {
+      const service = parsed[1].replace(/^service\//i, "").replaceAll("_", " ").toUpperCase();
+      return `Target ${parsed[0]} · ${service}`;
+    }
     if (Array.isArray(parsed)) return parsed.every((item) => item === null || ["string", "number", "boolean"].includes(typeof item))
       ? parsed.map(safeReferenceValue).join(" · ")
       : `Structured value · ${parsed.length} items`;
@@ -80,23 +90,145 @@ export function familyLabel(value: string) {
   const labels: Record<string, string> = {
     ddos: "DDoS", c2: "C2 beaconing", dga: "DGA",
     dns_tunnelling: "DNS tunnelling", encrypted_session: "Encrypted sessions",
-    recon: "Reconnaissance", unusual_transfer: "Data transfer",
+    recon: "Reconnaissance", unusual_transfer: "Data transfer", "data exfiltration": "Data transfer",
   };
-  return labels[value] ?? readable(value);
+  return labels[value.toLowerCase()] ?? readable(value);
 }
 
 export function mechanismLabel(value: string) {
   const labels: Record<string, string> = {
-    "DDOS-A-B0": "SYN state", "DDOS-B-B0": "UDP demand",
-    "DDOS-CV-B0": "Reflection evidence", "DDOS-D-B0": "Source diversity",
-    "DDOS-E1-B0": "ICMP demand", "DDOS-E2-B0": "Fragment demand",
-    "DDOS-E3-B0": "Connection churn", "C2-M1": "Flow recurrence",
-    "DGA-A1-M1": "Lexical model", "DNS-T1": "DNS tunnelling evidence",
-    "ENC-A": "TLS handshake evidence", "RECON-H": "Horizontal host breadth",
-    "RECON-V": "Vertical port breadth", "RECON-2D": "Host and port exploration",
-    "RECON-TCP": "TCP attempt and response evidence", "CAT6-EX-M1": "Transfer magnitude",
+    "DDOS-A-B0": "SYN state pressure", "ddos.syn_state": "SYN state pressure",
+    "DDOS-B-B0": "UDP demand", "ddos.udp_demand": "UDP demand",
+    "DDOS-CV-B0": "Reflection-shaped traffic", "ddos.reflection_victim": "Reflection-shaped traffic",
+    "DDOS-D-B0": "Source diversity", "ddos.source_diversity": "Source diversity",
+    "DDOS-E1-B0": "ICMP demand", "ddos.icmp_demand": "ICMP demand",
+    "DDOS-E2-B0": "Fragment demand", "ddos.fragment_demand": "Fragment demand",
+    "DDOS-E3-B0": "Connection churn", "ddos.connection_churn": "Connection churn",
+    "C2-M1": "Recurring connection pattern", "C2-A1-R1": "Recurring connection pattern", "c2.r1": "Recurring connection pattern", "c2.beacon": "Recurring connection pattern",
+    "DGA-A1-M1": "DGA lexical evidence", "dga.m1": "DGA lexical evidence",
+    "DNS-T1": "DNS name structure", "dns_tunnelling.t1": "DNS name structure",
+    "ENC-A": "TLS handshake metadata", "ENC-A1": "TLS handshake metadata", "encrypted_session.enc_a": "TLS handshake metadata", "encrypted_session.a1": "TLS handshake metadata",
+    "RECON-H": "Host fan-out", "recon.h": "Host fan-out", "RECON-V": "Port fan-out", "recon.v": "Port fan-out",
+    "RECON-2D": "Host and port fan-out", "recon.2d": "Host and port fan-out",
+    "RECON-TCP": "TCP scan activity", "recon.tcp": "TCP scan activity",
+    "RECON-SCAN": "Host fan-out", "RECON-PROBE": "Host fan-out", "RECON-FANOUT": "Host fan-out", "RECON-SWEEP": "Host fan-out",
+    "recon.scan": "Host fan-out", "recon.probe": "Host fan-out", "recon.fanout": "Host fan-out", "recon.sweep": "Host fan-out",
+    "CAT6-EX-M1": "Directional transfer magnitude", "unusual_transfer.m1": "Directional transfer magnitude",
   };
-  return labels[value] ?? value;
+  return labels[value] ?? "Evidence finding";
+}
+
+export function friendlyCategory(value: string) {
+  const labels: Record<string, string> = {
+    DOS: "DDoS evidence", DDOS: "DDoS evidence", C2: "C2 / beaconing evidence", DGA: "DGA evidence",
+    BOTNET_C2_BEACONING: "C2 / beaconing evidence", C2_BEACONING: "C2 / beaconing evidence",
+    DNS_TUNNELING: "DNS evidence", DNS_TUNNELLING: "DNS evidence",
+    ENCRYPTED_SESSION: "Encrypted-session evidence", MALWARE_IN_ENCRYPTED_SESSION: "Encrypted-session evidence", RECONNAISSANCE: "Reconnaissance evidence",
+    DATA_EXFILTRATION: "Data transfer", UNUSUAL_TRANSFER: "Data transfer",
+  };
+  return labels[value.toUpperCase().replaceAll(" ", "_")] ?? threatClassLabel(value);
+}
+
+const evidenceNames: Record<string, string> = {
+  bytes_c2s_per_second: "Client-to-server rate", bytes_s2c_per_second: "Server-to-client rate",
+  unique_targets: "Distinct targets", unique_sources: "Distinct sources", unique_ports: "Distinct ports",
+  recurrence_count: "Recurrence observations", recurrence_observations: "Recurrence observations",
+  evidence_kind: "Evidence type", dga_labelled_lexical_resemblance_score: "Lexical model score",
+  packets_per_second: "Packet rate", syn_attempts: "SYN attempts", icmp_packets: "ICMP packets",
+  apparent_source_cardinality_lower_bound: "Minimum apparent source count",
+  packet_count: "Packets observed", byte_count: "Bytes observed",
+  direction_scope: "Direction scope", documented_end_state: "Recorded end state",
+  duration_seconds: "Measurement duration", domain: "Domain",
+  observed_initiating_syn_count: "Observed initiating SYNs", observed_icmp_packet_count: "ICMP packets",
+  observed_udp_packet_count: "UDP packets", observed_fragment_count: "Fragmented packets",
+  domain_count: "Domains observed",
+};
+export function formatEvidenceValue(key: string, value: unknown) {
+  if (/^(analytic_path|claim_ceiling|mechanism_id|lane_id|model_id|plugin_id|config_hash|source_observation_ids|capture_quality|attempt_capacity_reached|source_capacity_reached|exact_within_engineering_capacity|config_status|hard_negative_alternatives|source_visibility|missing_evidence|missing_prerequisites|missing_length_count|measured_length_count|measurement_is_lower_bound|observed_byte_count_for_length_available_packets)$/i.test(key)) return null;
+  const label = evidenceNames[key] ?? readable(key);
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    const friendlyValues: Record<string, string> = { DGA_LEXICAL_MODEL_EVIDENCE: "DGA lexical evidence", C2_COMMUNICATION_PATTERN_MEASUREMENT: "Recurring communication", RESPONSE_SHAPED_TRAFFIC: "Response-shaped traffic", CLIENT_TO_SERVER_ONLY: "Client to server only", EXPORTED: "Exported" };
+    const shown = typeof value === "number" && /score|rate|per_second/i.test(key) ? Number(value).toFixed(3).replace(/0+$/, "").replace(/\.$/, "") : friendlyValues[String(value)] ?? String(value).replaceAll("_", " ").toLowerCase();
+    return `${label}: ${shown}${key.endsWith("_per_second") ? " B/s" : ""}`;
+  }
+  return Array.isArray(value) ? `${label}: ${value.length} reported values` : `${label}: structured evidence reported`;
+}
+
+export function summarizeEvidence(evidence: Record<string, unknown>) {
+  const rows = Object.entries(evidence).map(([key, value]) => formatEvidenceValue(key, value)).filter((v): v is string => Boolean(v));
+  return rows.slice(0, 3).join(" · ") || "Evidence details available";
+}
+const primaryEvidenceKeys = new Set(["bytes_c2s_per_second", "bytes_s2c_per_second", "unique_targets", "unique_sources", "unique_ports", "recurrence_count", "recurrence_observations", "dga_labelled_lexical_resemblance_score", "packets_per_second", "syn_attempts", "icmp_packets", "apparent_source_cardinality_lower_bound", "packet_count", "byte_count", "observed_initiating_syn_count", "observed_icmp_packet_count", "observed_udp_packet_count", "observed_fragment_count", "direction_scope", "documented_end_state", "duration_seconds", "domain", "domain_count"]);
+export function whySurfaced(mechanismId: string, evidence: Record<string, unknown>) {
+  const id = mechanismId.toLowerCase();
+  if (id.includes("reflection_victim") || id.includes("ddos-cv") || evidence.evidence_kind === "RESPONSE_SHAPED_TRAFFIC") return "Response-shaped traffic was observed for this peer.";
+  if (id.includes("source_diversity") || id.includes("ddos-d-b0")) {
+    const count = evidence.apparent_source_cardinality_lower_bound ?? evidence.unique_sources;
+    return typeof count === "number" ? `At least ${count} apparent source${count === 1 ? "" : "s"} ${count === 1 ? "was" : "were"} observed in the measurement window.` : "Apparent source distribution was measured for this peer.";
+  }
+  if (id.includes("connection_churn") || id.includes("ddos-e3-b0")) return "TCP initiating attempts were measured for this peer.";
+  if (id.includes("syn_state") || id.includes("ddos-a-b0")) return "Captured TCP SYN and state evidence is available for this peer.";
+  if (id.includes("udp_demand") || id.includes("ddos-b-b0")) return "UDP packet demand was measured for this peer.";
+  if (id.includes("icmp_demand") || id.includes("ddos-e1-b0")) return "ICMP packet demand was measured for this peer.";
+  if (id.includes("fragment_demand") || id.includes("ddos-e2-b0")) return "Fragmented packet demand was measured for this peer.";
+  if (id.includes("unusual_transfer") || id.includes("cat6-ex-m1")) {
+    const rate = evidence.bytes_c2s_per_second;
+    if (typeof rate === "number") return `Client-to-server transfer was measured at ${Number(rate.toFixed(3))} B/s.`;
+    return "Directional transfer magnitude was measured for this flow.";
+  }
+  if (id.includes("c2.") || id.includes("c2-m1") || id.includes("c2-a1")) return "Recurring communication was measured for this peer.";
+  if (id.includes("dga") || id === "dga.m1") return "A domain’s lexical resemblance score was recorded for review.";
+  if (id.includes("dns")) return "DNS name structure was measured for this domain.";
+  if (id.includes("encrypted_session") || id.includes("enc-a")) return "TLS handshake metadata was recorded for this session.";
+  if (id.includes("recon")) return `${mechanismLabel(mechanismId)} was measured for this source.`;
+  return `${mechanismLabel(mechanismId)} evidence was recorded for review.`;
+}
+
+export function humanEvidenceRows(evidence: Record<string, unknown>) {
+  const rows = Object.entries(evidence)
+    .filter(([key]) => primaryEvidenceKeys.has(key))
+    .map(([key, value]) => {
+      const formatted = formatEvidenceValue(key, value);
+      if (!formatted) return null;
+      const separator = formatted.indexOf(": ");
+      return separator < 0 ? ["Observed evidence", formatted] as [string, string] : [formatted.slice(0, separator), formatted.slice(separator + 2)] as [string, string];
+    })
+    .filter((row): row is [string, string] => row !== null);
+  return rows.length || !Object.keys(evidence).length ? rows : [["Additional evidence", `${Object.keys(evidence).length} structured fields available`] as [string, string]];
+}
+
+const claimMeanings: Record<string, string> = {
+  OBSERVED_TCP_SYN_AND_CAPTURED_STATE_EVIDENCE_ONLY: "Observed TCP SYN activity and captured state are available as evidence.",
+  NO_DDOS_CONFIRMED: "A DDoS attack is not confirmed.", NO_VICTIM_EXHAUSTION: "Victim resource exhaustion is not established.",
+  NO_BACKLOG_EXHAUSTION: "Backlog exhaustion is not established.", NO_MALICIOUSNESS: "Malicious intent is not established.",
+  NO_ATTACKER_IDENTITY: "Attacker identity is not established.", OBSERVED_UDP_DEMAND_ONLY: "Observed UDP demand is available as evidence.",
+  NO_SERVICE_IMPACT: "Service impact is not established.", NO_COMPLETION_SEMANTICS: "Connection completion is not established.",
+  RESPONSE_SHAPED_TRAFFIC_ONLY: "Response-shaped traffic was observed.", NO_AMPLIFICATION_RATIO: "An amplification ratio is not established.",
+  NO_SPOOFING_CONFIRMED: "Source spoofing is not confirmed.", APPARENT_SOURCE_DISTRIBUTION_ONLY: "The apparent source distribution was observed.",
+  NO_BOTNET_CONFIRMED: "A botnet is not confirmed.", NO_ATTRIBUTION: "Attribution is not established.",
+  OBSERVED_ICMP_DEMAND_ONLY: "Observed ICMP demand is available as evidence.", OBSERVED_FRAGMENTED_PACKET_DEMAND_ONLY: "Observed fragmented-packet demand is available as evidence.",
+  OBSERVED_TCP_INITIATING_ATTEMPT_MEASUREMENT_ONLY: "TCP initiating attempts were measured.", NO_RESOURCE_EXHAUSTION: "Resource exhaustion is not established.",
+  NO_SCAN_CLASSIFICATION: "A scan classification is not established.", RECURRENT_COMMUNICATION_MEASUREMENT_ONLY: "Recurring communication was measured.",
+  NOT_C2: "Command-and-control activity is not established.", NOT_MALWARE: "Malware is not established.",
+  NO_MALWARE: "Malware is not established.",
+  NO_C2: "Command-and-control activity is not established.",
+  NOT_COMPROMISE: "Compromise is not established.", NOT_BENIGN: "Benign intent is not established.",
+  DGA_LABELLED_LEXICAL_REVIEW_EVIDENCE_ONLY: "Lexical evidence is labelled for DGA review.", NO_MALWARE_CONFIRMATION: "Malware is not confirmed.",
+  NO_INFECTION_INFERENCE: "Infection is not inferred.", NO_C2_INFERENCE: "Command-and-control activity is not inferred.",
+  NO_DNS_TUNNEL_INFERENCE: "DNS tunnelling is not inferred.", NO_EXFILTRATION_INFERENCE: "Data exfiltration is not inferred.",
+  NO_DOMAIN_OWNERSHIP_OR_INTENT: "Domain ownership or intent is not established.", OBSERVED_SCAN_ACTIVITY_EVIDENCE_ONLY: "Observed scan activity is available as evidence.",
+  NO_AUTHORIZATION_INFERENCE: "Authorization is not inferred.", NO_COMPROMISE: "Compromise is not established.",
+  VISIBLE_CLIENTHELLO_FINGERPRINT_CONTEXT_ONLY: "Visible ClientHello fingerprint context is available.",
+  "PROHIBITS MALWARE_CONFIRMED, COMPROMISE, C2, EXFILTRATION, DECRYPTED_CONTENT": "The evidence does not establish malware, compromise, command-and-control, data exfiltration, or decrypted content.",
+  TRANSFER_MAGNITUDE_ONLY: "Transfer magnitude is measured.", NO_UNUSUALNESS: "Unusualness is not established.",
+  NO_DATA_SENSITIVITY: "Data sensitivity is not established.", NO_EXFILTRATION_CONFIRMED: "Exfiltration is not confirmed.", NO_THEFT: "Theft is not established.",
+  RAW_OBSERVATION_ONLY: "Only the raw observation is available.", NO_DNS_TUNNEL_VERDICT: "A DNS tunnel verdict is not provided.", NO_EXFILTRATION: "Exfiltration is not established.", NO_SCIENTIFIC_CLAIMS: "No scientific claim is made.",
+};
+export function claimSemantics(raw: string) {
+  const tokens = raw.split(";").map((token) => token.trim()).filter(Boolean);
+  const known = tokens.map((token) => claimMeanings[token]).filter((value): value is string => Boolean(value));
+  return { supports: known.slice(0, 1), limitations: known.slice(1), hasUnknown: tokens.length > known.length, raw };
 }
 
 export function prerequisiteLabel(value: string) {
@@ -118,23 +250,6 @@ export function formatQuality(quality: QualitySnapshot) {
 }
 export const availableCount = (visibility: VisibilitySnapshot) =>
   visibility.available.length;
-export function summarizeEvidence(evidence: Record<string, unknown>) {
-  if (evidence.evidence_kind === "DGA_LEXICAL_MODEL_EVIDENCE") {
-    const score = evidence.dga_labelled_lexical_resemblance_score;
-    return score === undefined
-      ? "DGA lexical model evidence"
-      : `DGA-labelled lexical resemblance score ${Number(score).toFixed(3)}`;
-  }
-  const pairs = Object.entries(evidence).slice(0, 2);
-  return pairs.length
-    ? pairs
-        .map(
-          ([key, value]) =>
-            `${key.replaceAll("_", " ")}: ${typeof value === "object" ? "…" : String(value)}`,
-        )
-        .join(" · ")
-    : "Structured evidence available";
-}
 export function summarizeTableEvidence(evidence: Record<string, unknown>) {
   const factual = Object.fromEntries(
     Object.entries(evidence).filter(

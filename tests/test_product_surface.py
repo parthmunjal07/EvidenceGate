@@ -102,9 +102,9 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         built_assets = [await client.get(path) for path in assets]
         assert all(asset.status_code == 200 and asset.content for asset in built_assets)
         bundle = "\n".join(asset.text for asset in built_assets)
-        assert "Analyst alerts" in bundle and "Evidence results" in bundle
+        assert "Analyst queue" in bundle and "Evidence results" in bundle
         assert "Not calibrated attack probability" in bundle
-        assert "Numeric attack probability is not defined by this analytic." in bundle
+        assert "Observed evidence; no attack probability is implied." in bundle
         assert "stream_gap" in bundle
         assert (await client.get("/health")).status_code == 200
         assert (await client.get("/runtime")).status_code == 200
@@ -119,9 +119,9 @@ async def test_operator_console_preserves_scientific_and_presentation_boundaries
         assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', page)
         bundle = "\n".join([(await client.get(path)).text for path in assets])
         assert 'id="root"' in page
-        assert "DGA-labelled lexical resemblance score" in bundle
+        assert "Lexical model score" in bundle
         assert "Not calibrated attack probability" in bundle
-        assert "Numeric attack probability is not defined by this analytic." in bundle
+        assert "Observed evidence; no attack probability is implied." in bundle
         assert "claim_ceiling" in bundle
         assert "default_target_count" in bundle and "dga_model_readiness" in bundle
         assert "EVIDENCEGATE_ENABLE_CANDIDATE_ALERTS" not in page + bundle
