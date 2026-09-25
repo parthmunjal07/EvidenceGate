@@ -25,11 +25,13 @@ const runtime = {
   default_target_count: 16,
   active_lane_ids: ["dga.m1"],
   targets: [
-    {
-      lane_id: "dga.m1",
-      mechanism_id: "DGA-A1-M1",
-      implementation: "ACTIVE_LEXICAL_MODEL_LANE",
-    },
+    ...["syn_state", "udp_demand", "reflection_victim", "source_diversity", "icmp_demand", "fragment_demand", "connection_churn"].map((name, i) => ({ lane_id: `ddos.${name}`, mechanism_id: ["DDOS-A-B0", "DDOS-B-B0", "DDOS-CV-B0", "DDOS-D-B0", "DDOS-E1-B0", "DDOS-E2-B0", "DDOS-E3-B0"][i], implementation: "ACTIVE_FACTUAL_MECHANISM" as const })),
+    { lane_id: "c2.beacon", mechanism_id: "C2-A1-R1", implementation: "ACTIVE_FACTUAL_MECHANISM" as const },
+    { lane_id: "dga.m1", mechanism_id: "DGA-A1-M1", implementation: "ACTIVE_LEXICAL_MODEL_LANE" as const },
+    { lane_id: "dns_tunnelling.t1", mechanism_id: "DNS-T1", implementation: "ACTIVE_FACTUAL_MECHANISM" as const },
+    { lane_id: "encrypted_session.a1", mechanism_id: "ENC-A1", implementation: "ACTIVE_FACTUAL_MECHANISM" as const },
+    ...["scan", "probe", "fanout", "sweep"].map((name) => ({ lane_id: `recon.${name}`, mechanism_id: `RECON-${name.toUpperCase()}`, implementation: "ACTIVE_FACTUAL_MECHANISM" as const })),
+    { lane_id: "unusual_transfer.m1", mechanism_id: "EXFIL-M1", implementation: "ACTIVE_FACTUAL_MECHANISM" as const },
   ],
   family_status: [],
   database_status: "connected",
@@ -56,7 +58,16 @@ const alerts = {
   policy_status: "ACTIVE",
   meaning_of_alert: "ANALYST_ATTENTION_RECORD",
   alerts: [],
-  status_items: [],
+  status_items: [{
+    status_id: "status-1", schema_version: "1.0", policy_version: "SIH_ALERT_POLICY_V1",
+    timestamp: "2026-09-25T00:00:00Z", entity_or_flow_reference: '["192.0.2.10","service/https",6,"198.51.100.10",50000]',
+    mechanism_id: "DDOS-A-B0", result_type: "INSUFFICIENT_EVIDENCE", status_kind: "EVIDENCE_STATUS", priority: "INFO",
+    supporting_evidence: { structured: { hidden: "raw evidence" }, evidence_items: [], source_observation_ids: [] },
+    missing_prerequisites: ["reverse_tcp_state"], source_result_ids: ["2f6ba7c1-bbbb-4c4d-9a11-32a6326e326e"],
+    visibility: { available: [], unavailable: ["REVERSE_TCP_STATE"], degraded: [] },
+    quality: { packet_loss: "UNKNOWN", sampling: "UNKNOWN", parser: "UNKNOWN", capture_gap: "UNKNOWN" },
+    claim_ceiling: "NO_ATTACK_CLAIM", governing_ids: [], provenance_refs: [], quality_refs: [], parser_refs: [],
+  }],
 };
 
 class MockEventSource {
@@ -133,15 +144,30 @@ describe("operator console shell and live data presentation", () => {
     expect(window.location.hash).toBe("#/replay");
     expect(replayLink).toHaveAttribute("aria-current", "page");
   });
-  it("renders runtime-backed scenario cards and registered target status", async () => {
+  it("renders family summaries and expands runtime mechanisms on demand", async () => {
     const fetchMock = mockBackend();
     render(<App />);
     fireEvent.click(
       await screen.findByRole("button", { name: "System status" }),
     );
-    expect(
-      await screen.findByText("Active lexical model lane"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("7 families · 16 mechanisms")).toBeInTheDocument();
+    expect(screen.getByText("C2 beaconing")).toBeInTheDocument();
+    expect(screen.getByText("Model ready")).toBeInTheDocument();
+    expect(screen.queryByText("ddos.syn_state")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /DDoS.*7 mechanisms/ }));
+    expect(screen.getByText("ddos.syn_state")).toBeInTheDocument();
+    expect(screen.getAllByText("Factual evidence")).toHaveLength(7);
+    expect(screen.getByText("1 record")).toBeInTheDocument();
+    expect(screen.getByText("Insufficient evidence")).toBeInTheDocument();
+    expect(screen.getByText("Missing: Reverse TCP state")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Insufficient evidence/ }));
+    expect(screen.queryByText(/raw evidence/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Technical details"));
+    const technicalDetails = [...document.querySelectorAll<HTMLDetailsElement>(".inspector .technical-details")].find((item) => item.querySelector("summary")?.textContent === "Technical details")!;
+    technicalDetails.open = true;
+    fireEvent(technicalDetails, new Event("toggle"));
+    expect(screen.getByText(/raw evidence/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View 2f6ba7…e326e →" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Replay" }));
     await waitFor(() =>
       expect(

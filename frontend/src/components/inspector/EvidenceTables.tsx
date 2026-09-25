@@ -54,7 +54,7 @@ export function AlertTable({
               <td><time>{formatShortTime(alert.timestamp)}</time></td>
               <td>{threatClassLabel(alert.threat_class)}</td>
               <td><code>{alert.mechanism_id}</code></td>
-              <td title={alert.entity_or_flow_reference}><span className="reference-summary">{summarizeReference(alert.entity_or_flow_reference)}</span></td>
+              <td title={alert.entity_or_flow_reference}><span className="reference-summary">{summarizeReference(alert.entity_or_flow_reference, alert.mechanism_id)}</span></td>
               <td className="evidence-cell">
                 <span className="cell-summary">
                   {summarizeTableEvidence(alert.supporting_evidence.structured)}
@@ -119,7 +119,7 @@ export function ResultTable({
               <td><code>{result.lane_id}</code></td>
               <td><code>{result.mechanism_id || "â€”"}</code></td>
               <td>{readable(result.result_type)}</td>
-              <td title={result.entity_reference}><span className="reference-summary">{summarizeReference(result.entity_reference)}</span></td>
+              <td title={result.entity_reference}><span className="reference-summary">{summarizeReference(result.entity_reference, result.mechanism_id)}</span></td>
               <td className="evidence-cell">
                 <span className="cell-summary">
                   {summarizeTableEvidence(result.evidence)}

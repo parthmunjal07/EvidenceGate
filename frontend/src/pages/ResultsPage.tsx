@@ -82,7 +82,7 @@ export function ResultsPage({
           </select>
         </label>
         <span className="result-total" role="status" aria-live="polite">
-          {items.length} records
+          {items.length} {items.length === 1 ? "record" : "records"}
         </span>
       </div>
       {state.streamState === "reconnecting" && (

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { QualitySnapshot, VisibilitySnapshot } from "../../api/types";
-import { pretty } from "../../utils/formatting";
+import { pretty, readable } from "../../utils/formatting";
 
 export function PageHeading({
   titleId,
@@ -81,11 +81,18 @@ export function ClaimCeiling({ text }: { text: string }) {
   return <p className="claim-text">{text}</p>;
 }
 export function QualitySnapshotView({ value }: { value: QualitySnapshot }) {
+  const labels: Record<string, string> = {
+    packet_loss: "Packet loss",
+    sampling: "Sampling",
+    parser: "Parser status",
+    capture_gap: "Capture gaps",
+  };
+  const stateLabel = (state: string) => ({ CLEAR: "Clear", DEGRADED: "Degraded", UNKNOWN: "Unknown" }[state] ?? "Unknown");
   return (
     <Snapshot
       rows={Object.entries(value).map(([key, state]) => [
-        `${state === "CLEAR" ? "✓" : state === "DEGRADED" ? "!" : "○"} ${key.replaceAll("_", " ")}`,
-        state,
+        labels[key] ?? readable(key),
+        stateLabel(state),
       ])}
     />
   );
@@ -95,18 +102,16 @@ export function VisibilitySnapshotView({
 }: {
   value: VisibilitySnapshot;
 }) {
+  const rows = (
+    [
+      ["available", "Available"],
+      ["unavailable", "Unavailable"],
+      ["degraded", "Degraded"],
+    ] as const
+  ).flatMap(([key, label]) => value[key].length ? [[label, value[key].map(readable).join(" · ")]] : []);
   return (
     <Snapshot
-      rows={(
-        [
-          ["available", "✓ Available"],
-          ["unavailable", "× Unavailable"],
-          ["degraded", "! Degraded"],
-        ] as const
-      ).map(([key, label]) => [
-        label,
-        value[key].join(" · ") || "None reported",
-      ])}
+      rows={rows.length ? rows : [["Visibility", "No explicit visibility classes reported"]]}
     />
   );
 }

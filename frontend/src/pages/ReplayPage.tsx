@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useEvidence } from "../state/EvidenceContext";
 import { PageHeading, EmptyState } from "../components/common/Primitives";
-import { formatShortTime, readable } from "../utils/formatting";
+import { familyLabel, formatShortTime, readable, summarizeReference } from "../utils/formatting";
 import { useReplay } from "../hooks/useReplay";
 import type { PageKey } from "../state/types";
+import { VisualTrace } from "../components/flow/VisualTrace";
 
 export function ReplayPage({
   navigate,
@@ -13,6 +14,7 @@ export function ReplayPage({
   const { state } = useEvidence();
   const { scenarios, replay, error, start, busy } = useReplay();
   const [speed, setSpeed] = useState(0);
+  const [visualPace, setVisualPace] = useState<"demo" | "normal">("demo");
   const running = replay?.state === "RUNNING";
   return (
     <section className="page active-page" aria-labelledby="replay-title">
@@ -47,6 +49,13 @@ export function ReplayPage({
               <option value={0.5}>0.5× event-time spacing</option>
               <option value={1}>1× event-time spacing</option>
               <option value={2}>2× event-time spacing</option>
+            </select>
+          </label>
+          <label className="speed-control">
+            Visual pace
+            <select value={visualPace} onChange={(event) => setVisualPace(event.target.value as "demo" | "normal")}>
+              <option value="demo">Demo · explanatory</option>
+              <option value="normal">Normal · brief</option>
             </select>
           </label>
         </div>
@@ -118,9 +127,9 @@ export function ReplayPage({
           <div className="replay-counters">
             {[
               ["Source", replay.source_type || "—"],
-              ["Records read", replay.records_read],
-              ["Observations emitted", replay.observations_emitted],
-              ["Results persisted", replay.results_persisted],
+              ["Records read", `${replay.records_read} ${replay.records_read === 1 ? "record" : "records"}`],
+              ["Observations emitted", `${replay.observations_emitted} ${replay.observations_emitted === 1 ? "observation" : "observations"}`],
+              ["Results persisted", `${replay.results_persisted} ${replay.results_persisted === 1 ? "result" : "results"}`],
               ["Elapsed", `${replay.elapsed_wall_seconds.toFixed(2)} s`],
             ].map(([label, value]) => (
               <div key={String(label)}>
@@ -140,10 +149,11 @@ export function ReplayPage({
                 : "Select an allowlisted scenario to begin.")}
         </div>
       </section>
+      <VisualTrace events={state.replayEvents} pace={visualPace} />
       <section className="panel replay-flow-panel">
         <div className="panel-head compact">
           <div>
-            <h2>Replay results</h2>
+            <h2>Produced evidence</h2>
           </div>
           <button className="text-button" onClick={() => navigate("overview")}>
             View overview →
@@ -154,11 +164,8 @@ export function ReplayPage({
             state.replayEvents.map((result) => (
               <div className="event-log-item" key={result.result_id}>
                 <time>{formatShortTime(result.created_time)}</time>
-                <strong>{result.lane_id}</strong>
-                <span>
-                  {readable(result.result_type)} ·{" "}
-                  {result.mechanism_id || result.lane_id}
-                </span>
+                <strong>{familyLabel(result.family.toLowerCase())}</strong>
+                <span>{readable(result.result_type)} · {summarizeReference(result.entity_reference)}</span>
               </div>
             ))
           ) : (

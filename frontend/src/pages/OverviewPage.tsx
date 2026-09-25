@@ -103,7 +103,7 @@ export function OverviewPage({
                     <td>{threatClassLabel(alert.threat_class)}</td>
                     <td><code>{alert.mechanism_id}</code></td>
                     <td title={alert.entity_or_flow_reference}>
-                      <span className="reference-summary">{summarizeReference(alert.entity_or_flow_reference)}</span>
+                      <span className="reference-summary">{summarizeReference(alert.entity_or_flow_reference, alert.mechanism_id)}</span>
                     </td>
                     <td className="evidence-cell">
                       <span className="cell-summary">

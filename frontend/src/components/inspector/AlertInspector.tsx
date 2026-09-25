@@ -5,6 +5,8 @@ import {
   readable,
   summarizeEvidence,
   threatClassLabel,
+  shortId,
+  summarizeReference,
 } from "../../utils/formatting";
 import {
   ClaimCeiling,
@@ -37,13 +39,13 @@ export function AlertInspector({
           <Header
             kicker="Analyst attention record"
             title={threatClassLabel(alert.threat_class)}
-            subtitle={alert.mechanism_id}
+            subtitle={threatClassLabel(alert.threat_class)}
             onClose={onClose}
           />
           <InspectorSection title="Identity">
             <KeyValueList
               rows={[
-                ["Entity / flow", alert.entity_or_flow_reference],
+                ["Entity / flow", summarizeReference(alert.entity_or_flow_reference, alert.mechanism_id)],
                 ["Timestamp", formatTimestamp(alert.timestamp)],
                 ["Priority", "Review Â· analyst attention"],
                 ["Result type", readable(alert.result_type)],
@@ -54,19 +56,12 @@ export function AlertInspector({
             <p className="inspect-summary">
               {summarizeEvidence(alert.supporting_evidence.structured)}
             </p>
-            <CodeBlock
-              label="Structured evidence"
-              value={alert.supporting_evidence.structured}
-            />
-            <CodeBlock
-              label="Evidence items"
-              value={alert.supporting_evidence.evidence_items}
-            />
-            <p className="field-label">Source observation IDs</p>
-            <p>
-              {alert.supporting_evidence.source_observation_ids.join(" Â· ") ||
-                "None supplied"}
-            </p>
+            {alert.supporting_evidence.evidence_items.length > 0 && <p>{alert.supporting_evidence.evidence_items.join(" · ")}</p>}
+            <InspectorSection title="Technical evidence details" secondary>
+              <CodeBlock label="Structured evidence" value={alert.supporting_evidence.structured} />
+              <CodeBlock label="Evidence items" value={alert.supporting_evidence.evidence_items} />
+              <CodeBlock label="Source observation IDs" value={alert.supporting_evidence.source_observation_ids} />
+            </InspectorSection>
           </InspectorSection>
           <InspectorSection title="Confidence semantics">
             <p className="confidence-note">
@@ -117,10 +112,11 @@ export function AlertInspector({
                   key={id}
                   onClick={() => onResult(id)}
                 >
-                  {id}
+                  View {shortId(id)} →
                 </button>
               ))}
             </div>
+            <CodeBlock label="Full source result IDs" value={alert.source_result_ids} />
           </InspectorSection>
         </>
       )}

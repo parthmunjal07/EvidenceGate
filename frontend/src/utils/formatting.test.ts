@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SihAlertProjection } from "../api/types";
-import { confidenceText, formatQuality, summarizeEvidence, summarizeReference, summarizeTableEvidence, threatClassLabel } from "./formatting";
+import { confidenceText, formatQuality, summarizeEvidence, summarizeReference, summarizeTableEvidence, threatClassLabel, familyLabel, mechanismLabel, shortId } from "./formatting";
 import { filterAlerts, filterResults } from "./filters";
 
 const alert: SihAlertProjection = {
@@ -65,6 +65,22 @@ describe("scientific display helpers", () => {
     expect(summarizeReference('["192.0.2.10","service/https","FORWARD"]')).toBe(
       "192.0.2.10 · service/https · FORWARD",
     );
+  });
+  it("formats capability families, mechanisms, and abbreviated result IDs", () => {
+    expect(familyLabel("unusual_transfer")).toBe("Data transfer");
+    expect(mechanismLabel("DDOS-A-B0")).toBe("SYN state");
+    expect(shortId("2f6ba7c1-bbbb-4c4d-9a11-32a6326e326e")).toBe("2f6ba7…e326e");
+  });
+  it("falls back safely for nested or unknown entity structures", () => {
+    expect(summarizeReference('{"flow":{"unexpected":true}}')).toBe("Structured reference · 1 fields");
+    expect(summarizeReference('[{"unknown":true}]')).toBe("Structured value · 1 items");
+    expect(summarizeReference("plain-entity")).toBe("plain-entity");
+  });
+  it("formats the verified DDOS-A state-key tuple as a TCP flow summary", () => {
+    expect(summarizeReference('["192.0.2.10","service/https",6,[["192.0.2.10",443],["198.51.100.10",50000]]]', "DDOS-A-B0"))
+      .toBe("Target 192.0.2.10 · service/https · TCP · 192.0.2.10:443 ↔ 198.51.100.10:50000");
+    expect(summarizeReference('["192.0.2.10","service/https",6,[["192.0.2.10","bad"],["198.51.100.10",50000]]]', "DDOS-A-B0"))
+      .toBe("Structured value · 4 items");
   });
   it("keeps claim ceiling text in inspectors instead of table summaries", () => {
     expect(summarizeTableEvidence({ claim_ceiling: "NO_MALICIOUSNESS", observed_count: 4 })).toBe("observed count: 4");

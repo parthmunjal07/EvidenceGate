@@ -4,6 +4,10 @@ import {
   readable,
   shortModelRef,
   summarizeEvidence,
+  familyLabel,
+  mechanismLabel,
+  prerequisiteLabel,
+  summarizeReference,
 } from "../../utils/formatting";
 import {
   ClaimCeiling,
@@ -36,18 +40,13 @@ export function ResultInspector({
           <Header
             kicker="Scientific result"
             title={readable(result.result_type)}
-            subtitle={`${result.family} Â· ${result.lane_id}`}
+            subtitle={`${familyLabel(result.family.toLowerCase())} Â· ${mechanismLabel(result.mechanism_id || result.lane_id)}`}
             onClose={onClose}
           />
           <InspectorSection title="Identity">
             <KeyValueList
               rows={[
-                ["Result ID", result.result_id],
                 ["Timestamp", formatTimestamp(result.created_time)],
-                [
-                  "Lane / mechanism",
-                  `${result.lane_id} / ${result.mechanism_id || "â€”"}`,
-                ],
                 ["Scientific status", result.status_snapshot.scientific_status],
                 [
                   "Integration status",
@@ -68,11 +67,7 @@ export function ResultInspector({
           <InspectorSection title="Observed facts">
             <KeyValueList
               rows={[
-                ["Entity / flow", result.entity_reference],
-                [
-                  "Source observation IDs",
-                  result.source_observation_ids.join(" Â· ") || "None supplied",
-                ],
+                ["Entity / flow", summarizeReference(result.entity_reference, result.mechanism_id)],
                 [
                   "Evidence interval",
                   result.evidence_interval
@@ -86,10 +81,13 @@ export function ResultInspector({
             <p className="inspect-summary">
               {summarizeEvidence(result.evidence)}
             </p>
-            <CodeBlock label="Structured evidence" value={result.evidence} />
             {result.evidence_items.length > 0 && (
-              <CodeBlock label="Evidence items" value={result.evidence_items} />
+              <p>{result.evidence_items.join(" · ")}</p>
             )}
+            <InspectorSection title="Technical evidence details" secondary>
+              <CodeBlock label="Structured evidence" value={result.evidence} />
+              <CodeBlock label="Evidence items" value={result.evidence_items} />
+            </InspectorSection>
           </InspectorSection>
           <InspectorSection title="Confidence semantics">
             <p className="confidence-note">
@@ -105,10 +103,9 @@ export function ResultInspector({
             <QualitySnapshotView value={result.quality_snapshot} />
           </InspectorSection>
           <InspectorSection title="Missing evidence & prerequisites">
-            <CodeBlock
-              label="Missing prerequisites"
-              value={result.missing_prerequisites}
-            />
+            {result.missing_prerequisites.length
+              ? <p>{result.missing_prerequisites.map(prerequisiteLabel).join(" · ")}</p>
+              : <p>No missing prerequisites reported.</p>}
           </InspectorSection>
           <InspectorSection title="Claim limit">
             <ClaimCeiling text={result.claim_ceiling} />
@@ -117,6 +114,7 @@ export function ResultInspector({
             title="Model, parser & governing references"
             secondary
           >
+            <KeyValueList rows={[["Result ID", result.result_id], ["Lane ID", result.lane_id], ["Mechanism ID", result.mechanism_id || "Not supplied"], ["Source observation IDs", result.source_observation_ids.join(" Â· ") || "None supplied"]]} />
             <KeyValueList
               rows={[
                 [

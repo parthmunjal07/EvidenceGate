@@ -109,7 +109,7 @@ export function AlertsPage({
           </select>
         </label>
         <span className="result-total" role="status" aria-live="polite">
-          {items.length} records
+          {items.length} {items.length === 1 ? "record" : "records"}
         </span>
       </div>
       <div className="investigation-layout">
