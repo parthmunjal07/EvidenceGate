@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
-  { ignores: ['dist/**', '../evidencegate/api/static/**'] },
+  { ignores: ['dist/**', 'evidencegate/**', '../evidencegate/api/static/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

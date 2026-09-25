@@ -5,6 +5,7 @@ import { EmptyState, PageHeading } from "../components/common/Primitives";
 import { useEvidence } from "../state/EvidenceContext";
 import { filterAlerts } from "../utils/filters";
 import type { PageKey } from "../state/types";
+import { alertReviewDisclaimer } from "../utils/copy";
 
 export function AlertsPage({
   initialAlert,
@@ -43,31 +44,15 @@ export function AlertsPage({
   return (
     <section className="page active-page" aria-labelledby="alerts-title">
       <PageHeading
-        eyebrow="INVESTIGATION / SIH_ALERT_POLICY_V1"
-        title="Analyst Alerts"
-        deck="A review queue derived from immutable results for analyst attention."
+        titleId="alerts-title"
+        title="Analyst alerts"
+        deck="Evidence that requires analyst review."
         meta={
           <>
-            <span className="status-chip">
-              {state.runtime?.alert_policy_version ?? "Unavailable"}
-            </span>
-            <span>
-              Alert means analyst attention, not confirmed malicious activity.
-            </span>
+            <span>{alertReviewDisclaimer}</span>
           </>
         }
       />
-      <div className="notice-bar">
-        <span className="notice-icon">i</span>
-        <p>
-          <strong>Presentation layer</strong> — /alerts is a versioned SIH
-          projection. Open{" "}
-          <button className="inline-link" onClick={() => navigate("results")}>
-            Evidence Results
-          </button>{" "}
-          for the scientific authority.
-        </p>
-      </div>
       <div className="filter-bar">
         <label className="search-control">
           <span aria-hidden="true">⌕</span>
@@ -153,15 +138,13 @@ export function AlertsPage({
       </div>
       <section className="status-separation">
         <div>
-          <p className="eyebrow">SEPARATE OPERATIONAL VIEW</p>
-          <h2>System &amp; Evidence Status</h2>
+          <h2>System status</h2>
           <p>
-            Quality, capability, and evidence lifecycle records do not enter the
-            analyst alert queue.
+            Quality and capability records are available separately.
           </p>
         </div>
         <button className="secondary-button" onClick={() => navigate("system")}>
-          View status records →
+          View system status →
         </button>
       </section>
     </section>

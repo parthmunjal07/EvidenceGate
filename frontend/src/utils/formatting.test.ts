@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SihAlertProjection } from "../api/types";
-import { confidenceText, formatQuality, summarizeEvidence } from "./formatting";
+import { confidenceText, formatQuality, summarizeEvidence, summarizeReference, summarizeTableEvidence, threatClassLabel } from "./formatting";
 import { filterAlerts, filterResults } from "./filters";
 
 const alert: SihAlertProjection = {
@@ -41,20 +41,33 @@ const alert: SihAlertProjection = {
 };
 
 describe("scientific display helpers", () => {
+  it("uses readable analyst labels for threat classes", () => {
+    expect(threatClassLabel("DNS_TUNNELING")).toBe("DNS tunnelling");
+    expect(threatClassLabel("DOS")).toBe("DDoS");
+    expect(threatClassLabel("RECONNAISSANCE")).toBe("Reconnaissance");
+  });
   it("labels DGA scores as lexical resemblance, never attack probability", () => {
-    expect(confidenceText("MODEL_SCORE", 0.82, "ignored")).toContain(
+    expect(confidenceText("MODEL_SCORE", 0.82)).toContain(
       "Not calibrated attack probability.",
     );
   });
   it("keeps non-DGA numeric probability undefined", () => {
     expect(
-      confidenceText("OBSERVED_EVIDENCE", null, "visible handshake evidence"),
+      confidenceText("OBSERVED_EVIDENCE", null),
     ).toContain("Numeric attack probability is not defined");
   });
   it("summarizes DGA lexical evidence without changing its claim", () => {
     expect(summarizeEvidence(alert.supporting_evidence.structured)).toContain(
       "0.820",
     );
+  });
+  it("shows structured entity references without JSON punctuation", () => {
+    expect(summarizeReference('["192.0.2.10","service/https","FORWARD"]')).toBe(
+      "192.0.2.10 · service/https · FORWARD",
+    );
+  });
+  it("keeps claim ceiling text in inspectors instead of table summaries", () => {
+    expect(summarizeTableEvidence({ claim_ceiling: "NO_MALICIOUSNESS", observed_count: 4 })).toBe("observed count: 4");
   });
   it("keeps quality independent and searchable by filters", () => {
     expect(formatQuality(alert.quality)).toBe("Clear");

@@ -3,12 +3,12 @@ import type { QualitySnapshot, VisibilitySnapshot } from "../../api/types";
 import { pretty } from "../../utils/formatting";
 
 export function PageHeading({
-  eyebrow,
+  titleId,
   title,
   deck,
   meta,
 }: {
-  eyebrow: string;
+  titleId?: string;
   title: string;
   deck: string;
   meta?: ReactNode;
@@ -16,8 +16,7 @@ export function PageHeading({
   return (
     <div className="page-heading">
       <div>
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
+        <h1 id={titleId}>{title}</h1>
         <p className="page-deck">{deck}</p>
       </div>
       {meta && <div className="heading-meta">{meta}</div>}
@@ -45,6 +44,7 @@ export function InspectorSection({
   children,
   secondary = false,
 }: {
+  titleId?: string;
   title: string;
   children: ReactNode;
   secondary?: boolean;

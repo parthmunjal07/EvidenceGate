@@ -5,9 +5,9 @@ import { useEvidence } from "../../state/EvidenceContext";
 
 const links: Array<[PageKey, string, string]> = [
   ["overview", "◫", "Overview"],
-  ["alerts", "◧", "Analyst Alerts"],
-  ["results", "⊞", "Evidence Results"],
-  ["system", "⌘", "System & Evidence Status"],
+  ["alerts", "◧", "Analyst alerts"],
+  ["results", "⊞", "Evidence results"],
+  ["system", "⌘", "System status"],
   ["replay", "▷", "Replay"],
 ];
 export function AppShell({
@@ -21,11 +21,10 @@ export function AppShell({
 }) {
   const { state } = useEvidence();
   const clock = useClock();
-  const title = links.find(([key]) => key === page)?.[2] ?? "Overview";
   const badge =
     state.replay?.state === "RUNNING"
-      ? "REPLAYING"
-      : (state.runtime?.state ?? (state.pageError ? "OFFLINE" : "CONNECTING"));
+      ? "Replaying"
+      : (state.runtime?.state === "ONLINE" ? "Online" : state.pageError ? "Offline" : state.runtime ? "Replaying" : "Connecting");
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
@@ -42,10 +41,9 @@ export function AppShell({
           </span>
           <span>
             <strong>EvidenceGate</strong>
-            <small>OPERATIONS CONSOLE</small>
+            <small>Passive network evidence</small>
           </span>
         </a>
-        <p className="nav-label">WORKSPACE</p>
         <nav className="primary-nav">
           {links.map(([key, icon, label]) => (
             <button
@@ -68,30 +66,23 @@ export function AppShell({
         </nav>
         <div className="sidebar-spacer" />
         <div className="sidebar-foot">
-          <div className="foot-mark">SIH 26145</div>
-          <p>
-            Passive observation
-            <br />
-            Read-only evidence analysis
-          </p>
-          <span className="version">SIH_ALERT_POLICY_V1</span>
+          <div className="foot-mark">SIH26145</div>
+          <p>Passive · read-only</p>
         </div>
       </aside>
       <div className="main-column">
         <header className="topbar">
           <div className="breadcrumbs">
             <span>EvidenceGate</span>
-            <span className="crumb-slash">/</span>
-            <strong>{title}</strong>
           </div>
           <div className="topbar-right">
             <span className="topbar-mode">
               <span className="mode-dot" />
-              PASSIVE · READ ONLY
+              Passive · read-only
             </span>
             <span className="runtime-pill">
               <span
-                className={`runtime-dot${badge === "OFFLINE" ? " offline" : badge === "REPLAYING" ? " replaying" : ""}`}
+                className={`runtime-dot${badge === "Offline" ? " offline" : badge === "Replaying" ? " replaying" : ""}`}
               />
               <strong>{badge}</strong>
             </span>
@@ -107,11 +98,8 @@ export function AppShell({
           {children}
         </main>
         <footer className="app-footer">
-          <span>EvidenceGate · SIH26145</span>
-          <span>
-            Passive observation · Read-only analysis · Immutable result
-            provenance
-          </span>
+          <span>SIH26145 · Passive, read-only</span>
+          <span>Policy: {state.runtime?.alert_policy_version ?? "Unavailable"}</span>
         </footer>
       </div>
     </div>

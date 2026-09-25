@@ -4,6 +4,7 @@ import {
   formatTimestamp,
   readable,
   summarizeEvidence,
+  threatClassLabel,
 } from "../../utils/formatting";
 import {
   ClaimCeiling,
@@ -34,8 +35,8 @@ export function AlertInspector({
       {alert && (
         <>
           <Header
-            kicker="ANALYST ATTENTION RECORD"
-            title={alert.threat_class}
+            kicker="Analyst attention record"
+            title={threatClassLabel(alert.threat_class)}
             subtitle={alert.mechanism_id}
             onClose={onClose}
           />
@@ -54,14 +55,14 @@ export function AlertInspector({
               {summarizeEvidence(alert.supporting_evidence.structured)}
             </p>
             <CodeBlock
-              label="STRUCTURED EVIDENCE"
+              label="Structured evidence"
               value={alert.supporting_evidence.structured}
             />
             <CodeBlock
-              label="EVIDENCE ITEMS"
+              label="Evidence items"
               value={alert.supporting_evidence.evidence_items}
             />
-            <p className="field-label">SOURCE OBSERVATION IDS</p>
+            <p className="field-label">Source observation IDs</p>
             <p>
               {alert.supporting_evidence.source_observation_ids.join(" Â· ") ||
                 "None supplied"}
@@ -72,17 +73,16 @@ export function AlertInspector({
               {confidenceText(
                 alert.confidence_basis,
                 alert.confidence_score,
-                alert.confidence_statement,
               )}
             </p>
           </InspectorSection>
           <InspectorSection title="Visibility & quality">
-            <span className="field-label">VISIBILITY CLASSES</span>
+            <span className="field-label">Visibility classes</span>
             <VisibilitySnapshotView value={alert.visibility} />
-            <span className="field-label">SOURCE QUALITY FACTS</span>
+            <span className="field-label">Source quality facts</span>
             <QualitySnapshotView value={alert.quality} />
           </InspectorSection>
-          <InspectorSection title="Claim ceiling">
+          <InspectorSection title="Claim limit">
             <ClaimCeiling text={alert.claim_ceiling} />
           </InspectorSection>
           <InspectorSection title="Governance & provenance" secondary>

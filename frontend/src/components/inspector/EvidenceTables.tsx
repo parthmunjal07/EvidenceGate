@@ -2,11 +2,14 @@
 import type { ResultDto, SihAlertProjection } from "../../api/types";
 import {
   availableCount,
+  confidenceBasisLabel,
   formatQuality,
   formatShortTime,
   readable,
   shortModelRef,
-  summarizeEvidence,
+  summarizeTableEvidence,
+  summarizeReference,
+  threatClassLabel,
 } from "../../utils/formatting";
 export function AlertTable({
   alerts,
@@ -23,15 +26,15 @@ export function AlertTable({
         <thead>
           <tr>
             {[
-              "TIME",
-              "THREAT CLASS",
-              "MECHANISM",
-              "ENTITY / FLOW",
-              "EVIDENCE",
-              "CONFIDENCE BASIS",
-              "QUALITY",
-              "VISIBILITY",
-              "PRIORITY",
+              "Time",
+              "Threat class",
+              "Mechanism",
+              "Entity",
+              "Evidence",
+              "Confidence basis",
+              "Quality",
+              "Visibility",
+              "Priority",
             ].map((name) => (
               <th key={name}>{name}</th>
             ))}
@@ -48,17 +51,19 @@ export function AlertTable({
                 selectOnKeyboard(event, () => onSelect(alert))
               }
             >
-              <td>{formatShortTime(alert.timestamp)}</td>
-              <td>{alert.threat_class}</td>
-              <td>{alert.mechanism_id}</td>
-              <td>{alert.entity_or_flow_reference}</td>
+              <td><time>{formatShortTime(alert.timestamp)}</time></td>
+              <td>{threatClassLabel(alert.threat_class)}</td>
+              <td><code>{alert.mechanism_id}</code></td>
+              <td title={alert.entity_or_flow_reference}><span className="reference-summary">{summarizeReference(alert.entity_or_flow_reference)}</span></td>
               <td className="evidence-cell">
-                {summarizeEvidence(alert.supporting_evidence.structured)}
-                {alert.confidence_basis === "MODEL_SCORE"
-                  ? ` Â· ${shortModelRef(alert.model_refs)}`
-                  : ""}
+                <span className="cell-summary">
+                  {summarizeTableEvidence(alert.supporting_evidence.structured)}
+                  {alert.confidence_basis === "MODEL_SCORE" && (
+                    <code> · {shortModelRef(alert.model_refs)}</code>
+                  )}
+                </span>
               </td>
-              <td>{alert.confidence_basis}</td>
+              <td>{confidenceBasisLabel(alert.confidence_basis)}</td>
               <td>{formatQuality(alert.quality)}</td>
               <td>{availableCount(alert.visibility)} available</td>
               <td className="priority-text">Review</td>
@@ -84,15 +89,15 @@ export function ResultTable({
         <thead>
           <tr>
             {[
-              "TIME",
-              "FAMILY",
-              "LANE",
-              "MECHANISM",
-              "RESULT TYPE",
-              "ENTITY / FLOW",
-              "EVIDENCE SUMMARY",
-              "QUALITY",
-              "VISIBILITY",
+              "Time",
+              "Family",
+              "Lane",
+              "Mechanism",
+              "Result type",
+              "Entity",
+              "Evidence",
+              "Quality",
+              "Visibility",
             ].map((name) => (
               <th key={name}>{name}</th>
             ))}
@@ -109,17 +114,19 @@ export function ResultTable({
                 selectOnKeyboard(event, () => onSelect(result))
               }
             >
-              <td>{formatShortTime(result.created_time)}</td>
+              <td><time>{formatShortTime(result.created_time)}</time></td>
               <td>{result.family}</td>
-              <td>{result.lane_id}</td>
-              <td>{result.mechanism_id || "â€”"}</td>
+              <td><code>{result.lane_id}</code></td>
+              <td><code>{result.mechanism_id || "â€”"}</code></td>
               <td>{readable(result.result_type)}</td>
-              <td>{result.entity_reference}</td>
+              <td title={result.entity_reference}><span className="reference-summary">{summarizeReference(result.entity_reference)}</span></td>
               <td className="evidence-cell">
-                {summarizeEvidence(result.evidence)}
-                {result.lane_id === "dga.m1"
-                  ? ` Â· ${shortModelRef(result.model_refs)}`
-                  : ""}
+                <span className="cell-summary">
+                  {summarizeTableEvidence(result.evidence)}
+                  {result.lane_id === "dga.m1" && (
+                    <code> · {shortModelRef(result.model_refs)}</code>
+                  )}
+                </span>
               </td>
               <td>{formatQuality(result.quality_snapshot)}</td>
               <td>{availableCount(result.visibility_snapshot)} available</td>

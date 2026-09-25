@@ -14,6 +14,7 @@ import {
   VisibilitySnapshotView,
 } from "../common/Primitives";
 import { Header, Inspector } from "./InspectorShell";
+import { dgaScoreNote, nonDgaProbabilityNote } from "../../utils/copy";
 export function ResultInspector({
   result,
   onClose,
@@ -28,13 +29,13 @@ export function ResultInspector({
       selected={Boolean(result)}
       onClose={onClose}
       placeholder="Select a result"
-      description="Inspect observed facts, derived evidence, missing prerequisites, claim ceiling, and provenance."
+      description="Inspect observed facts, derived evidence, missing prerequisites, claim limit, and provenance."
     >
       {result && (
         <>
           <Header
-            kicker="IMMUTABLE SCIENTIFIC RESULT"
-            title={readable(result.result_type).toUpperCase()}
+            kicker="Scientific result"
+            title={readable(result.result_type)}
             subtitle={`${result.family} Â· ${result.lane_id}`}
             onClose={onClose}
           />
@@ -85,31 +86,31 @@ export function ResultInspector({
             <p className="inspect-summary">
               {summarizeEvidence(result.evidence)}
             </p>
-            <CodeBlock label="STRUCTURED EVIDENCE" value={result.evidence} />
+            <CodeBlock label="Structured evidence" value={result.evidence} />
             {result.evidence_items.length > 0 && (
-              <CodeBlock label="EVIDENCE ITEMS" value={result.evidence_items} />
+              <CodeBlock label="Evidence items" value={result.evidence_items} />
             )}
           </InspectorSection>
           <InspectorSection title="Confidence semantics">
             <p className="confidence-note">
               {result.lane_id === "dga.m1"
-                ? `DGA-labelled lexical resemblance score: ${typeof score === "number" ? score.toFixed(6) : "not supplied"}. Not calibrated attack probability.`
-                : "Numeric attack probability is not defined by this analytic."}
+                ? dgaScoreNote(typeof score === "number" ? score : null)
+                : nonDgaProbabilityNote}
             </p>
           </InspectorSection>
           <InspectorSection title="Visibility & quality">
-            <span className="field-label">VISIBILITY CLASSES</span>
+            <span className="field-label">Visibility classes</span>
             <VisibilitySnapshotView value={result.visibility_snapshot} />
-            <span className="field-label">SOURCE QUALITY FACTS</span>
+            <span className="field-label">Source quality facts</span>
             <QualitySnapshotView value={result.quality_snapshot} />
           </InspectorSection>
           <InspectorSection title="Missing evidence & prerequisites">
             <CodeBlock
-              label="MISSING PREREQUISITES"
+              label="Missing prerequisites"
               value={result.missing_prerequisites}
             />
           </InspectorSection>
-          <InspectorSection title="Claim ceiling">
+          <InspectorSection title="Claim limit">
             <ClaimCeiling text={result.claim_ceiling} />
           </InspectorSection>
           <InspectorSection
@@ -153,7 +154,7 @@ export function ResultInspector({
               ]}
             />
             <CodeBlock
-              label="FULL TECHNICAL REFERENCES"
+              label="Full technical references"
               value={[
                 ...result.model_refs,
                 ...result.parser_refs,

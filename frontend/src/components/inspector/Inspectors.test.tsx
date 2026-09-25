@@ -103,6 +103,7 @@ describe("evidence table and inspector components", () => {
       screen.getByText(/Not calibrated attack probability/),
     ).toBeInTheDocument();
     expect(screen.getByText(alert.claim_ceiling)).toBeInTheDocument();
+    expect(screen.getByText("Claim limit")).toBeInTheDocument();
   });
   it("renders results as scientific records and keeps non-DGA probability undefined", () => {
     render(

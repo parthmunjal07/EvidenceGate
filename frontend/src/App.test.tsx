@@ -128,7 +128,7 @@ describe("operator console shell and live data presentation", () => {
     const replayLink = await screen.findByRole("button", { name: /Replay/ });
     fireEvent.click(replayLink);
     expect(
-      await screen.findByRole("heading", { name: "Controlled replay" }),
+      await screen.findByRole("heading", { name: "Choose a scenario" }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe("#/replay");
     expect(replayLink).toHaveAttribute("aria-current", "page");
@@ -137,7 +137,7 @@ describe("operator console shell and live data presentation", () => {
     const fetchMock = mockBackend();
     render(<App />);
     fireEvent.click(
-      await screen.findByRole("button", { name: "System & Evidence Status" }),
+      await screen.findByRole("button", { name: "System status" }),
     );
     expect(
       await screen.findByText("Active lexical model lane"),
@@ -190,7 +190,7 @@ describe("operator console shell and live data presentation", () => {
       }),
     );
     expect(
-      await screen.findByText("dga.m1 · SIH alert projection"),
+      await screen.findByText("Latest persisted result: DGA · dga.m1"),
     ).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([input]) => String(input) === "/results/r-1"),
@@ -227,6 +227,22 @@ describe("operator console shell and live data presentation", () => {
     expect(
       await screen.findByText("Database is not connected"),
     ).toBeInTheDocument();
-    expect(screen.getByText("OFFLINE")).toBeInTheDocument();
+    expect(screen.getByText("Offline")).toBeInTheDocument();
+  });
+  it("puts recent alerts before the live path and offers replay when empty", async () => {
+    mockBackend();
+    render(<App />);
+    const alertsHeading = await screen.findByRole("heading", { name: "Recent alerts" });
+    const flowHeading = screen.getByRole("heading", { name: "Live evidence path" });
+    expect(alertsHeading.compareDocumentPosition(flowHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Run a replay/ })).toBeInTheDocument();
+  });
+  it("keeps the analyst review caveat and source-result relationship visible", async () => {
+    mockBackend();
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /Analyst alerts/ }));
+    expect(screen.getByText("Alert means analyst review, not confirmation of malicious activity.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Evidence results" }));
+    expect(screen.getByText("Evidence results are the source records behind analyst alerts.")).toBeInTheDocument();
   });
 });

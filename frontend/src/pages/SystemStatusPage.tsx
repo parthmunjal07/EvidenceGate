@@ -19,9 +19,9 @@ export function SystemStatusPage({
     return (
       <section className="page active-page">
         <PageHeading
-          eyebrow="RUNTIME / CAPABILITY / DATA QUALITY"
-          title="System & Evidence Status"
-          deck="Loading runtime…"
+          titleId="system-title"
+          title="System status"
+          deck="Runtime, analytic readiness and evidence quality."
         />
       </section>
     );
@@ -29,7 +29,7 @@ export function SystemStatusPage({
   const cards: Array<[string, string | number, string]> = [
     [
       "Runtime",
-      runtime.state,
+      runtime.state === "ONLINE" ? "Online" : "Replaying",
       runtime.state === "ONLINE" ? "connected" : "replaying",
     ],
     ["Database", runtime.database_status, "connected"],
@@ -62,9 +62,9 @@ export function SystemStatusPage({
   return (
     <section className="page active-page" aria-labelledby="system-title">
       <PageHeading
-        eyebrow="RUNTIME / CAPABILITY / DATA QUALITY"
-        title="System & Evidence Status"
-        deck="Runtime readiness and the evidence conditions under which analytic results are produced."
+        titleId="system-title"
+        title="System status"
+        deck="Runtime, analytic readiness and evidence quality."
         meta={
           <span className="quiet-tag">
             Runtime read {new Date().toLocaleTimeString()}
@@ -76,7 +76,7 @@ export function SystemStatusPage({
           <article className="system-card" key={label}>
             <span className="metric-label">{label}</span>
             <strong
-              className="system-value"
+              className={`system-value${label === "Alert policy" || label === "DGA model" || label === "Active ML" ? " technical-value" : ""}`}
               title={
                 label === "DGA model"
                   ? (runtime.dga_model_failure_reason ?? undefined)
@@ -92,7 +92,6 @@ export function SystemStatusPage({
       <section className="panel target-panel">
         <div className="panel-head compact">
           <div>
-            <p className="eyebrow">REGISTERED DEFAULT TARGETS</p>
             <h2>Analytic capability</h2>
             <p>
               Target registration and implementation type are shown directly
@@ -108,17 +107,25 @@ export function SystemStatusPage({
             <section className="target-group" key={family}>
               <h3>
                 {family === "dns_tunnelling"
-                  ? "DNS Tunnelling"
+                  ? "DNS tunnelling"
                   : family === "encrypted_session"
-                    ? "Encrypted Sessions"
+                    ? "Encrypted sessions"
                     : family === "unusual_transfer"
-                      ? "Unusual Transfer"
-                      : family.toUpperCase()}
+                      ? "Unusual transfer"
+                      : family === "ddos"
+                        ? "DDoS"
+                        : family === "dga"
+                          ? "DGA"
+                          : family === "c2"
+                            ? "C2"
+                            : family === "recon"
+                              ? "Reconnaissance"
+                              : family}
               </h3>
               {targets.map((target) => (
                 <div className="target-row" key={target.lane_id}>
                   <code className="lane-name">{target.lane_id}</code>
-                  <span className="target-mechanism">
+                  <span className="target-mechanism technical-value">
                     {target.mechanism_id || "No mechanism ID"}
                   </span>
                   <span
@@ -139,7 +146,6 @@ export function SystemStatusPage({
       <section className="panel status-records-panel">
         <div className="panel-head compact">
           <div>
-            <p className="eyebrow">VERSIONED OPERATIONAL PROJECTION</p>
             <h2>System and evidence records</h2>
             <p>
               Quality, readiness, and evidence lifecycle status remain distinct
@@ -178,15 +184,15 @@ export function SystemStatusPage({
                   ]}
                 />
                 <details className="status-claim">
-                  <summary>Claim ceiling and supporting evidence</summary>
+                  <summary>Claim limit and supporting evidence</summary>
                   <ClaimCeiling text={item.claim_ceiling} />
                   <CodeBlock
-                    label="SUPPORTING EVIDENCE"
+                    label="Supporting evidence"
                     value={item.supporting_evidence}
                   />
                 </details>
                 <div className="status-sources">
-                  <span className="field-label">SOURCE RESULTS</span>
+                  <span className="field-label">Source results</span>
                   <div className="source-links">
                     {item.source_result_ids.map((id) => (
                       <button
@@ -209,7 +215,7 @@ export function SystemStatusPage({
         </div>
       </section>
       <section className="panel method-note">
-        <p className="eyebrow">INTERPRETATION</p>
+        <h2>How to read quality and visibility</h2>
         <p>
           Quality describes conditions of capture and parsing. Visibility
           describes which evidence classes were available. Neither is an alert

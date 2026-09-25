@@ -4,13 +4,24 @@ import type {
   SihAlertProjection,
   VisibilitySnapshot,
 } from "../api/types";
+import { dgaScoreNote, nonDgaProbabilityNote } from "./copy";
 
 export const pretty = (value: unknown) =>
   JSON.stringify(value ?? null, null, 2);
-export const readable = (value: unknown) =>
-  String(value ?? "—")
-    .replaceAll("_", " ")
-    .toLowerCase();
+export const readable = (value: unknown) => {
+  const text = String(value ?? "—").replaceAll("_", " ").toLowerCase();
+  return text.length ? `${text[0]?.toUpperCase()}${text.slice(1)}` : text;
+};
+export function threatClassLabel(value: string) {
+  const labels: Record<string, string> = {
+    C2: "C2",
+    DGA: "DGA",
+    DOS: "DDoS",
+    DNS_TUNNELING: "DNS tunnelling",
+    RECONNAISSANCE: "Reconnaissance",
+  };
+  return labels[value] ?? readable(value);
+}
 export const formatTimestamp = (value: string | null | undefined) =>
   value
     ? new Date(value).toLocaleString([], {
@@ -26,6 +37,20 @@ export const formatShortTime = (value: string | null | undefined) =>
         second: "2-digit",
       })
     : "—";
+export function summarizeReference(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(String).join(" · ");
+    if (parsed && typeof parsed === "object") {
+      return Object.entries(parsed)
+        .map(([key, item]) => `${key.replaceAll("_", " ")}: ${String(item)}`)
+        .join(" · ");
+    }
+  } catch {
+    // Plain entity names are already suitable for table display.
+  }
+  return value;
+}
 export function formatQuality(quality: QualitySnapshot) {
   const values = Object.values(quality);
   if (values.includes("DEGRADED")) return "Degraded";
@@ -51,14 +76,27 @@ export function summarizeEvidence(evidence: Record<string, unknown>) {
         .join(" · ")
     : "Structured evidence available";
 }
+export function summarizeTableEvidence(evidence: Record<string, unknown>) {
+  const factual = Object.fromEntries(
+    Object.entries(evidence).filter(
+      ([key]) => !/claim[_ ]?(ceiling|limit)/i.test(key),
+    ),
+  );
+  return summarizeEvidence(factual);
+}
 export function confidenceText(
   basis: ConfidenceBasis,
   score: number | null,
-  statement: string,
 ) {
   if (basis === "MODEL_SCORE")
-    return `DGA-labelled lexical resemblance score: ${score == null ? "not present" : score.toFixed(6)}. Not calibrated attack probability.`;
-  return `${basis}: ${statement}. Numeric attack probability is not defined by this analytic.`;
+    return dgaScoreNote(score);
+  const label = basis === "STATISTICAL_SUPPORT" ? "Statistical support" : "Observed evidence";
+  return `${label}. ${nonDgaProbabilityNote}`;
+}
+export function confidenceBasisLabel(basis: ConfidenceBasis) {
+  if (basis === "MODEL_SCORE") return "Model score";
+  if (basis === "STATISTICAL_SUPPORT") return "Statistical support";
+  return "Observed evidence";
 }
 export function shortModelRef(refs: string[]) {
   const model = refs.find((value) => value.startsWith("model:DGA-A1-M1-R1"));

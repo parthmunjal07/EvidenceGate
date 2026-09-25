@@ -7,6 +7,7 @@ import {
 import { useEvidence } from "../state/EvidenceContext";
 import { filterResults } from "../utils/filters";
 import type { ResultDto } from "../api/types";
+import { resultsSourceNote } from "../utils/copy";
 
 export function ResultsPage({
   initialResultId = null,
@@ -30,18 +31,13 @@ export function ResultsPage({
   return (
     <section className="page active-page" aria-labelledby="results-title">
       <PageHeading
-        eyebrow="SCIENTIFIC AUTHORITY / IMMUTABLE SQLITE RESULTS"
-        title="Evidence Results"
-        deck="Factual analytic results with source, quality, visibility, and claim limits."
-        meta={
-          <span className="status-chip neutral">AUTHORITATIVE RECORDS</span>
-        }
+        titleId="results-title"
+        title="Evidence results"
+        deck="Observed and derived evidence from active analytics."
       />
       <div className="results-callout">
-        <strong>Scientific authority</strong>
         <span>
-          /results contains immutable results. Analyst Alerts are a separate,
-          versioned presentation projection.
+          {resultsSourceNote}
         </span>
       </div>
       <div className="filter-bar">

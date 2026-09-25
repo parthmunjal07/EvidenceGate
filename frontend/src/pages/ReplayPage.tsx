@@ -17,26 +17,24 @@ export function ReplayPage({
   return (
     <section className="page active-page" aria-labelledby="replay-title">
       <PageHeading
-        eyebrow="CONTROLLED INPUT / ALLOWLISTED SCENARIOS"
+        titleId="replay-title"
         title="Replay"
-        deck="Run an approved fixture through the same passive ingest and analytics runtime."
-        meta={<span className="status-chip neutral">READ-ONLY SOURCE</span>}
+        deck="Run a controlled scenario through passive analysis."
       />
       <div className="replay-intro">
         <div className="replay-intro-mark">▷</div>
         <div>
-          <h2>Controlled replay</h2>
+          <h2>About replay</h2>
           <p>
-            Replay accepts scenario IDs exposed by the runtime. It does not
-            accept local paths or network locations. Persisted results appear in
-            Evidence Results and the live evidence flow.
+            Replay uses scenarios made available by the runtime. One observation
+            can produce evidence for more than one analytic. Results appear in
+            Evidence results and the live evidence path.
           </p>
         </div>
       </div>
       <section className="panel replay-run-panel">
         <div className="panel-head compact">
           <div>
-            <p className="eyebrow">AVAILABLE FROM GET /RUNTIME</p>
             <h2>Choose a scenario</h2>
           </div>
           <label className="speed-control">
@@ -88,7 +86,6 @@ export function ReplayPage({
       <section className="panel replay-progress-panel">
         <div className="panel-head compact">
           <div>
-            <p className="eyebrow">CURRENT REPLAY STATE</p>
             <h2>
               {running
                 ? `Replaying ${replay.scenario}`
@@ -102,7 +99,7 @@ export function ReplayPage({
           <span
             className={`status-chip${running ? " running" : replay?.state === "FAILED" ? " warning" : " neutral"}`}
           >
-            {replay?.state ?? "CONNECTING"}
+            {replay?.state === "RUNNING" ? "Replaying" : replay?.state === "COMPLETED" ? "Completed" : replay?.state === "FAILED" ? "Failed" : "Idle"}
           </span>
         </div>
         <div className="progress-track">
@@ -139,22 +136,17 @@ export function ReplayPage({
             (running
               ? "Replay is processing source records. Persisted results will appear as they arrive."
               : replay?.state === "COMPLETED"
-                ? `Replay finished at ${replay.finished_at || "—"}. Results remain available in Evidence Results.`
+                ? `Replay finished at ${replay.finished_at || "—"}. Results remain available in Evidence results.`
                 : "Select an allowlisted scenario to begin.")}
         </div>
       </section>
       <section className="panel replay-flow-panel">
         <div className="panel-head compact">
           <div>
-            <p className="eyebrow">EVENT-DRIVEN EXPLANATION</p>
-            <h2>Follow persisted evidence</h2>
-            <p>
-              Flow stages illuminate when a replay is running or a result event
-              is persisted.
-            </p>
+            <h2>Replay results</h2>
           </div>
           <button className="text-button" onClick={() => navigate("overview")}>
-            View overview flow →
+            View overview →
           </button>
         </div>
         <div className="replay-event-log">

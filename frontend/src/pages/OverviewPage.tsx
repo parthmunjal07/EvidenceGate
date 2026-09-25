@@ -5,8 +5,11 @@ import { PageHeading, EmptyState } from "../components/common/Primitives";
 import {
   formatQuality,
   formatShortTime,
+  confidenceBasisLabel,
   shortModelRef,
-  summarizeEvidence,
+  summarizeTableEvidence,
+  summarizeReference,
+  threatClassLabel,
 } from "../utils/formatting";
 import type { SihAlertProjection } from "../api/types";
 
@@ -26,82 +29,55 @@ export function OverviewPage({
     (item) => item.result_type === "ANALYTIC_UNAVAILABLE",
   ).length;
   const recent = state.alerts.slice(0, 6);
+  const runtimeLabel = replay?.state === "RUNNING"
+    ? "Replaying"
+    : state.runtime?.state === "ONLINE"
+      ? "Online"
+      : state.runtime?.state || "Connecting";
+
   return (
     <section className="page active-page" aria-labelledby="overview-title">
       <PageHeading
-        eyebrow="OPERATIONS / OVERVIEW"
-        title="Evidence overview"
-        deck="A live view of passive observations, persisted results, and analyst attention."
-        meta={
-          <>
-            <span className="live-label">
-              <i />
-              LIVE RUNTIME
-            </span>
-            <span>Updated {new Date().toLocaleTimeString()}</span>
-          </>
-        }
+        titleId="overview-title"
+        title="Overview"
+        deck="Monitor evidence and review activity."
       />
       <div className="metric-grid" aria-label="Runtime summary">
         <Metric
-          label="Input / replay state"
-          value={
-            replay?.state === "RUNNING"
-              ? "REPLAYING"
-              : (state.runtime?.state ?? "—")
-          }
-          detail={
-            replay?.scenario
-              ? `${replay.source_type || "Source"} · ${replay.scenario}`
-              : `${state.runtime?.default_target_count ?? "—"} targets ready · ${state.runtime?.scenarios.length ?? "—"} replay scenarios`
-          }
+          label="Runtime"
+          value={runtimeLabel}
+          detail={replay?.scenario ? `Replay · ${replay.scenario}` : "Passive analysis"}
         />
         <Metric
-          label="Analyst attention"
+          label="Analyst alerts"
           value={state.alerts.length}
-          detail="in newest 500 results"
+          detail="In the current result window"
         />
         <Metric
-          label="Quality degraded"
+          label="Quality issues"
           value={degraded}
-          detail={`Evidence status records: ${state.statusItems.length}`}
+          detail="Degraded quality records"
         />
         <Metric
-          label="Analytic unavailable"
+          label="Unavailable analytics"
           value={unavailable}
-          detail={`Across ${state.runtime?.default_target_count ?? "—"} registered targets`}
+          detail="Across registered targets"
         />
       </div>
-      <EvidenceFlow
-        result={state.latestResult}
-        replaying={replay?.state === "RUNNING"}
-      />
       <section className="panel overview-table-panel">
         <div className="panel-head compact">
-          <div>
-            <p className="eyebrow">LATEST REVIEW FINDINGS</p>
-            <h2>Recent analyst attention</h2>
-          </div>
+          <h2>Recent alerts</h2>
           <button className="text-button" onClick={() => navigate("alerts")}>
-            Open analyst queue <span aria-hidden="true">→</span>
+            View all alerts <span aria-hidden="true">→</span>
           </button>
         </div>
         {recent.length ? (
           <div className="table-wrap">
-            <table>
+            <table className="data-table">
               <thead>
                 <tr>
-                  {[
-                    "TIME",
-                    "CLASS",
-                    "MECHANISM",
-                    "ENTITY / FLOW",
-                    "EVIDENCE SUMMARY",
-                    "BASIS",
-                    "QUALITY",
-                    "",
-                  ].map((item, i) => (
-                    <th key={`${item}-${i}`}>{item}</th>
+                  {["Time", "Threat class", "Mechanism", "Entity", "Evidence", "Confidence basis", "Quality", "Priority"].map((item) => (
+                    <th key={item}>{item}</th>
                   ))}
                 </tr>
               </thead>
@@ -124,32 +100,44 @@ export function OverviewPage({
                     }}
                   >
                     <td>{formatShortTime(alert.timestamp)}</td>
-                    <td>{alert.threat_class}</td>
-                    <td>{alert.mechanism_id}</td>
-                    <td>{alert.entity_or_flow_reference}</td>
-                    <td className="evidence-cell">
-                      {summarizeEvidence(alert.supporting_evidence.structured)}
-                      {alert.confidence_basis === "MODEL_SCORE"
-                        ? ` · ${shortModelRef(alert.model_refs)}`
-                        : ""}
+                    <td>{threatClassLabel(alert.threat_class)}</td>
+                    <td><code>{alert.mechanism_id}</code></td>
+                    <td title={alert.entity_or_flow_reference}>
+                      <span className="reference-summary">{summarizeReference(alert.entity_or_flow_reference)}</span>
                     </td>
-                    <td>{alert.confidence_basis}</td>
+                    <td className="evidence-cell">
+                      <span className="cell-summary">
+                        {summarizeTableEvidence(alert.supporting_evidence.structured)}
+                        {alert.confidence_basis === "MODEL_SCORE" && (
+                          <code> · {shortModelRef(alert.model_refs)}</code>
+                        )}
+                      </span>
+                    </td>
+                    <td>{confidenceBasisLabel(alert.confidence_basis)}</td>
                     <td>{formatQuality(alert.quality)}</td>
-                    <td className="row-arrow">→</td>
+                    <td className="priority-text">Review</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <EmptyState>
-            No analyst attention records in the current result window.
-          </EmptyState>
+          <div className="overview-empty">
+            <EmptyState>No recent alerts.</EmptyState>
+            <button className="text-button" onClick={() => navigate("replay")}>
+              Run a replay <span aria-hidden="true">→</span>
+            </button>
+          </div>
         )}
       </section>
+      <EvidenceFlow
+        result={state.latestResult}
+        replaying={replay?.state === "RUNNING"}
+      />
     </section>
   );
 }
+
 function Metric({
   label,
   value,

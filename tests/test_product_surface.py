@@ -102,7 +102,7 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         built_assets = [await client.get(path) for path in assets]
         assert all(asset.status_code == 200 and asset.content for asset in built_assets)
         bundle = "\n".join(asset.text for asset in built_assets)
-        assert "Analyst Alerts" in bundle and "Evidence Results" in bundle
+        assert "Analyst alerts" in bundle and "Evidence results" in bundle
         assert "Not calibrated attack probability" in bundle
         assert "Numeric attack probability is not defined by this analytic." in bundle
         assert "stream_gap" in bundle
