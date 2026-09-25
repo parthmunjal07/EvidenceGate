@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SihAlertProjection } from "../api/types";
-import { claimSemantics, confidenceText, formatEvidenceValue, formatQuality, friendlyCategory, humanEvidenceRows, summarizeEvidence, summarizeReference, summarizeTableEvidence, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
+import { claimSemantics, confidenceText, formatEvidenceValue, formatQuality, friendlyCategory, humanEvidenceRows, observationLineageLabel, summarizeEvidence, summarizeReference, summarizeTableEvidence, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
 import { filterAlerts, filterResults } from "./filters";
 
 const alert: SihAlertProjection = {
@@ -78,6 +78,9 @@ describe("scientific display helpers", () => {
     expect(summarizeReference('{"flow":{"unexpected":true}}')).toBe("Structured reference · 1 fields");
     expect(summarizeReference('[{"unknown":true}]')).toBe("Structured value · 1 items");
     expect(summarizeReference("plain-entity")).toBe("plain-entity");
+    expect(summarizeReference("flow:fixture-flow-transfer:1")).toBe("Flow fixture-flow-transfer:1");
+    expect(observationLineageLabel(["obs-a", "obs-b", "obs-c"])).toBe("Evidence from 3 observations");
+    expect(observationLineageLabel([])).toBeNull();
   });
   it("formats the verified DDOS-A state-key tuple as a TCP flow summary", () => {
     expect(summarizeReference('["192.0.2.10","service/https",6,[["192.0.2.10",443],["198.51.100.10",50000]]]', "DDOS-A-B0"))

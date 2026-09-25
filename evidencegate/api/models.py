@@ -110,6 +110,7 @@ class RuntimeTraceEventDto(StrictModel):
     readiness: str | None = None
     reason: str | None = None
     result_id: str | None = None
+    source_observation_ids: list[str] = Field(default_factory=list)
 
 
 class RuntimeTraceResponse(StrictModel):

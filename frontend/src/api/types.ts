@@ -141,6 +141,7 @@ export type RuntimeTraceEvent = {
   readiness: string | null;
   reason: string | null;
   result_id: string | null;
+  source_observation_ids: string[];
 };
 export type RuntimeTraceResponse = {
   events: RuntimeTraceEvent[];

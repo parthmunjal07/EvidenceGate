@@ -17,6 +17,12 @@ from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.routing.router import LaneTarget
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 from evidencegate.runtime.trace import emit_trace
+from evidencegate.results.types import (
+    EvidencePayload, Result, ResultStatusSnapshot,
+)
+from evidencegate.domain.enums import EvidenceReadiness, IntegrationStatus
+from evidencegate.domain.quality import EvidenceQuality
+from evidencegate.domain.events import VisibilityProfile
 
 
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -60,7 +66,10 @@ def test_trace_buffer_is_bounded_and_keeps_monotonic_cursor():
 async def test_trace_api_exposes_bounded_typed_events(tmp_path):
     app = create_app(tmp_path / "trace-api.sqlite")
     async with app.router.lifespan_context(app):
-        app.state.service.runtime_trace.emit("OBSERVATION_CREATED", observation_id="obs-api")
+        app.state.service.runtime_trace.emit(
+            "RESULT_PERSISTED", result_id="result-api",
+            source_observation_ids=["obs-a", "obs-b", "obs-c"],
+        )
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test",
         ) as client:
@@ -68,8 +77,39 @@ async def test_trace_api_exposes_bounded_typed_events(tmp_path):
     assert response.status_code == 200
     payload = response.json()
     assert payload["latest_sequence"] == 1
-    assert payload["events"][0]["kind"] == "OBSERVATION_CREATED"
-    assert payload["events"][0]["observation_id"] == "obs-api"
+    assert payload["events"][0]["kind"] == "RESULT_PERSISTED"
+    assert payload["events"][0]["source_observation_ids"] == ["obs-a", "obs-b", "obs-c"]
+    assert payload["events"][0]["observation_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_persisted_result_trace_keeps_full_lineage_without_claiming_one_cause(tmp_path):
+    app = create_app(tmp_path / "trace-lineage.sqlite")
+    service = app.state.service
+    async def inserted(_result): return True
+    service.writer.write_result = inserted
+    service.writer.cursor_for = lambda _result: "cursor-test"
+    result = Result(
+        result_id="result-lineage", schema_version="3.0", result_type=ResultType.REVIEW_FINDING,
+        created_time=NOW, lane_id="c2.r1", plugin_id="c2", plugin_version="1",
+        analytic_version="1", governance_version="g1", entity_reference="entity",
+        taxonomy=("network", "c2", "recurrence"),
+        status_snapshot=ResultStatusSnapshot(
+            ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.BASELINE_IMPLEMENTED,
+            "g1", EvidenceReadiness.READY, False,
+        ),
+        claim_ceiling="REVIEW", evidence_items=(), missing_prerequisites=(),
+        governing_ids=(), quality_refs=(), provenance_refs=(), mechanism_id="C2-R1",
+        evidence=EvidencePayload.from_value({}),
+        source_observation_ids=("obs-a", "obs-b", "obs-c"),
+        quality_snapshot=EvidenceQuality(), visibility_snapshot=VisibilityProfile(),
+    )
+
+    assert await service.persist_and_publish(result) is True
+    event = service.runtime_trace.snapshot()[0]
+    assert event.kind == "RESULT_PERSISTED"
+    assert event.source_observation_ids == ["obs-a", "obs-b", "obs-c"]
+    assert event.observation_id is None
 
 
 @pytest.mark.asyncio

@@ -126,10 +126,10 @@ class EvidenceGateService:
         if inserted:
             self.runtime_trace.emit(
                 "RESULT_PERSISTED",
-                observation_id=(result.source_observation_ids[0] if result.source_observation_ids else None),
                 lane_id=result.lane_id,
                 mechanism=result.mechanism_id,
                 result_id=result.result_id,
+                source_observation_ids=list(result.source_observation_ids),
             )
             self.broadcaster.publish(ResultNotification(
                 result_id=result.result_id,

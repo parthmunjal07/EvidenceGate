@@ -75,11 +75,11 @@ describe("analyst-first console", () => {
   it("keeps Traffic lab factual and moves the trace into an on-demand modal", async () => {
     const fetchMock = mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Traffic lab" }));
-    expect(screen.getByText(/does not simulate a live network/)).toBeInTheDocument();
+    expect(screen.getByText(/Watch prepared passive input move through the runtime/)).toBeInTheDocument();
     expect(screen.queryByText("mixed_ddos_recon")).not.toBeInTheDocument();
     expect(screen.queryByText("Visual pace")).not.toBeInTheDocument();
     expect(screen.queryByText("Processing trace")).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: /Run scenario/ })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Run" })[0]!);
     await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input) === "/replay")).toBe(true));
     expect(JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input) === "/replay")?.[1]?.body))).toEqual({ scenario: "mixed_ddos_recon", speed: 0 });
   });

@@ -12,9 +12,12 @@ This matrix separates the implemented MVP runtime from proposed system architect
 | Independent immutable Results | **Implemented** and persisted in SQLite; `/results` remains authoritative | New Evidence feed and Evidence Results page |
 | Analyst-facing family projection | **Implemented** as a presentation projection over immutable Results | Analyst Queue |
 | Missing prerequisite evidence | **Implemented** when a persisted Result records missing prerequisites or a limitation | Limitation result in New Evidence and the analyst detail view |
+| REST result retrieval | **Implemented** through `/results`; persisted SQLite Results remain the scientific authority | Evidence Results page |
+| Server-sent result notifications | **Implemented** as hints followed by REST retrieval of the durable Result | Live New Evidence updates |
+| Bounded runtime trace | **Implemented** as a 500-event in-memory, best-effort presentation buffer; trace loss cannot change persisted Results | Traffic Lab runtime stages |
 | Live interface capture | **Deferred** | Not presented as active |
 | NetFlow, IPFIX, or sFlow ingestion | **Deferred** | Not presented as active |
 | Cross-observation correlation ML | **Proposed / deferred** | Not presented as active |
 | Distributed multi-host processing | **Proposed / deferred** | Not presented as active |
 
-Runtime trace telemetry is presentation-only, bounded in memory, and best effort. It does not replace persisted Results or change routing, readiness, analytic, or persistence semantics.
+Runtime trace telemetry is presentation-only, bounded in memory, and best effort. `RESULT_PERSISTED` carries the Result's full source observation lineage. Trace events do not replace persisted Results or change routing, readiness, analytic, or persistence semantics. SQLite-backed `/results` remains authoritative if the trace is dropped or truncated.

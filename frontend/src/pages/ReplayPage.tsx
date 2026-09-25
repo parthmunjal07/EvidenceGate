@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEvidence } from "../state/EvidenceContext";
 import { EmptyState, PageHeading } from "../components/common/Primitives";
 import { api } from "../api/client";
 import type { RuntimeTraceEvent } from "../api/types";
-import { familyLabel, formatShortTime, friendlyCategory, mechanismLabel, readable, summarizeReference } from "../utils/formatting";
+import { familyLabel, formatShortTime, friendlyCategory, mechanismLabel, observationLineageLabel, readable, summarizeReference } from "../utils/formatting";
 import { useReplay } from "../hooks/useReplay";
 import type { PageKey } from "../state/types";
+import { fetchFinalRuntimeTrace, latestReadinessByObservationLane, mergeRuntimeTraceEvents, observationLaneKey } from "../utils/runtimeTrace";
 
 const observationLabel = (value: string | null) => value ? readable(value).toUpperCase() : "OBSERVATION";
 const readinessLabel = (event: RuntimeTraceEvent | undefined, hasResult: boolean) => {
@@ -28,6 +29,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
   const [cursor, setCursor] = useState(0);
   const [baseline, setBaseline] = useState<Set<string> | null>(null);
   const [showPicker, setShowPicker] = useState(true);
+  const previousReplayState = useRef(replay?.state);
   const running = replay?.state === "RUNNING";
   const selectedScenario = scenarios.find((scenario) => scenario.id === replay?.scenario);
   const scenarioName = selectedScenario?.label || "Traffic replay";
@@ -41,16 +43,28 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
     const poll = async () => {
       try {
         const update = await api.runtimeTrace(cursor, controller.signal);
-        if (update.events.length) {
-          setTrace((current) => [...current, ...update.events].slice(-500));
-          setCursor(update.latest_sequence);
-        }
+        if (update.events.length) setTrace((current) => mergeRuntimeTraceEvents(current, update.events));
+        setCursor((current) => Math.max(current, update.latest_sequence));
       } catch { /* Trace delivery is optional; replay processing continues. */ }
       if (!controller.signal.aborted) timer = setTimeout(poll, 350);
     };
     void poll();
     return () => { controller.abort(); clearTimeout(timer); };
   }, [running, cursor]);
+
+  useEffect(() => {
+    const previous = previousReplayState.current;
+    previousReplayState.current = replay?.state;
+    if (replay?.state !== "COMPLETED") return;
+    const controller = new AbortController();
+    void fetchFinalRuntimeTrace(previous, replay.state, cursor, (after) => api.runtimeTrace(after, controller.signal)).then((update) => {
+      if (!update) return;
+      if (controller.signal.aborted) return;
+      setTrace((current) => mergeRuntimeTraceEvents(current, update.events));
+      setCursor((current) => Math.max(current, update.latest_sequence));
+    }).catch(() => { /* Final presentation telemetry is optional; persisted Results remain authoritative. */ });
+    return () => controller.abort();
+  }, [replay?.state, cursor]);
 
   const runScenario = async (id: string) => {
     let latestSequence = 0;
@@ -70,7 +84,6 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
       .filter((item) => !baseline.has(item.result_id))
       .sort((a, b) => a.created_time.localeCompare(b.created_time))
     : [], [state.results, baseline]);
-  const persistedIds = useMemo(() => new Set(runResults.map((item) => item.result_id)), [runResults]);
   const observations = useMemo(() => {
     const unique = new Map<string, RuntimeTraceEvent>();
     for (const event of trace) if (event.kind === "OBSERVATION_CREATED" && event.observation_id) unique.set(event.observation_id, event);
@@ -80,13 +93,12 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
     const routed = new Map<string, RuntimeTraceEvent>();
     const recent = trace.filter((event) => event.observation_id === observations[0]?.observation_id);
     for (const event of recent) if (event.kind === "ROUTED" && event.lane_id) routed.set(event.lane_id, event);
-    const latest = new Map<string, RuntimeTraceEvent>();
-    for (const event of trace) if (event.lane_id && ["ADMISSION_REJECTED", "ANALYTIC_EVALUATING", "ANALYTIC_READINESS", "ANALYTIC_EVALUATED"].includes(event.kind)) latest.set(event.lane_id, event);
+    const latest = latestReadinessByObservationLane(trace);
     return [...routed.values()].map((route) => {
       const results = runResults.filter((item) => item.lane_id === route.lane_id && item.source_observation_ids.includes(route.observation_id || ""));
       const status = results.some((item) => item.result_type === "ANALYTIC_UNAVAILABLE") ? "Unavailable"
         : results.some((item) => item.result_type === "INSUFFICIENT_EVIDENCE" || item.missing_prerequisites.length > 0) ? "Insufficient evidence"
-          : readinessLabel(latest.get(route.lane_id!), results.length > 0);
+          : readinessLabel(latest.get(observationLaneKey(route.observation_id || "", route.lane_id!)), results.length > 0);
       return { ...route, status };
     });
   }, [trace, observations, runResults]);
@@ -121,7 +133,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
       </div>
 
       <section className="panel replay-flow-panel"><div className="panel-head compact"><div><h2>New evidence</h2><p>Immutable results persisted during this replay.</p></div><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>
-        {runResults.length ? <div className="replay-event-log">{runResults.slice(-10).reverse().map((result) => <div className="event-log-item" key={result.result_id}><time>{formatShortTime(result.created_time)}</time><strong>{friendlyCategory(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)} · {summarizeReference(result.entity_reference, result.mechanism_id)}</span><em>{result.result_type === "REVIEW_FINDING" ? "Review" : "Limitation"}</em></div>)}</div> : <p className="runtime-empty">Results will appear here after persistence.</p>}
+        {runResults.length ? <div className="replay-event-log">{runResults.slice(-10).reverse().map((result) => <div className="event-log-item" key={result.result_id}><time>{formatShortTime(result.created_time)}</time><strong>{friendlyCategory(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)} · {summarizeReference(result.entity_reference, result.mechanism_id)}{observationLineageLabel(result.source_observation_ids) ? ` · ${observationLineageLabel(result.source_observation_ids)}` : ""}</span><em>{result.result_type === "REVIEW_FINDING" ? "Review" : "Limitation"}</em></div>)}</div> : <p className="runtime-empty">Results will appear here after persistence.</p>}
       </section>
       <div className="run-summary"><span>{replay.observations_emitted} observations processed</span><span>{replay.results_persisted} results persisted</span><span>{reviewCount} review items · {limitationCount} limitations</span>{!running && <button className="text-button" onClick={() => setShowPicker((value) => !value)}>{showPicker ? "Hide scenarios" : "Run another scenario"}</button>}</div>
       {error && <div className="stream-notice" role="status">{error}</div>}

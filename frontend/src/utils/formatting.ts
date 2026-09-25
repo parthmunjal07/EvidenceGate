@@ -76,8 +76,16 @@ export function summarizeReference(value: string, mechanismId?: string | null) {
   } catch {
     // Plain entity names are already suitable for table display.
   }
+  const flowId = value.match(/^flow:(.+)$/i);
+  if (flowId) return `Flow ${flowId[1]}`;
   return value;
 }
+
+export function observationLineageLabel(sourceObservationIds: string[]) {
+  if (sourceObservationIds.length === 0) return null;
+  return `Evidence from ${sourceObservationIds.length} observation${sourceObservationIds.length === 1 ? "" : "s"}`;
+}
+
 function safeReferenceValue(value: unknown): string {
   if (value === null) return "Unknown";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any
@@ -20,6 +20,7 @@ class RuntimeTraceEvent:
     readiness: str | None = None
     reason: str | None = None
     result_id: str | None = None
+    source_observation_ids: list[str] = field(default_factory=list)
 
 
 class RuntimeTraceBuffer:
