@@ -1,7 +1,7 @@
 # SIH26145 MVP runtime demo closure
 
-**QA date:** 2026-09-26  
-**Starting revision:** `66cdb3eaa3737f7ba6453c15140105de080424c0`  
+**QA date:** 2026-09-26
+**Starting revision:** `66cdb3eaa3737f7ba6453c15140105de080424c0`
 **Scientific changes:** None. The persisted Result schema, routing predicates, thresholds, model training, claim ceilings, and replay semantics are unchanged.
 
 ## Runtime trace contract
