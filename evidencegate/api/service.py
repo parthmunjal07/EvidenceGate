@@ -10,6 +10,7 @@ from time import perf_counter
 from typing import Mapping
 
 from evidencegate.api.broadcast import ResultBroadcaster
+from evidencegate.api.runtime_trace import RuntimeTraceBuffer
 from evidencegate.api.models import (
     FamilyStatusDto, ReplayStatusResponse, ResultNotification, ScenarioDto,
     TargetStatusDto,
@@ -96,6 +97,7 @@ class EvidenceGateService:
     ):
         self.writer = SqliteWriter(database, schema)
         self.broadcaster = ResultBroadcaster(subscriber_queue_size)
+        self.runtime_trace = RuntimeTraceBuffer()
         self.scenarios = dict(scenarios or default_scenarios(repository_root))
         # The verified immutable model is owned by one application service
         # lifecycle and reused by every replay.
@@ -122,6 +124,13 @@ class EvidenceGateService:
     async def persist_and_publish(self, result: Result) -> bool:
         inserted = await self.writer.write_result(result)
         if inserted:
+            self.runtime_trace.emit(
+                "RESULT_PERSISTED",
+                observation_id=(result.source_observation_ids[0] if result.source_observation_ids else None),
+                lane_id=result.lane_id,
+                mechanism=result.mechanism_id,
+                result_id=result.result_id,
+            )
             self.broadcaster.publish(ResultNotification(
                 result_id=result.result_id,
                 created_time=result.created_time,
@@ -181,6 +190,7 @@ class EvidenceGateService:
         supervisor = RuntimeSupervisor(
             registration.plugins, registration.governances, writer,
             reorder_policies=registration.reorder_policies,
+            trace_sink=self.runtime_trace.emit,
         )
         try:
             source = (
@@ -190,6 +200,8 @@ class EvidenceGateService:
             )
             summary = await ReplayRunner(
                 source, supervisor, speed=speed,
+                trace_sink=self.runtime_trace.emit,
+                progress_sink=self._update_replay_progress,
             ).run()
             self._replay.records_read = summary.records_read
             self._replay.observations_emitted = summary.observations_emitted
@@ -206,6 +218,10 @@ class EvidenceGateService:
         finally:
             self._replay.finished_at = datetime.now(timezone.utc)
             self._started_monotonic = None
+
+    def _update_replay_progress(self, records_read: int, observations_emitted: int) -> None:
+        self._replay.records_read = records_read
+        self._replay.observations_emitted = observations_emitted
 
     def targets(self) -> list[TargetStatusDto]:
         return [

@@ -33,8 +33,8 @@ export function ResultsPage({
     <section className="page active-page" aria-labelledby="results-title">
       <PageHeading
         titleId="results-title"
-        title="Evidence results"
-        deck="Observed and derived evidence from active analytics."
+        title="Evidence"
+        deck="Search and inspect the recorded observations and analytic results."
       />
       <div className="results-callout">
         <span>
@@ -46,7 +46,7 @@ export function ResultsPage({
           <span aria-hidden="true">⌕</span>
           <input
             type="search"
-            placeholder="Search IP, domain, flow or result ID"
+            placeholder="Search entity, family or result ID"
             aria-label="Search evidence results"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -100,7 +100,7 @@ export function ResultsPage({
               onSelect={(result) => setSelectedId(result.result_id)}
             />
           ) : (
-            <EmptyState>No results match this view.</EmptyState>
+            <EmptyState>{all.length ? "No evidence records match these filters." : "No evidence records are available yet. Run a controlled replay to create demo activity."}</EmptyState>
           )}
           {state.nextCursor && (
             <button

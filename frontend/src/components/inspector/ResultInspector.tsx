@@ -6,7 +6,7 @@ import { Header, Inspector } from "./InspectorShell";
 
 export function ResultInspector({ result, onClose }: { result: ResultDto | null; onClose: () => void }) {
   const evidenceRows = result ? humanEvidenceRows(result.evidence) : [];
-  return <Inspector label="Evidence investigation" selected={Boolean(result)} onClose={onClose} placeholder="Select a result" description="Inspect the finding, its evidence, and its interpretation limits.">
+  return <Inspector label="Evidence record" selected={Boolean(result)} onClose={onClose} placeholder="Select an evidence record" description="Inspect the observed facts, evidence conditions, and supporting details.">
     {result && <>
       <Header kicker={friendlyCategory(result.family)} title={mechanismLabel(result.mechanism_id || result.lane_id)} subtitle={summarizeReference(result.entity_reference, result.mechanism_id)} onClose={onClose} />
       <InspectorSection title="Why this was surfaced"><p className="inspect-summary prominent-summary">{whySurfaced(result.mechanism_id || result.lane_id, result.evidence)}</p></InspectorSection>

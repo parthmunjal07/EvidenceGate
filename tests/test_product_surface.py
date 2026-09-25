@@ -92,7 +92,7 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         assert dga_family["status"] == "ACTIVE LANE — MODEL UNAVAILABLE"
         assert runtime["dga_model_readiness"] == "ARTIFACT_MISSING"
         schema = (await client.get("/openapi.json")).json()
-        assert {"/health", "/results", "/results/{result_id}", "/alerts", "/events", "/replay", "/replay/status", "/runtime"} <= set(schema["paths"])
+        assert {"/health", "/results", "/results/{result_id}", "/alerts", "/events", "/replay", "/replay/status", "/runtime", "/runtime/trace"} <= set(schema["paths"])
         dashboard = await client.get("/")
         assert dashboard.status_code == 200
         assert '<div id="root"></div>' in dashboard.text

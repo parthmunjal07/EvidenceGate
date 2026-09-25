@@ -22,6 +22,7 @@ from evidencegate.ingest.replay_schema import (
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.ingest.source import InputSource
 from evidencegate.runtime.supervisor import RuntimeSupervisor
+from evidencegate.runtime.trace import emit_trace
 
 
 def utc_now() -> datetime:
@@ -156,6 +157,8 @@ class ReplayRunner:
         control_sink: Callable[[RuntimeControlEvent], Awaitable[None]] | None = None,
         canonicalizer: ReplayCanonicalizer | None = None,
         clock: Callable[[], datetime] = utc_now,
+        trace_sink: Callable[..., None] | None = None,
+        progress_sink: Callable[[int, int], None] | None = None,
     ) -> None:
         if isinstance(speed, bool) or not isinstance(speed, (int, float)) or speed < 0:
             raise ValueError("speed must be a non-negative number")
@@ -165,6 +168,8 @@ class ReplayRunner:
         self.control_sink = control_sink
         self.canonicalizer = canonicalizer or ReplayCanonicalizer()
         self.clock = clock
+        self.trace_sink = trace_sink
+        self.progress_sink = progress_sink
         self._control_count = 0
 
     def _clock_now(self) -> datetime:
@@ -224,6 +229,10 @@ class ReplayRunner:
                     if self.speed:
                         await asyncio.sleep((record.timestamp - previous).total_seconds() / self.speed)
                     await self._watermark(record.timestamp)
+                records_read += 1
+                if self.progress_sink is not None:
+                    self.progress_sink(records_read, observations_emitted)
+                emit_trace(self.trace_sink, "SOURCE_RECORD_ACCEPTED")
                 result = self.canonicalizer.canonicalize(
                     record, manifest, f"quality:{manifest.source_id}:{record.position}",
                     self._clock_now(),
@@ -236,7 +245,8 @@ class ReplayRunner:
                     plan = await self.supervisor.ingest_observation(observation)
                     routed_mechanism_updates += len(plan.selected_targets)
                     observations_emitted += 1
-                records_read += 1
+                    if self.progress_sink is not None:
+                        self.progress_sink(records_read, observations_emitted)
                 previous = record.timestamp
                 maximum = record.timestamp if maximum is None else max(maximum, record.timestamp)
             if maximum is not None and self._stateful_targets():

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Awaitable, Callable, List
 
 from evidencegate.admission.evaluator import AdmissionEvaluator, IngestAdmissionDecision
+from evidencegate.runtime.trace import emit_trace
 from evidencegate.domain.enums import ControlType, GapAction, OperationalHealth
 from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
 from evidencegate.domain.governance import LaneGovernance
@@ -111,6 +112,7 @@ class LaneDispatcher:
         gap_sink: GapSink | None = None,
         control_sink: ControlSink | None = None,
         reorder_policy: EventTimeReorderPolicy | None = None,
+        trace_sink: Callable[..., None] | None = None,
     ):
         self.target = target
         self.plugin = plugin
@@ -126,6 +128,7 @@ class LaneDispatcher:
         self.health = LaneHealthRecord(lane_id=str(target))
         self._gap_sink = gap_sink
         self._control_sink = control_sink
+        self._trace_sink = trace_sink
         self._gap_context: dict[str, tuple[GapAction, StateKey | None, int | None]] = {}
         self._disabled = False
         self._watermark: datetime | None = None
@@ -241,6 +244,15 @@ class LaneDispatcher:
                     observation, manifest, self.governance
                 )
                 if not decision.admitted:
+                    emit_trace(
+                        self._trace_sink,
+                        "ADMISSION_REJECTED",
+                        observation_id=observation.observation_id,
+                        observation_type=observation.observation_type.value,
+                        lane_id=str(self.target),
+                        mechanism=self.plugin.manifest().mechanism_id,
+                        reason=", ".join(reason.value for reason in decision.reasons),
+                    )
                     await self._emit_admission_rejection(observation, decision)
                     continue
 

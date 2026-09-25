@@ -1,13 +1,13 @@
 import type { KeyboardEvent } from "react";
 import type { ResultDto, SihAlertProjection } from "../../api/types";
-import { formatShortTime, friendlyCategory, formatEvidenceValue, mechanismLabel, readable, summarizeReference, whySurfaced } from "../../utils/formatting";
+import { confidenceBasisLabel, formatShortTime, friendlyCategory, formatEvidenceValue, mechanismLabel, readable, summarizeReference, whySurfaced } from "../../utils/formatting";
 
 export function AlertTable({ alerts, selectedId, onSelect }: { alerts: SihAlertProjection[]; selectedId: string | null; onSelect: (item: SihAlertProjection) => void }) {
-  return <div className="table-wrap"><table className="data-table analyst-table"><thead><tr>{["Time", "Category", "Entity / peer", "Why surfaced", "Context"].map((name) => <th key={name}>{name}</th>)}</tr></thead><tbody>
+  return <div className="table-wrap"><table className="data-table analyst-table"><thead><tr>{["Time", "Threat class", "Evidence", "Entity", "Why surfaced", "Confidence basis", "Review"].map((name) => <th key={name}>{name}</th>)}</tr></thead><tbody>
     {alerts.map((alert) => {
       const context = Object.values(alert.quality).some((value) => value === "DEGRADED") ? "Quality degraded" : alert.visibility.unavailable.length ? "Visibility limited" : alert.visibility.degraded.length ? "Visibility limited" : "—";
       return <tr key={alert.alert_id} className={`selectable-row${selectedId === alert.alert_id ? " selected" : ""}`} tabIndex={0} onClick={() => onSelect(alert)} onKeyDown={(event) => selectOnKeyboard(event, () => onSelect(alert))}>
-        <td><time>{formatShortTime(alert.timestamp)}</time></td><td>{friendlyCategory(alert.threat_class)}</td><td title={alert.entity_or_flow_reference}><span className="reference-summary">{summarizeReference(alert.entity_or_flow_reference, alert.mechanism_id)}</span></td><td><span className="why-surfaced-summary">{whySurfaced(alert.mechanism_id, alert.supporting_evidence.structured)}</span></td><td>{context}</td>
+        <td><time>{formatShortTime(alert.timestamp)}</time></td><td>{friendlyCategory(alert.threat_class)}</td><td>{mechanismLabel(alert.mechanism_id)}</td><td title={alert.entity_or_flow_reference}><span className="reference-summary">{summarizeReference(alert.entity_or_flow_reference, alert.mechanism_id)}</span></td><td><span className="why-surfaced-summary">{whySurfaced(alert.mechanism_id, alert.supporting_evidence.structured)}</span></td><td>{confidenceBasisLabel(alert.confidence_basis)}</td><td><span className="review-item-status">Review</span><small className="result-evidence-summary">{context}</small></td>
       </tr>;
     })}
   </tbody></table></div>;

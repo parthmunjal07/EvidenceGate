@@ -99,6 +99,24 @@ class ReplayStatusResponse(StrictModel):
     error: str | None
 
 
+class RuntimeTraceEventDto(StrictModel):
+    sequence: int
+    kind: str
+    occurred_at: datetime
+    observation_id: str | None = None
+    observation_type: str | None = None
+    lane_id: str | None = None
+    mechanism: str | None = None
+    readiness: str | None = None
+    reason: str | None = None
+    result_id: str | None = None
+
+
+class RuntimeTraceResponse(StrictModel):
+    events: list[RuntimeTraceEventDto]
+    latest_sequence: int
+
+
 class ScenarioDto(StrictModel):
     id: str
     label: str

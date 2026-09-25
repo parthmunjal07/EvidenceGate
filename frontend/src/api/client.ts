@@ -6,6 +6,7 @@ import type {
   ResultDto,
   ResultsResponse,
   RuntimeStatusResponse,
+  RuntimeTraceResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -81,4 +82,6 @@ export const api = {
     }),
   replayStatus: (signal?: AbortSignal) =>
     request<ReplayStatusResponse>("/replay/status", { signal: signal ?? null }),
+  runtimeTrace: (after = 0, signal?: AbortSignal) =>
+    request<RuntimeTraceResponse>(`/runtime/trace?after=${after}&limit=100`, { signal: signal ?? null }),
 };

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from dataclasses import asdict
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -15,7 +16,8 @@ from fastapi.staticfiles import StaticFiles
 
 from evidencegate.api.models import (
     AlertsResponse, HealthResponse, QualitySnapshotDto, ReplayRequest, ReplayStatusResponse,
-    ResultDto, ResultsResponse, RuntimeStatusResponse, StatusSnapshotDto,
+    ResultDto, ResultsResponse, RuntimeStatusResponse, RuntimeTraceEventDto,
+    RuntimeTraceResponse, StatusSnapshotDto,
     VisibilitySnapshotDto,
 )
 from evidencegate.api.projection import (
@@ -287,6 +289,20 @@ def create_app(
     )
     async def replay_status() -> ReplayStatusResponse:
         return service.replay_status()
+
+    @application.get(
+        "/runtime/trace", response_model=RuntimeTraceResponse,
+        summary="Read bounded presentation-only runtime trace events",
+    )
+    async def runtime_trace(
+        after: int = Query(default=0, ge=0),
+        limit: int = Query(default=100, ge=1, le=500),
+    ) -> RuntimeTraceResponse:
+        events = service.runtime_trace.snapshot(after=after, limit=limit)
+        return RuntimeTraceResponse(
+            events=[RuntimeTraceEventDto.model_validate(asdict(event)) for event in events],
+            latest_sequence=service.runtime_trace.latest_sequence,
+        )
 
     @application.get(
         "/runtime", response_model=RuntimeStatusResponse,

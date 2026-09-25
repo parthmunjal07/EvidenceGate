@@ -12,6 +12,7 @@ from evidencegate.routing.router import RelevanceRouter, LaneTarget
 from evidencegate.admission.evaluator import AdmissionEvaluator
 from evidencegate.runtime.state import StateStore
 from evidencegate.runtime.shard import LaneShard, compute_shard
+from evidencegate.runtime.trace import emit_trace
 from evidencegate.runtime.dispatcher import EventTimeReorderPolicy, LaneDispatcher
 from evidencegate.results.types import Result_T
 from evidencegate.results.finalizer import ResultEmissionContext, ResultFinalizer
@@ -34,6 +35,7 @@ class RuntimeSupervisor:
         control_sink: Callable[[RuntimeControlEvent], Awaitable[None]] | None = None,
         gap_sink: Callable[[QualityGap], Awaitable[None]] | None = None,
         reorder_policies: Mapping[LaneTarget, EventTimeReorderPolicy] | None = None,
+        trace_sink: Callable[..., None] | None = None,
     ):
         self.plugins = plugins
         self.governances = governances
@@ -42,6 +44,7 @@ class RuntimeSupervisor:
         self.control_sink = control_sink
         self.gap_sink = gap_sink
         self.reorder_policies = dict(reorder_policies or {})
+        self.trace_sink = trace_sink
 
         for target, plugin in plugins.items():
             if (plugin.manifest().state_resource_policy is not None
@@ -89,6 +92,7 @@ class RuntimeSupervisor:
                     control_sink=control_sink,
                     lane_id=str(target),
                     result_finalizer=finalize,
+                    trace_sink=trace_sink,
                 )
                 lane_shards.append(shard)
             self.shards[target] = lane_shards
@@ -104,6 +108,7 @@ class RuntimeSupervisor:
                     control_sink=control_sink,
                     gap_sink=gap_sink,
                     reorder_policy=self.reorder_policies.get(target),
+                    trace_sink=trace_sink,
                 )
 
     def start_all(self):
@@ -121,7 +126,53 @@ class RuntimeSupervisor:
                 await shard.stop()
 
     async def ingest_observation(self, observation: NetworkObservation):
+        if self.trace_sink is not None:
+            emit_trace(
+                self.trace_sink, "OBSERVATION_CREATED",
+                observation_id=observation.observation_id,
+                observation_type=observation.observation_type.value,
+            )
+            visibility_parts = []
+            for state_name, capabilities in (
+                ("available", observation.visibility.available),
+                ("unavailable", observation.visibility.unavailable),
+                ("degraded", observation.visibility.degraded),
+            ):
+                if capabilities:
+                    visibility_parts.append(
+                        f"{state_name}: {', '.join(sorted(item.value for item in capabilities))}"
+                    )
+            quality_parts = [
+                f"{name}: {value.value}"
+                for name, value in (
+                    ("packet loss", observation.quality.packet_loss),
+                    ("sampling", observation.quality.sampling),
+                    ("parser", observation.quality.parser),
+                    ("capture gap", observation.quality.capture_gap),
+                )
+            ]
+            visibility_reason = "; ".join((
+                ", ".join(visibility_parts) if visibility_parts else "visibility capabilities unknown",
+                "quality " + ", ".join(quality_parts),
+            ))
+            emit_trace(
+                self.trace_sink, "VISIBILITY_EVALUATED",
+                observation_id=observation.observation_id,
+                observation_type=observation.observation_type.value,
+                reason=visibility_reason,
+            )
         plan = self.router.plan(observation)
+        if self.trace_sink is not None:
+            for decision in plan.decisions:
+                if decision.selected:
+                    plugin = self.plugins[decision.target]
+                    emit_trace(
+                        self.trace_sink, "ROUTED",
+                        observation_id=observation.observation_id,
+                        observation_type=observation.observation_type.value,
+                        lane_id=str(decision.target),
+                        mechanism=plugin.manifest().mechanism_id,
+                    )
         await self._emit_router_predicate_errors(observation, plan)
         for target in plan.selected_targets:
             registry.routed_rate.labels(

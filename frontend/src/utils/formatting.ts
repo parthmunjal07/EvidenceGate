@@ -100,10 +100,10 @@ export function mechanismLabel(value: string) {
     "DDOS-A-B0": "SYN state pressure", "ddos.syn_state": "SYN state pressure",
     "DDOS-B-B0": "UDP demand", "ddos.udp_demand": "UDP demand",
     "DDOS-CV-B0": "Reflection-shaped traffic", "ddos.reflection_victim": "Reflection-shaped traffic",
-    "DDOS-D-B0": "Source diversity", "ddos.source_diversity": "Source diversity",
+    "DDOS-D-B0": "Source diversity evidence", "ddos.source_diversity": "Source diversity evidence",
     "DDOS-E1-B0": "ICMP demand", "ddos.icmp_demand": "ICMP demand",
     "DDOS-E2-B0": "Fragment demand", "ddos.fragment_demand": "Fragment demand",
-    "DDOS-E3-B0": "Connection churn", "ddos.connection_churn": "Connection churn",
+    "DDOS-E3-B0": "TCP initiating activity evidence", "ddos.connection_churn": "TCP initiating activity evidence",
     "C2-M1": "Recurring connection pattern", "C2-A1-R1": "Recurring connection pattern", "c2.r1": "Recurring connection pattern", "c2.beacon": "Recurring connection pattern",
     "DGA-A1-M1": "DGA lexical evidence", "dga.m1": "DGA lexical evidence",
     "DNS-T1": "DNS name structure", "dns_tunnelling.t1": "DNS name structure",
@@ -113,7 +113,7 @@ export function mechanismLabel(value: string) {
     "RECON-TCP": "TCP scan activity", "recon.tcp": "TCP scan activity",
     "RECON-SCAN": "Host fan-out", "RECON-PROBE": "Host fan-out", "RECON-FANOUT": "Host fan-out", "RECON-SWEEP": "Host fan-out",
     "recon.scan": "Host fan-out", "recon.probe": "Host fan-out", "recon.fanout": "Host fan-out", "recon.sweep": "Host fan-out",
-    "CAT6-EX-M1": "Directional transfer magnitude", "unusual_transfer.m1": "Directional transfer magnitude",
+    "CAT6-EX-M1": "Unusual transfer magnitude evidence", "unusual_transfer.m1": "Unusual transfer magnitude evidence",
   };
   return labels[value] ?? "Evidence finding";
 }

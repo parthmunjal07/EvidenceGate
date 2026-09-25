@@ -84,7 +84,7 @@ export function ClaimCeiling({ text }: { text: string }) {
     {claim.supports.length ? <ul>{claim.supports.map((item) => <li key={item}>{item}</li>)}</ul> : <p>Evidence was observed; no additional conclusion is drawn.</p>}
     <h4>What this evidence does not establish</h4>
     {claim.limitations.length ? <ul>{claim.limitations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No additional limitation was reported.</p>}
-    {claim.hasUnknown && <p>Additional technical limitation. See the exact claim under Technical details.</p>}
+    {claim.hasUnknown && <p>Additional evidence limits are recorded in the evidence details.</p>}
   </div>;
 }
 export function QualitySnapshotView({ value }: { value: QualitySnapshot }) {

@@ -115,6 +115,7 @@ The API is documented at `http://127.0.0.1:8000/docs` and provides:
 - `GET /events` (Server-Sent Events)
 - `POST /replay` and `GET /replay/status`
 - `GET /runtime`
+- `GET /runtime/trace` (bounded presentation-only runtime telemetry)
 
 `GET /alerts` is active by default under `SIH_ALERT_POLICY_V1`. It derives a
 bounded, deterministic analyst queue and a separate system/evidence status view

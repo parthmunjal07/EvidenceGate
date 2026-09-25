@@ -130,6 +130,22 @@ export type ReplayStatusResponse = {
   finished_at: string | null;
   error: string | null;
 };
+export type RuntimeTraceEvent = {
+  sequence: number;
+  kind: string;
+  occurred_at: string;
+  observation_id: string | null;
+  observation_type: string | null;
+  lane_id: string | null;
+  mechanism: string | null;
+  readiness: string | null;
+  reason: string | null;
+  result_id: string | null;
+};
+export type RuntimeTraceResponse = {
+  events: RuntimeTraceEvent[];
+  latest_sequence: number;
+};
 export type ScenarioDto = {
   id: string;
   label: string;

@@ -26,6 +26,7 @@ from evidencegate.runtime.provenance import parser_refs_from_observation
 from evidencegate.results.types import ResultDraft, Result_T
 from evidencegate.results.finalizer import ResultEmissionContext
 from evidencegate.admission.evaluator import EvaluationReadinessDecision
+from evidencegate.runtime.trace import emit_trace
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ class LaneShard:
         control_sink: ControlSink | None = None,
         lane_id: str | None = None,
         result_finalizer: Callable[[ResultDraft, ResultEmissionContext], Result_T] | None = None,
+        trace_sink: Callable[..., None] | None = None,
     ):
         self.shard_id = shard_id
         self.plugin = plugin
@@ -76,6 +78,7 @@ class LaneShard:
         self.control_sink = control_sink
         self.lane_id = lane_id
         self.result_finalizer = result_finalizer
+        self.trace_sink = trace_sink
         self.queue: asyncio.Queue[NetworkObservation] = asyncio.Queue(maxsize=max_size)
         self._task: asyncio.Task | None = None
         # Readiness tracking per state_key (no threat science)
@@ -298,6 +301,14 @@ class LaneShard:
                     "quality_degraded": self._quality_degraded,
                 }
 
+                if self.trace_sink is not None:
+                    emit_trace(
+                        self.trace_sink, "ANALYTIC_EVALUATING",
+                        observation_id=observation.observation_id,
+                        observation_type=observation.observation_type.value,
+                        lane_id=self.lane_id,
+                        mechanism=self.plugin.manifest().mechanism_id,
+                    )
                 outcome = await self.plugin.process(observation, context, state)
                 if not isinstance(outcome, PluginProcessOutcome):
                     raise TypeError("plugin process must return PluginProcessOutcome")
@@ -317,6 +328,25 @@ class LaneShard:
                     if not isinstance(outcome.evaluation_readiness, EvaluationReadinessDecision):
                         raise TypeError("evaluation_readiness must be EvaluationReadinessDecision")
                     readiness_decision = outcome.evaluation_readiness
+
+                if self.trace_sink is not None:
+                    emit_trace(
+                        self.trace_sink, "ANALYTIC_READINESS",
+                        observation_id=observation.observation_id,
+                        observation_type=observation.observation_type.value,
+                        lane_id=self.lane_id,
+                        mechanism=self.plugin.manifest().mechanism_id,
+                        readiness=readiness_decision.readiness.value,
+                        reason=readiness_decision.reason,
+                    )
+                    emit_trace(
+                        self.trace_sink, "ANALYTIC_EVALUATED",
+                        observation_id=observation.observation_id,
+                        observation_type=observation.observation_type.value,
+                        lane_id=self.lane_id,
+                        mechanism=self.plugin.manifest().mechanism_id,
+                        readiness=readiness_decision.readiness.value,
+                    )
 
                 transition = outcome.state_transition
                 if transition is not None:
