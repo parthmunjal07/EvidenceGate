@@ -7,7 +7,7 @@ import { familyLabel, formatShortTime, friendlyCategory, mechanismLabel, readabl
 import { useReplay } from "../hooks/useReplay";
 import type { PageKey } from "../state/types";
 import type { NavigationContext } from "../state/navigation";
-import { latestReadinessByObservationLane, mergeRuntimeTraceEvents, observationLaneKey } from "../utils/runtimeTrace";
+import { drainRuntimeTraceCursor, latestReadinessByObservationLane, mergeRuntimeTraceEvents, observationLaneKey } from "../utils/runtimeTrace";
 import { newPersistedReplayRows, sourceLinkedReplayResults } from "../utils/replayAttribution";
 
 type Presentation = "demo" | "runtime";
@@ -72,9 +72,10 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const sourceType = replay?.source_type || selectedScenario?.source_type || "Controlled observations";
   const sourceLabel = (value: string) => /pcap/i.test(value) ? "Recorded PCAP replay" : /ndjson|typed/i.test(value) ? "Controlled NDJSON replay" : value;
   const running = lifecycle === "STARTING" || lifecycle === "PROCESSING" || lifecycle === "FINALIZING";
+  const tracePolling = lifecycle === "PROCESSING" || lifecycle === "FINALIZING";
 
   useEffect(() => {
-    if (!running) return;
+    if (!tracePolling) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -95,7 +96,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
     };
     void poll();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [running]);
+  }, [tracePolling]);
 
   useEffect(() => {
     if (presentation === "runtime") return;
@@ -136,8 +137,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
     traceIssueRef.current = false;
     setResultSyncUnavailable(false);
     try {
-      const latest = await api.runtimeTrace(0);
-      traceCursor.current = latest.latest_sequence;
+      traceCursor.current = await drainRuntimeTraceCursor((after) => api.runtimeTrace(after));
     } catch {
       traceCursor.current = 0;
       traceIssueRef.current = true;

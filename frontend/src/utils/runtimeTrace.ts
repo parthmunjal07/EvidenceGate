@@ -31,6 +31,19 @@ export function mergeRuntimeTraceEvents(
   return [...bySequence.values()].sort((a, b) => a.sequence - b.sequence).slice(-500);
 }
 
+export async function drainRuntimeTraceCursor(
+  fetchTrace: (after: number) => Promise<RuntimeTraceResponse>,
+) {
+  let cursor = 0;
+  for (let pageNumber = 0; pageNumber < 32; pageNumber += 1) {
+    const page = await fetchTrace(cursor);
+    const lastReceived = page.events.at(-1)?.sequence;
+    if (lastReceived === undefined || lastReceived <= cursor) return cursor;
+    cursor = lastReceived;
+  }
+  return cursor;
+}
+
 export function replayJustCompleted(
   previous: ReplayStatusResponse["state"] | undefined,
   current: ReplayStatusResponse["state"] | undefined,

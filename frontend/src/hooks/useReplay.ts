@@ -18,7 +18,7 @@ export function useReplay() {
         if (replay.state === "RUNNING") timer = setTimeout(poll, 400);
         else {
           const runtime = await api.runtime(controller.signal);
-          dispatch({ type: "runtime", value: runtime });
+          if (!controller.signal.aborted) dispatch({ type: "runtime", value: runtime });
         }
       } catch (e) {
         if (!controller.signal.aborted)

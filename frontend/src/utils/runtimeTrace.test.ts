@@ -3,6 +3,7 @@ import type { RuntimeTraceEvent } from "../api/types";
 import {
   latestReadinessByObservationLane,
   fetchFinalRuntimeTrace,
+  drainRuntimeTraceCursor,
   mergeRuntimeTraceEvents,
   observationLaneKey,
   replayJustCompleted,
@@ -48,6 +49,22 @@ describe("runtime trace presentation", () => {
     const first = event(4, "ANALYTIC_EVALUATED", "observation-a");
     const final = event(5, "RESULT_PERSISTED", "observation-a");
     expect(mergeRuntimeTraceEvents([first], [first, final])).toEqual([first, final]);
+  });
+
+  it("drains trace pages using the last event received, not the global head", async () => {
+    const cursors: number[] = [];
+    const pages = [
+      { events: [event(101, "ROUTED", "observation-a"), event(150, "ROUTED", "observation-b")], latest_sequence: 900 },
+      { events: [event(151, "ROUTED", "observation-c"), event(200, "ROUTED", "observation-d")], latest_sequence: 900 },
+      { events: [], latest_sequence: 200 },
+    ];
+    const cursor = await drainRuntimeTraceCursor(async (after) => {
+      cursors.push(after);
+      return pages.shift()!;
+    });
+
+    expect(cursors).toEqual([0, 150, 200]);
+    expect(cursor).toBe(200);
   });
 
   it("fetches the final trace after completion using the last cursor", async () => {
