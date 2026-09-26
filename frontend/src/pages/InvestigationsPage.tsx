@@ -88,6 +88,7 @@ export function InvestigationsPage({ navigate, initialLinkId, initialFamily }: {
         <p className="relationship-guard">Shared passive context only. No causality or common attacker is inferred.</p>
 
         <div className="investigation-core-grid">
+        <div className="investigation-evidence-side">
         <section className="investigation-family-section"><div className="workspace-section-heading"><h3>Contributing family evidence</h3><span>{pluralize(selectedViews.length, "view")}</span></div>
           <div className="investigation-family-grid">{familySummaries.map((summary) => <article className="investigation-family-summary grouped" key={summary.family}>
             <div><strong>{familyName(summary.family)}</strong><span>{pluralize(summary.familyViews.length, "evidence episode")}</span></div>
@@ -113,6 +114,7 @@ export function InvestigationsPage({ navigate, initialLinkId, initialFamily }: {
             })}</div>
           </details>
         </section>
+        </div>
 
         <section className="investigation-timeline-section"><div className="workspace-section-heading"><h3>Chronology</h3><span>{pluralize(timelineResults.length, "source Result")}</span></div>
           {timelineResults.length ? <ol className="investigation-timeline">{visibleTimelineGroups.map(([time, rows]) => <li key={time}>

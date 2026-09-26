@@ -719,10 +719,10 @@ body.inspector-open .inspector.inspector-modal { transform: translate(-50%, -50%
 .factual-link-list dl div { display: grid; grid-template-columns: 130px minmax(0,1fr); gap: 8px; }
 .factual-link-list dt { color: #65757d; font-size: 10.5px; }
 .factual-link-list dd { margin: 0; color: #465a63; font: 10px/1.45 var(--mono); overflow-wrap: anywhere; }
-.investigation-core-grid { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(235px,.9fr); grid-template-areas: "timeline family" "timeline why"; align-items: start; gap: 0 2px; }
+.investigation-core-grid { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(235px,.9fr); grid-template-areas: "timeline evidence"; align-items: start; gap: 0 2px; }
 .investigation-core-grid > .investigation-timeline-section { grid-area: timeline; }
-.investigation-core-grid > .investigation-family-section { grid-area: family; }
-.investigation-core-grid > .factual-links-section { grid-area: why; }
+.investigation-evidence-side { display: grid; grid-area: evidence; align-content: start; gap: 6px; min-width: 0; }
+.investigation-evidence-side > .investigation-family-section, .investigation-evidence-side > .factual-links-section { padding-top: 11px; }
 .investigation-family-section { padding-top: 11px; }
 .investigation-workspace-detail > .investigation-family-section > .workspace-section-heading { display: none; }
 .investigation-core-grid .investigation-family-grid { grid-template-columns: 1fr; gap: 7px; }
@@ -753,7 +753,7 @@ body.inspector-open .inspector.inspector-modal { transform: translate(-50%, -50%
 .earlier-chronology li { display: grid; grid-template-columns: 118px minmax(0,1fr) auto; align-items: center; gap: 8px; color: #5b6c74; font-size: 10.5px; }
 .earlier-chronology li time { white-space: nowrap; }
 .earlier-chronology .text-button { font-size: 10.5px; }
-@media (max-width: 620px) { .investigation-core-grid { grid-template-columns: 1fr; grid-template-areas: "timeline" "family" "why"; } .investigation-timeline { padding-left: 28px; } .investigation-timeline::before { left: 4px; } .investigation-timeline > li > time { position: static; width: auto; text-align: left; } }
+@media (max-width: 620px) { .investigation-core-grid { grid-template-columns: 1fr; grid-template-areas: "timeline" "evidence"; } .investigation-timeline { padding-left: 28px; } .investigation-timeline::before { left: 4px; } .investigation-timeline > li > time { position: static; width: auto; text-align: left; } }
 @media (max-width: 1100px) { .investigation-workspace { grid-template-columns: minmax(230px,270px) minmax(0,1fr); gap: 11px; } .investigation-workspace-head { padding: 15px 16px 13px; } .investigation-fact-strip { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 12px 16px 10px; } .relationship-guard { margin: 0 16px; } .investigation-timeline-section, .investigation-family-section, .factual-links-section { padding-right: 16px; padding-left: 16px; } }
 @media (max-width: 850px) { .investigation-workspace { grid-template-columns: 1fr; } .investigation-context-list { position: static; max-height: 255px; overflow: auto; } }
 @media (max-width: 620px) { .investigation-family-grid { grid-template-columns: 1fr; } .investigation-episode-list li { flex-direction: column; } .factual-link-list dl div { grid-template-columns: 1fr; gap: 2px; } .earlier-chronology { margin-left: 28px; } .earlier-chronology li { grid-template-columns: 1fr; } }
