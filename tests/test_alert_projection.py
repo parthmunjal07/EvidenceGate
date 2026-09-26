@@ -202,7 +202,9 @@ async def test_active_endpoint_is_default_and_refresh_is_deterministic(tmp_path)
         family_response = (await client.get("/family-evidence")).json()
         dga_dns = next(view for view in family_response["family_views"] if view["family"] == "DGA + DNS")
         assert set(dga_dns["source_result_ids"]) == {dga.result_id, dns.result_id, status.result_id}
-        assert len(dga_dns["findings"]) == 3
+        assert len(dga_dns["findings"]) == 2
+        assert all(item["result_type"] != "ANALYTIC_UNAVAILABLE" for item in dga_dns["findings"])
+        assert any("unavailable" in item.lower() for item in dga_dns["limitations"])
         investigation = (await client.get("/investigations")).json()
         assert len(investigation["links"]) == 1
         assert investigation["links"][0]["relation_types"] == ["SHARED_SOURCE_OBSERVATION"]

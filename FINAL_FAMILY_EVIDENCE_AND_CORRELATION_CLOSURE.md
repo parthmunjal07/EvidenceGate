@@ -12,7 +12,7 @@ Family evidence and investigation links are pure read-only projections. SQLite `
 
 `evidencegate/family/composer.py` centralizes the official family mapping and composes same-family connected components using direct or transitive overlap of exact `source_observation_ids`. Results without source lineage remain individual views. No time threshold is used.
 
-Each immutable `FamilyEvidenceView` carries a stable view ID, family, event-time bounds, entity references, source Result and observation IDs, independent child findings, governed limitations, missing evidence, and visibility / quality summaries. It contains no family score, attack probability, fused severity, or stronger composite claim. Child claim ceilings and source Results are unchanged.
+Each immutable `FamilyEvidenceView` carries a stable view ID, family, event-time bounds, entity references, source Result and observation IDs, evidence-bearing child findings, governed limitations, missing evidence, and visibility / quality summaries. Availability/status Results remain in `source_result_ids` and family lineage but are not presented as observed findings; they are surfaced as limitations instead. It contains no family score, attack probability, fused severity, or stronger composite claim. Child claim ceilings and source Results are unchanged.
 
 ### Six official family mappings
 
@@ -71,3 +71,10 @@ Readiness during QA: `VERIFIED_READY` (no failure reason). The verified local ar
 ## Scientific freeze
 
 Mechanism algorithms, thresholds, readiness, state windows, routing, models, Result semantics, claim ceilings, confidence semantics, alert policy science, visibility semantics, and quality semantics were not changed. Family composition uses source lineage only and performs no scientific fusion.
+
+
+## Control-room acceptance repair
+
+A post-commit audit of `35cd65f` found one presentation-semantic defect: `ANALYTIC_UNAVAILABLE` and other status-only Results were included in `findings[]`, allowing the analyst card to describe an unavailable analytic as observed evidence. The acceptance repair keeps those immutable Results in family lineage and `source_result_ids`, excludes status-only Result types from observed findings, and translates them into family limitations. No mechanism algorithm, threshold, state, routing, score, claim ceiling, visibility rule, quality rule, or Result authority changed.
+
+The automated test counts above are the original worker-reported run for `35cd65f`; the Control Room did not independently rerun the full suites while applying this GitHub-side acceptance repair. A regression assertion was added for the corrected unavailable-result composition semantics.

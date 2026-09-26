@@ -11,6 +11,7 @@ from datetime import datetime
 import hashlib
 from typing import Iterable
 
+from evidencegate.domain.enums import ResultType
 from evidencegate.results.types import Result
 
 
@@ -48,6 +49,19 @@ _LIMITATIONS = {
     "NO_RESOURCE_EXHAUSTION": "This evidence does not establish victim resource exhaustion.",
     "NO_DDOS_CONFIRMED": "This evidence does not confirm a DDoS attack.",
     "NO_SPOOFING_CONFIRMED": "This evidence does not establish source spoofing.",
+}
+
+_FINDING_RESULT_TYPES = frozenset({
+    ResultType.THREAT_ALERT,
+    ResultType.REVIEW_FINDING,
+    ResultType.INSUFFICIENT_EVIDENCE,
+})
+
+_STATUS_LIMITATION_TEMPLATES = {
+    ResultType.ANALYTIC_UNAVAILABLE: "{title} was unavailable and did not produce an observed finding.",
+    ResultType.PREREQUISITE_MISSING: "{title} lacked a required prerequisite and did not produce a complete finding.",
+    ResultType.QUALITY_DEGRADED: "{title} reported degraded evidence quality rather than an observed finding.",
+    ResultType.PLUGIN_STATUS: "{title} reported analytic status rather than an observed finding.",
 }
 
 _MISSING_LABELS = {
@@ -124,6 +138,9 @@ def _result_statements(result: Result) -> tuple[str, ...]:
 def _limitations(results: Iterable[Result]) -> tuple[str, ...]:
     found: list[str] = []
     for result in results:
+        status_template = _STATUS_LIMITATION_TEMPLATES.get(result.result_type)
+        if status_template:
+            found.append(status_template.format(title=_display_title(result)))
         for token in result.claim_ceiling.split(";"):
             phrase = _LIMITATIONS.get(token.strip())
             if phrase:
@@ -205,7 +222,7 @@ def compose_family_evidence(results: Iterable[Result]) -> tuple[FamilyEvidenceVi
                 findings=tuple(FamilyFinding(
                     source_result_id=result.result_id, title=_display_title(result),
                     statements=_result_statements(result), result_type=result.result_type.value,
-                ) for result in component),
+                ) for result in component if result.result_type in _FINDING_RESULT_TYPES),
                 limitations=_limitations(component), missing_evidence=missing,
                 visibility_summary=tuple(sorted(visibility_values)),
                 quality_summary=tuple(sorted(quality_values)),

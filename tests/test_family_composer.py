@@ -87,6 +87,24 @@ def test_dga_dns_and_recon_findings_stay_independent_and_link_factually():
     assert "NO_COMMON_ATTACKER" in link.claim_guard
 
 
+def test_unavailable_result_stays_in_lineage_but_is_not_an_observed_finding():
+    unavailable = result("dga.m1", "1", ("obs-dns",))
+    unavailable = dataclasses.replace(
+        unavailable,
+        result_type=ResultType.ANALYTIC_UNAVAILABLE,
+        evidence_items=(),
+    )
+    unavailable = dataclasses.replace(unavailable, result_id=result_id_for(unavailable))
+    dns = result("dns_tunnelling.t1", "2", ("obs-dns",))
+    view = next(
+        item for item in compose_family_evidence([unavailable, dns])
+        if item.family == "DGA + DNS"
+    )
+    assert set(view.source_result_ids) == {unavailable.result_id, dns.result_id}
+    assert tuple(item.source_result_id for item in view.findings) == (dns.result_id,)
+    assert any("unavailable" in item.lower() for item in view.limitations)
+
+
 def test_unrelated_families_do_not_link():
     views = compose_family_evidence([
         result("ddos.syn_state", "1", ("obs-a",)),

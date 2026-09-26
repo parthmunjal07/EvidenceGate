@@ -1,4 +1,4 @@
-# Final MVP demo script (about 105 seconds)
+# Final MVP demo script (about 120 seconds)
 
 ## Before the demo
 
@@ -16,8 +16,8 @@
 | 0:50–1:05 | **Mechanism-owned readiness.** Point to the analytic status reported by runtime telemetry. “Each stateful mechanism reports its own readiness; the interface does not invent a shared threshold.” |
 | 1:05–1:20 | **Independent persisted Results.** Point to New Evidence, then open a result in Evidence. “Each analytic persists its own immutable Result. `/results` is the evidence authority; the runtime trace only explains the live presentation.” |
 | 1:20–1:35 | **Family evidence and factual investigation.** In the mixed DDoS/Recon replay, show two family evidence views and their shared-observation link. “These mechanism Results remain independent. EvidenceGate composes related Results inside a family without averaging or rewriting them. The cross-family link supports joint investigation; it does not claim causality or a common attacker.” |
-| 1:20–1:35 | **One-way missing evidence.** Run **One-way SYN visibility**. Show the forward observation, visibility limitation, and insufficient-evidence Result. “The reverse evidence is missing, so the runtime preserves that limitation.” |
-| 1:35–1:45 | **Analyst interpretation.** Open the Analyst Queue item and show supported evidence and claim limits. “EvidenceGate turns passive traffic into defensible evidence without weakening the network boundary.” |
+| 1:35–1:50 | **One-way missing evidence.** Run **One-way SYN visibility**. Show the forward observation, visibility limitation, and insufficient-evidence Result. “The reverse evidence is missing, so the runtime preserves that limitation.” |
+| 1:50–2:00 | **Analyst interpretation.** Open the Analyst Queue item and show supported evidence and claim limits. “EvidenceGate turns passive traffic into defensible evidence without weakening the network boundary.” |
 
 ## Demo guardrails
 
