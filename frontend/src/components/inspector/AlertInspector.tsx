@@ -3,15 +3,17 @@ import { dgaScoreNote } from "../../utils/copy";
 import { formatTimestamp, friendlyCategory, humanEvidenceRows, mechanismLabel, prerequisiteLabel, shortId, summarizeReference, whySurfaced } from "../../utils/formatting";
 import { ClaimCeiling, CodeBlock, InspectorSection, KeyValueList, QualitySnapshotView, VisibilitySnapshotView } from "../common/Primitives";
 import { Header, Inspector } from "./InspectorShell";
+import { useTimeZone } from "../../state/TimeZoneContext";
 
 export function AlertInspector({ alert, onClose, onResult }: { alert: SihAlertProjection | null; onClose: () => void; onResult: (id: string) => void }) {
+  const { zone } = useTimeZone();
   const evidenceRows = alert ? humanEvidenceRows(alert.supporting_evidence.structured) : [];
   return <Inspector label="Alert investigation" selected={Boolean(alert)} onClose={onClose} placeholder="Select an alert" description="Review why it surfaced, the observed evidence, and any limits on interpretation.">
     {alert && <>
       <Header kicker={friendlyCategory(alert.threat_class)} title={mechanismLabel(alert.mechanism_id)} subtitle={summarizeReference(alert.entity_or_flow_reference, alert.mechanism_id)} onClose={onClose} />
       <div className="review-badge">REVIEW</div>
       <InspectorSection title="Why this was surfaced"><p className="inspect-summary prominent-summary">{whySurfaced(alert.mechanism_id, alert.supporting_evidence.structured)}</p></InspectorSection>
-      <InspectorSection title="What was observed"><KeyValueList rows={[["Evidence basis", alert.confidence_basis === "MODEL_SCORE" ? "Lexical model score" : alert.confidence_basis === "STATISTICAL_SUPPORT" ? "Statistical support" : "Observed evidence"], ["Recorded", formatTimestamp(alert.timestamp)], ...evidenceRows]} /></InspectorSection>
+      <InspectorSection title="What was observed"><KeyValueList rows={[["Evidence basis", alert.confidence_basis === "MODEL_SCORE" ? "Lexical model score" : alert.confidence_basis === "STATISTICAL_SUPPORT" ? "Statistical support" : "Observed evidence"], ["Observed time", formatTimestamp(alert.timestamp, zone)], ...evidenceRows]} /></InspectorSection>
       <InspectorSection title="Evidence basis"><p className="inspect-summary">{alert.confidence_basis === "MODEL_SCORE" ? dgaScoreNote(alert.confidence_score) : alert.confidence_basis === "STATISTICAL_SUPPORT" ? "Statistical support describes the evidence basis; it is not a probability of malicious activity." : "Directly observed evidence is presented without an attack probability."}</p></InspectorSection>
       <div className="inspect-section"><ClaimCeiling text={alert.claim_ceiling} /></div>
       <InspectorSection title="Visibility and quality"><VisibilitySnapshotView value={alert.visibility} /><QualitySnapshotView value={alert.quality} /></InspectorSection>

@@ -4,12 +4,14 @@ import type { FamilyEvidenceViewDto, InvestigationLinkDto, ResultDto, SihAlertPr
 import { EmptyState, PageHeading } from "../components/common/Primitives";
 import { Header as InspectorHeader, Inspector } from "../components/inspector/InspectorShell";
 import { useEvidence } from "../state/EvidenceContext";
-import { contextSummary, formatShortTime, formatTimestamp, friendlyCategory, groupFamilyFindings, pluralize, prerequisiteLabel, readable } from "../utils/formatting";
+import { compareTimeAsc, compareTimeDesc, contextSummary, formatEvidenceRange, formatTimeZoneLabel, formatTimestamp, friendlyCategory, groupFamilyFindings, pluralize, prerequisiteLabel, readable } from "../utils/formatting";
+import { useTimeZone } from "../state/TimeZoneContext";
 import type { PageKey } from "../state/types";
 import type { NavigationContext } from "../state/navigation";
 
 export function AlertsPage({ initialAlert, clearInitial, openResult, navigate, initialFamilyViewId, initialFamily }: { initialAlert: SihAlertProjection | null; clearInitial: () => void; openResult: (id: string) => void; navigate: (page: PageKey, context?: NavigationContext) => void; initialFamilyViewId?: string; initialFamily?: string }) {
   const { state } = useEvidence();
+  const { zone } = useTimeZone();
   const [views, setViews] = useState<FamilyEvidenceViewDto[]>([]);
   const [links, setLinks] = useState<InvestigationLinkDto[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function AlertsPage({ initialAlert, clearInitial, openResult, navigate, i
   const families = [...new Set(views.map((view) => view.family))];
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return views.filter((view) => (!family || view.family === family) && (!query || [view.family, ...view.entity_references, ...view.findings.flatMap((finding) => [finding.title, ...finding.statements])].join(" ").toLowerCase().includes(query)));
+    return views.filter((view) => (!family || view.family === family) && (!query || [view.family, ...view.entity_references, ...view.findings.flatMap((finding) => [finding.title, ...finding.statements])].join(" ").toLowerCase().includes(query))).sort((a, b) => compareTimeDesc(a.time_end, b.time_end));
   }, [views, search, family]);
   const selected = filtered.find((view) => view.family_view_id === selectedId) ?? null;
   const related = selected ? links.filter((link) => link.left_family_view_id === selected.family_view_id || link.right_family_view_id === selected.family_view_id) : [];
@@ -57,20 +59,21 @@ export function AlertsPage({ initialAlert, clearInitial, openResult, navigate, i
   return <section className="page active-page" aria-labelledby="alerts-title">
     <PageHeading titleId="alerts-title" title="Analyst queue" deck="Review family evidence episodes while keeping each source Result independent." meta={<span>Evidence supports review; it does not confirm malicious activity.</span>} />
     <div className="filter-bar analyst-filter-bar">
+      <p className="analyst-time-note">Observed window: {filtered.length ? formatEvidenceRange(filtered.map((view) => view.time_start).sort(compareTimeAsc)[0], filtered.map((view) => view.time_end).sort(compareTimeDesc)[0], zone) : `No observed time available · ${formatTimeZoneLabel(zone)}`}.</p>
       <label className="search-control"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search address, domain, finding or family" aria-label="Search analyst queue" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
       <label>Family<select value={family} onChange={(event) => setFamily(event.target.value)}><option value="">All families</option>{families.map((item) => <option key={item}>{item}</option>)}</select></label>
       <span className="result-total" role="status" aria-live="polite">{pluralize(filtered.length, "episode")}</span>
     </div>
     {loadError && <div className="stream-notice" role="status">Family evidence could not be loaded: {loadError}</div>}
     <section className="panel family-queue-panel">
-      {filtered.length ? <div className="table-wrap"><table className="data-table family-queue-table"><thead><tr>{["Time", "Family", "Context", "Findings", "Evidence gaps", "Related", "Action"].map((name) => <th key={name}>{name}</th>)}</tr></thead><tbody>
+      {filtered.length ? <div className="table-wrap"><table className="data-table family-queue-table"><thead><tr>{[`Observed time · ${formatTimeZoneLabel(zone)}`, "Family", "Context", "Findings", "Evidence gaps", "Related", "Action"].map((name) => <th key={name}>{name}</th>)}</tr></thead><tbody>
         {filtered.map((view) => {
           const viewResults = view.source_result_ids.map((id) => resultById.get(id)).filter((item): item is ResultDto => Boolean(item));
           const viewContext = [...new Set(viewResults.map(contextSummary))].slice(0, 2).join(" · ") || "Observed network context";
           const viewLinks = links.filter((link) => link.left_family_view_id === view.family_view_id || link.right_family_view_id === view.family_view_id);
           const gaps = new Set([...view.limitations, ...view.missing_evidence]).size;
           return <tr key={view.family_view_id} className={`selectable-row${selectedId === view.family_view_id ? " selected" : ""}`} tabIndex={0} onClick={() => openFamily(view.family_view_id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openFamily(view.family_view_id); } }}>
-            <td><time>{formatShortTime(view.time_start)}{view.time_end !== view.time_start && <>–{formatShortTime(view.time_end)}</>}</time></td>
+            <td><time title={`Observed: ${formatTimestamp(view.time_start, zone)}`}>{formatEvidenceRange(view.time_start, view.time_end, zone)}</time></td>
             <td><strong>{friendlyCategory(view.family)}</strong></td>
             <td title={viewContext}>{viewContext}</td>
             <td>{pluralize(view.findings.length, "finding")}</td>
@@ -86,7 +89,7 @@ export function AlertsPage({ initialAlert, clearInitial, openResult, navigate, i
       <div className="family-episode">
         <InspectorHeader kicker="Family evidence episode" title={friendlyCategory(selected.family)} subtitle={episodeContext} onClose={() => setSelectedId(null)} />
         <div className="episode-summary">
-          <div><span>Activity</span><strong>{formatTimestamp(selected.time_start)}{selected.time_end !== selected.time_start ? ` – ${formatTimestamp(selected.time_end)}` : ""}</strong></div>
+          <div><span>Observed time</span><strong>{formatEvidenceRange(selected.time_start, selected.time_end, zone)}</strong></div>
           <div><span>Findings</span><strong>{pluralize(selected.findings.length, "independent finding")}</strong></div>
           <div><span>Evidence limits</span><strong>{pluralize(limitationCount, "limit")}</strong></div>
           <div><span>Related</span><strong>{pluralize(related.length, "investigation link")}</strong></div>

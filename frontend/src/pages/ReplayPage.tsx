@@ -3,12 +3,14 @@ import { useEvidence } from "../state/EvidenceContext";
 import { EmptyState, PageHeading } from "../components/common/Primitives";
 import { api } from "../api/client";
 import type { FamilyEvidenceViewDto, InvestigationLinkDto, ResultDto, RuntimeTraceEvent } from "../api/types";
-import { familyLabel, formatShortTime, friendlyCategory, groupFamilyFindings, mechanismLabel, pluralize, readable, summarizeReference } from "../utils/formatting";
+import { compareTimeAsc, familyLabel, formatEvidenceDateTime, formatShortTime, formatTimeZoneLabel, friendlyCategory, groupFamilyFindings, mechanismLabel, pluralize, readable, summarizeReference } from "../utils/formatting";
 import { useReplay } from "../hooks/useReplay";
+import { useTimeZone } from "../state/TimeZoneContext";
 import type { PageKey } from "../state/types";
 import type { NavigationContext } from "../state/navigation";
 import { drainRuntimeTraceCursor, latestReadinessByObservationLane, mergeRuntimeTraceEvents, observationLaneKey } from "../utils/runtimeTrace";
 import { newPersistedReplayRows, sourceLinkedReplayResults } from "../utils/replayAttribution";
+import { clearLatestReplayMarker, saveLatestReplayMarker } from "../utils/latestReplayScope";
 
 type Presentation = "demo" | "runtime";
 type Lifecycle = "IDLE" | "STARTING" | "PROCESSING" | "FINALIZING" | "READY" | "FAILED";
@@ -28,6 +30,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: NavigationContext) => void }) {
   const { state, dispatch } = useEvidence();
+  const { zone } = useTimeZone();
   const { scenarios, replay, error, start, busy } = useReplay();
   const [presentation, setPresentation] = useState<Presentation>("demo");
   const [receivedTrace, setReceivedTrace] = useState<RuntimeTraceEvent[]>([]);
@@ -57,6 +60,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const runResultsRef = useRef(runResults);
   const baselineRef = useRef<Set<string> | null>(null);
   const activeReplayStartedAt = useRef<string | null>(null);
+  const replayTraceStartSequence = useRef<number | null>(null);
   const finalizingStartedAt = useRef<string | null>(null);
   useEffect(() => {
     receivedRef.current = receivedTrace;
@@ -133,11 +137,14 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
 
   const runScenario = async (id: string) => {
     setLifecycle("STARTING");
+    clearLatestReplayMarker();
+    replayTraceStartSequence.current = null;
     setTraceUnavailable(false);
     traceIssueRef.current = false;
     setResultSyncUnavailable(false);
     try {
       traceCursor.current = await drainRuntimeTraceCursor((after) => api.runtimeTrace(after));
+      replayTraceStartSequence.current = traceCursor.current;
     } catch {
       traceCursor.current = 0;
       traceIssueRef.current = true;
@@ -166,6 +173,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       const started = await start(id, 0);
       if (!started) throw new Error("Replay could not be started");
       activeReplayStartedAt.current = started.started_at;
+      if (replayTraceStartSequence.current === null) throw new Error("Runtime trace baseline is unavailable");
       setLifecycle("PROCESSING");
     } catch (cause) {
       setLifecycle("FAILED");
@@ -219,7 +227,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       const durable = durableSnapshot ?? [];
       if (durableSnapshot === null) setResultSyncUnavailable(true);
       const sourceLinkedResults = traceIssueRef.current ? [] : sourceLinkedReplayResults(durable, mergeRuntimeTraceEvents(receivedRef.current, drainedTrace));
-      const runResultsSorted = sourceLinkedResults.sort((a, b) => a.created_time.localeCompare(b.created_time) || a.result_id.localeCompare(b.result_id));
+      const runResultsSorted = sourceLinkedResults.sort((a, b) => compareTimeAsc(a.created_time, b.created_time) || a.result_id.localeCompare(b.result_id));
       const newRows = newPersistedReplayRows(sourceLinkedResults, known);
       if (controller.signal.aborted) return;
       setNewRowsPersisted(newRows);
@@ -245,9 +253,12 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       setLinksPresented(true);
       if (runResultsSorted.length && presentationRef.current === "demo") await sleep(280);
       if (!controller.signal.aborted) setLifecycle("READY");
+      if (!controller.signal.aborted && !traceIssueRef.current && replayTraceStartSequence.current !== null && replay.started_at && replay.finished_at && replay.scenario && replay.source_type) {
+        saveLatestReplayMarker({ scenario: replay.scenario, sourceType: replay.source_type, startedAt: replay.started_at, finishedAt: replay.finished_at, startSequence: replayTraceStartSequence.current, endSequence: traceCursor.current });
+      }
     })();
     return () => controller.abort();
-  }, [replay?.state, replay?.started_at, replay?.finished_at, replay?.results_persisted, baseline, dispatch]);
+  }, [replay?.state, replay?.started_at, replay?.finished_at, replay?.results_persisted, replay?.scenario, replay?.source_type, baseline, dispatch]);
 
   const observations = useMemo(() => {
     const map = new Map<string, RuntimeTraceEvent>();
@@ -323,9 +334,9 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       </section>
 
       <div className="runtime-workbench-grid episode-grid">
-        <section className="panel runtime-observations"><div className="panel-head compact"><div><h2>Replay milestones</h2><p>{sourceType.toLowerCase().includes("pcap") ? `Recorded PCAP · ${observations.length} of ${replay.observations_emitted || "?"} packet observations shown` : "Source arrival and packet observations"}</p></div><span className="count-badge">{observations.length} observations</span></div>
+        <section className="panel runtime-observations"><div className="panel-head compact"><div><h2>Replay milestones</h2><p>Runtime trace · local wall clock ({formatTimeZoneLabel("local")}); these times are not observed network event times.</p></div><span className="count-badge">{observations.length} observations</span></div>
           {streamEvents.length ? <div className="runtime-event-list">{streamEvents.map((event) => {
-            const time = new Date(event.occurred_at).toLocaleTimeString([], { hour12: false, minute: "2-digit", second: "2-digit" });
+            const time = formatShortTime(event.occurred_at, "local");
             if (event.kind === "SOURCE_RECORD_ACCEPTED") {
               if (streamEvents.find((item) => item.kind === "SOURCE_RECORD_ACCEPTED")?.sequence !== event.sequence) return null;
               const count = presentedTrace.filter((item) => item.kind === "SOURCE_RECORD_ACCEPTED").length;
@@ -341,7 +352,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
             }
             return null;
           })}</div> : <p className="runtime-empty">{running ? "Waiting for the next source record…" : "No runtime trace was received for this replay."}</p>}
-          <details className="raw-trace-details"><summary>Show complete runtime trace ({receivedTrace.length} events)</summary><div className="runtime-event-list">{receivedTrace.map((event) => <div className="runtime-event-row source-select" key={event.sequence}><time>{formatShortTime(event.occurred_at)}</time><strong>{readable(event.kind)}</strong><span>{event.mechanism || event.reason || event.readiness || event.observation_id || "Runtime telemetry"}</span><em>#{event.sequence}</em></div>)}</div></details>
+          <details className="raw-trace-details"><summary>Show complete runtime trace ({receivedTrace.length} events)</summary><div className="runtime-event-list">{receivedTrace.map((event) => <div className="runtime-event-row source-select" key={event.sequence}><time title={`Runtime trace · local wall clock: ${formatEvidenceDateTime(event.occurred_at, "local")}`}>{formatShortTime(event.occurred_at, "local")}</time><strong>{readable(event.kind)}</strong><span>{event.mechanism || event.reason || event.readiness || event.observation_id || "Runtime telemetry"}</span><em>#{event.sequence}</em></div>)}</div></details>
         </section>
         <section className="panel runtime-analytics"><div className="panel-head compact"><div><h2>Observation routes</h2><p>{selectedObservation ? `${observationLabel(selectedObservation.observation_type)} fans out independently` : "Select an observation to inspect its routes"}</p></div><span className="count-badge">{analytics.length}</span></div>
           {selectedObservation && <div className="selected-observation-summary"><span className="evidence-node">Packet observation</span><span>{observationLabel(selectedObservation.observation_type)}</span></div>}
@@ -350,7 +361,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       </div>
 
       <section className="panel replay-flow-panel"><div className="panel-head compact"><div><h2>Persisted Results</h2><p>Durable evidence fetched from REST after source replay completion.</p></div><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>
-          {presentedResults ? <div className="replay-event-log">{runResults.slice(0, presentedResults).slice(-10).reverse().map((result) => <div className="event-log-item" key={result.result_id}><time>{formatShortTime(result.created_time)}</time><strong>{friendlyCategory(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)} · {summarizeReference(result.entity_reference, result.mechanism_id)}</span><em>{result.result_type === "REVIEW_FINDING" ? "Review" : "Evidence limitation"}</em><button className="inline-link" onClick={() => navigate("results", { resultId: result.result_id })}>View evidence</button></div>)}</div> : <p className="runtime-empty">{resultSyncUnavailable ? "Durable Results could not be synchronized; no conclusion about Result production is available." : lifecycle === "READY" ? diagnostic : "Results appear here after durable synchronization."}</p>}
+          {presentedResults ? <div className="replay-event-log"><p className="analyst-time-note">Result time · observed evidence context · {formatTimeZoneLabel(zone)}.</p>{runResults.slice(0, presentedResults).slice(-10).reverse().map((result) => <div className="event-log-item" key={result.result_id}><time>{formatEvidenceDateTime(result.created_time, zone)}</time><strong>{friendlyCategory(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)} · {summarizeReference(result.entity_reference, result.mechanism_id)}</span><em>{result.result_type === "REVIEW_FINDING" ? "Review" : "Evidence limitation"}</em><button className="inline-link" onClick={() => navigate("results", { resultId: result.result_id })}>View evidence</button></div>)}</div> : <p className="runtime-empty">{resultSyncUnavailable ? "Durable Results could not be synchronized; no conclusion about Result production is available." : lifecycle === "READY" ? diagnostic : "Results appear here after durable synchronization."}</p>}
         {runResults.length > 0 && replay.results_persisted < runResults.length && lifecycle === "READY" && <p className="replay-diagnostic">{newRowsPersisted} new rows written during this run; {runResults.length - newRowsPersisted} immutable source-linked Result{runResults.length - newRowsPersisted === 1 ? " was" : "s were"} already present in the durable store.</p>}
       {diagnostic && <p className="replay-diagnostic">{traceUnavailable ? "Trace telemetry was unavailable; source-lineage Result attribution could not be established." : `${presentedTrace.filter((event) => event.kind === "ROUTED").length} analytic routes were recorded in runtime trace, with no source-linked durable Result.`}</p>}
       </section>

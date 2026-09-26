@@ -9,6 +9,7 @@ import { ResultsPage } from "./pages/ResultsPage";
 import { ReplayPage } from "./pages/ReplayPage";
 import { InvestigationsPage } from "./pages/InvestigationsPage";
 import { contextFromHash, type NavigationContext } from "./state/navigation";
+import { TimeZoneProvider } from "./state/TimeZoneContext";
 
 const pageKeys: PageKey[] = [
   "overview",
@@ -79,9 +80,11 @@ function ConsoleApp() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <EvidenceProvider>
-        <ConsoleApp />
-      </EvidenceProvider>
+      <TimeZoneProvider>
+        <EvidenceProvider>
+          <ConsoleApp />
+        </EvidenceProvider>
+      </TimeZoneProvider>
     </ErrorBoundary>
   );
 }

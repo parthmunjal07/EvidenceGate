@@ -1,4 +1,5 @@
 import type { EvidenceAction, EvidenceState } from "./types";
+import { compareTimeDesc } from "../utils/formatting";
 
 export const initialEvidenceState: EvidenceState = {
   runtime: null,
@@ -40,7 +41,7 @@ export function evidenceReducer(
         const left = results.get(a)!;
         const right = results.get(b)!;
         return (
-          right.created_time.localeCompare(left.created_time) ||
+          compareTimeDesc(left.created_time, right.created_time) ||
           right.result_id.localeCompare(left.result_id)
         );
       });

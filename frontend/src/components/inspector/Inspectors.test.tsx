@@ -155,10 +155,10 @@ describe("evidence table and inspector components", () => {
     render(<ResultInspector result={dgaResult} onClose={vi.fn()} />);
     expect(screen.getByText("Domain").parentElement).toHaveTextContent("ajdkskqweoiuzx.com");
     expect(screen.getAllByText("DGA-labelled lexical resemblance score")[0]?.parentElement).toHaveTextContent("0.985");
-    const technical = screen.getByText("Technical metadata").closest("details");
+    const technical = screen.getByText("Audit details").closest("details");
     expect(technical).not.toHaveAttribute("open");
     expect(screen.getByText("DGA_M1_REPRESENTATION_v1").closest("details")).toBe(technical);
-    fireEvent.click(screen.getByText("Technical metadata"));
+    fireEvent.click(screen.getByText("Audit details"));
     expect(screen.getByText("DGA_M1_REPRESENTATION_v1")).toBeInTheDocument();
   });
   it("closes an open inspector with Escape", () => {

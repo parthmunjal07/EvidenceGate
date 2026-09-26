@@ -11,6 +11,8 @@ import { resultsSourceNote } from "../utils/copy";
 import { friendlyCategory } from "../utils/formatting";
 import { useEffect } from "react";
 import { api } from "../api/client";
+import { useTimeZone } from "../state/TimeZoneContext";
+import { compareTimeAsc, compareTimeDesc, formatEvidenceRange, formatTimeZoneLabel } from "../utils/formatting";
 
 export function ResultsPage({
   initialResultId = null,
@@ -20,6 +22,7 @@ export function ResultsPage({
   sourceResultIds?: string[];
 }) {
   const { state, loadOlder, dispatch } = useEvidence();
+  const { zone } = useTimeZone();
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState("");
   const [resultType, setResultType] = useState("");
@@ -50,8 +53,9 @@ export function ResultsPage({
       <PageHeading
         titleId="results-title"
         title="Evidence"
-        deck="What an individual analytic observed. Each row is one independent mechanism Result."
+        deck={`What an individual analytic observed. Each row is one independent Result · display zone ${formatTimeZoneLabel(zone)}.`}
       />
+      {all.length > 0 && <p className="analyst-time-note">Currently loaded Result time range: {formatEvidenceRange(all.map((result) => result.created_time).sort(compareTimeAsc)[0], all.map((result) => result.created_time).sort(compareTimeDesc)[0], zone)}.</p>}
       {sourceResultIds.length > 0 && <div className="results-callout">Showing {sourceResultIds.length} source Result{sourceResultIds.length === 1 ? "" : "s"} from the selected family or investigation.</div>}
       <div className="results-callout">
         <span>

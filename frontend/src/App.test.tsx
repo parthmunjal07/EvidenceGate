@@ -35,7 +35,7 @@ function mockBackend() {
   });
   vi.stubGlobal("fetch", fetchMock); vi.stubGlobal("scrollTo", vi.fn()); return fetchMock;
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); MockEventSource.current = null; window.history.replaceState(null, "", "/"); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); MockEventSource.current = null; window.history.replaceState(null, "", "/"); });
 
 describe("analyst-first console", () => {
   it("uses the final primary navigation and hides the system status page", async () => {
@@ -55,18 +55,28 @@ describe("analyst-first console", () => {
     mockBackend(); render(<App />);
     expect(await screen.findByRole("heading", { name: "Investigations" })).toBeInTheDocument();
   });
-  it("leads with evidence posture and keeps runtime measurements behind a disclosure", async () => {
+  it("shows explicit scope and analyst evidence and keeps benchmark details behind a disclosure", async () => {
     mockBackend(); render(<App />);
-    expect(await screen.findByText("Evidence requiring review")).toBeInTheDocument();
-    expect(screen.getByText("Threat-family posture")).toBeInTheDocument();
-    expect(screen.getByText("DGA + DNS")).toBeInTheDocument();
+    expect(await screen.findByText("Evidence episodes")).toBeInTheDocument();
+    expect(screen.getAllByText("All retained evidence").length).toBeGreaterThan(0);
+    expect(screen.getByText("Evidence by family")).toBeInTheDocument();
+    expect(screen.getAllByText("DDoS evidence").length).toBeGreaterThan(0);
     expect(screen.getByText("Needs review")).toBeInTheDocument();
-    expect(screen.getByText("Evidence health")).toBeInTheDocument();
-    expect(screen.queryByText("Controlled benchmark")).not.toBeInTheDocument();
-    expect(screen.queryByText("Not currently instrumented")).not.toBeInTheDocument();
-    expect(screen.queryByText("Not exposed")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText(/System performance · Controlled benchmark/));
-    expect(screen.getByText(/Controlled benchmark: 50 observations\/s/)).toBeInTheDocument();
+    expect(screen.getByText("What the sensor could not establish")).toBeInTheDocument();
+    expect(screen.queryByText("Threat-family posture")).not.toBeInTheDocument();
+    expect(screen.queryByText("Limited evidence")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reflection-shaped traffic")).not.toBeInTheDocument();
+    expect(screen.queryByText("DDOS-CV-B0")).not.toBeInTheDocument();
+    expect(screen.queryByText("result-1")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Evidence scope" })).toHaveValue("all");
+    const zoneControl = screen.getByRole("combobox", { name: "Evidence time display zone" });
+    expect(zoneControl).toHaveValue("local");
+    fireEvent.change(zoneControl, { target: { value: "utc" } });
+    expect(zoneControl).toHaveValue("utc");
+    expect(localStorage.getItem("evidencegate.time-zone")).toBe("utc");
+    await waitFor(() => expect(document.body.textContent).toContain("00:00:00 UTC"));
+    fireEvent.click(screen.getByText("System & benchmark details"));
+    expect(screen.getByText(/Controlled development benchmark/)).toBeInTheDocument();
     expect(screen.getByText("Benchmark measurements").closest("details")).not.toHaveAttribute("open");
   });
   it("shows runtime status without a global capability issue badge and exposes diagnostics on demand", async () => {

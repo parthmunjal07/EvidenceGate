@@ -10,6 +10,83 @@ import type {
 } from "../api/types";
 import { dgaScoreNote, nonDgaProbabilityNote } from "./copy";
 
+export type DisplayTimeZone = "local" | "utc";
+export const TIME_ZONE_STORAGE_KEY = "evidencegate.time-zone";
+
+export function getDisplayTimeZone(): DisplayTimeZone {
+  return typeof localStorage !== "undefined" && localStorage.getItem(TIME_ZONE_STORAGE_KEY) === "utc" ? "utc" : "local";
+}
+
+export function timestampMs(value: string | null | undefined) {
+  if (!value) return Number.NEGATIVE_INFINITY;
+  const valueMs = Date.parse(value);
+  return Number.isNaN(valueMs) ? Number.NEGATIVE_INFINITY : valueMs;
+}
+
+export function compareTimeAsc(a: string | null | undefined, b: string | null | undefined) {
+  const left = timestampMs(a);
+  const right = timestampMs(b);
+  if (left === right) return 0;
+  if (left === Number.NEGATIVE_INFINITY) return -1;
+  if (right === Number.NEGATIVE_INFINITY) return 1;
+  return left - right;
+}
+
+export function compareTimeDesc(a: string | null | undefined, b: string | null | undefined) {
+  return compareTimeAsc(b, a);
+}
+
+export function latestObservedTime(values: Array<string | null | undefined>) {
+  return values.filter((value): value is string => Boolean(value) && Number.isFinite(timestampMs(value))).sort(compareTimeDesc)[0] ?? "";
+}
+
+function zoneOptions(zone: DisplayTimeZone) {
+  return zone === "utc" ? { timeZone: "UTC" } : { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+}
+
+export function formatTimeZoneLabel(zone: DisplayTimeZone = getDisplayTimeZone()) {
+  if (zone === "utc") return "UTC";
+  const parts = new Intl.DateTimeFormat("en", { ...zoneOptions(zone), timeZoneName: "short" }).formatToParts(new Date());
+  return parts.find((part) => part.type === "timeZoneName")?.value ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+function validDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function datePart(value: string, zone: DisplayTimeZone) {
+  return new Intl.DateTimeFormat("en-GB", { ...zoneOptions(zone), day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+}
+
+function timePart(value: string, zone: DisplayTimeZone) {
+  return new Intl.DateTimeFormat("en-GB", { ...zoneOptions(zone), hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(value));
+}
+
+export function formatEvidenceDateTime(value: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {
+  const date = validDate(value);
+  return date ? `${datePart(date.toISOString(), zone)} · ${timePart(date.toISOString(), zone)} ${formatTimeZoneLabel(zone)}` : "Time unavailable";
+}
+
+export function formatEvidenceTime(value: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {
+  const date = validDate(value);
+  return date ? `${timePart(date.toISOString(), zone)} ${formatTimeZoneLabel(zone)}` : "Time unavailable";
+}
+
+export function formatEvidenceRange(start: string | null | undefined, end: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {
+  if (!start) return "Time unavailable";
+  if (!end || timestampMs(start) === timestampMs(end)) return formatEvidenceDateTime(start, zone);
+  const startDate = validDate(start);
+  const endDate = validDate(end);
+  if (!startDate || !endDate) return "Time unavailable";
+  const leftDate = datePart(startDate.toISOString(), zone);
+  const rightDate = datePart(endDate.toISOString(), zone);
+  return leftDate === rightDate
+    ? `${leftDate} · ${timePart(startDate.toISOString(), zone)}–${timePart(endDate.toISOString(), zone)} ${formatTimeZoneLabel(zone)}`
+    : `${leftDate} · ${timePart(startDate.toISOString(), zone)} – ${rightDate} · ${timePart(endDate.toISOString(), zone)} ${formatTimeZoneLabel(zone)}`;
+}
+
 export const pretty = (value: unknown) =>
   JSON.stringify(value ?? null, null, 2);
 export const readable = (value: unknown) => {
@@ -29,21 +106,8 @@ export function threatClassLabel(value: string) {
   };
   return labels[value] ?? readable(value);
 }
-export const formatTimestamp = (value: string | null | undefined) =>
-  value
-    ? new Date(value).toLocaleString([], {
-        dateStyle: "medium",
-        timeStyle: "medium",
-      })
-    : "—";
-export const formatShortTime = (value: string | null | undefined) =>
-  value
-    ? new Date(value).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      })
-    : "—";
+export const formatTimestamp = formatEvidenceDateTime;
+export const formatShortTime = formatEvidenceTime;
 export function summarizeReference(value: string, mechanismId?: string | null) {
   try {
     const parsed: unknown = JSON.parse(value);
@@ -437,11 +501,11 @@ export function groupInvestigationLinks(
       key, leftFamily, rightFamily, links: [], latestTime: "",
     };
     group.links.push(link);
-    const linkTime = [left.time_end, right.time_end].sort().at(-1) ?? "";
-    if (linkTime > group.latestTime) group.latestTime = linkTime;
+    const linkTime = [left.time_end, right.time_end].sort(compareTimeDesc)[0] ?? "";
+    if (timestampMs(linkTime) > timestampMs(group.latestTime)) group.latestTime = linkTime;
     groups.set(key, group);
   }
-  return [...groups.values()].sort((a, b) => b.latestTime.localeCompare(a.latestTime));
+  return [...groups.values()].sort((a, b) => compareTimeDesc(a.latestTime, b.latestTime));
 }
 
 export function shortId(value: string) {

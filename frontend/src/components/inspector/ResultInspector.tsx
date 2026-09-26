@@ -3,16 +3,18 @@ import { dgaScoreInterpretation } from "../../utils/copy";
 import { contextSummary, formatTimestamp, friendlyCategory, humanEvidenceRows, mechanismLabel, prerequisiteLabel, readable, whySurfaced } from "../../utils/formatting";
 import { ClaimCeiling, QualitySnapshotView, VisibilitySnapshotView } from "../common/Primitives";
 import { Header, Inspector } from "./InspectorShell";
+import { useTimeZone } from "../../state/TimeZoneContext";
 
 export function ResultInspector({ result, onClose }: { result: ResultDto | null; onClose: () => void }) {
+  const { zone } = useTimeZone();
   if (!result) return null;
   const evidenceRows = humanEvidenceRows(result.evidence);
   const finding = mechanismLabel(result.mechanism_id || result.lane_id);
   const isDga = result.lane_id === "dga.m1";
   return <Inspector key={result.result_id} variant="modal" label="Evidence record" selected onClose={onClose} placeholder="Select an evidence record" description="Review the facts recorded by one analytic.">
     <div className="result-detail">
-      <Header kicker={friendlyCategory(result.family)} title={finding} subtitle={`${contextSummary(result)} · ${formatTimestamp(result.created_time)}`} onClose={onClose} />
-      <div className="result-type-line"><span className="object-level-label">One mechanism Result</span><span className="status-chip neutral">{readable(result.result_type)}</span></div>
+      <Header kicker={friendlyCategory(result.family)} title={finding} subtitle={contextSummary(result)} onClose={onClose} />
+      <div className="result-type-line"><span className="object-level-label">Result time: {formatTimestamp(result.created_time, zone)}</span><span className="status-chip neutral">{readable(result.result_type)}</span></div>
 
       <section className="result-section result-why">
         <h3>Why it surfaced</h3>
@@ -46,7 +48,7 @@ export function ResultInspector({ result, onClose }: { result: ResultDto | null;
       </details>
 
       <details className="result-disclosure technical-details">
-        <summary>Technical metadata</summary>
+        <summary>Audit details</summary>
         <dl className="technical-metadata">
           <Meta label="Result ID" value={result.result_id} />
           <Meta label="Mechanism ID" value={result.mechanism_id} />
@@ -59,10 +61,8 @@ export function ResultInspector({ result, onClose }: { result: ResultDto | null;
           <Meta label="Parser references" value={result.parser_refs.join(" · ")} />
           <Meta label="Representation" value={representationLabel(result.evidence)} />
         </dl>
-      </details>
-
-      <details className="result-disclosure">
-        <summary>Source lineage · {result.source_observation_ids.length} {result.source_observation_ids.length === 1 ? "observation" : "observations"}</summary>
+        <h3>Source lineage</h3>
+        <span className="field-label">{result.source_observation_ids.length} {result.source_observation_ids.length === 1 ? "observation" : "observations"}</span>
         <ul className="technical-id-list">{result.source_observation_ids.map((id) => <li key={id}>{id}</li>)}</ul>
       </details>
     </div>

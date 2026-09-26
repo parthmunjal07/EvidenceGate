@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { PageKey } from "../../state/types";
-import { useClock } from "../../hooks/useClock";
 import { useEvidence } from "../../state/EvidenceContext";
+import { useTimeZone } from "../../state/TimeZoneContext";
+import { formatTimeZoneLabel } from "../../utils/formatting";
 
 const links: Array<[PageKey, string]> = [
   ["overview", "Overview"], ["replay", "Traffic Lab"], ["alerts", "Analyst Queue"],
@@ -10,7 +11,7 @@ const links: Array<[PageKey, string]> = [
 
 export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavigate: (page: PageKey) => void; children: ReactNode }) {
   const { state } = useEvidence();
-  const clock = useClock();
+  const { zone, setZone } = useTimeZone();
   const [healthOpen, setHealthOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const healthButton = useRef<HTMLButtonElement>(null);
@@ -45,7 +46,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
         <button ref={healthButton} type="button" className="runtime-pill health-trigger" aria-expanded={healthOpen} aria-haspopup="dialog" onClick={() => setHealthOpen((open) => !open)}>
           <span className={`runtime-dot${badge === "Offline" ? " offline" : ""}`} /><strong>{badge}</strong>
         </button>
-        <span className="clock">{clock}</span>
+        <label className="timezone-control">Time: <select aria-label="Evidence time display zone" value={zone} onChange={(event) => setZone(event.target.value as "local" | "utc")}><option value="local">Local ({formatTimeZoneLabel("local")})</option><option value="utc">UTC</option></select></label>
       </div>
       {healthOpen && <div className="health-popover" role="dialog" aria-label="System health" onKeyDown={(event) => { if (event.key === "Escape") { setHealthOpen(false); healthButton.current?.focus(); } }}>
         <div className="health-popover-head"><h2>System health</h2><button aria-label="Close system health" onClick={() => { setHealthOpen(false); healthButton.current?.focus(); }}>×</button></div>
