@@ -81,6 +81,11 @@ export function summarizeReference(value: string, mechanismId?: string | null) {
   return value;
 }
 
+export function primaryEntityLabel(value: string) {
+  const summary = summarizeReference(value);
+  return summary.split(" · ", 1)[0] ?? summary;
+}
+
 export function observationLineageLabel(sourceObservationIds: string[]) {
   if (sourceObservationIds.length === 0) return null;
   return `Evidence from ${sourceObservationIds.length} observation${sourceObservationIds.length === 1 ? "" : "s"}`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SihAlertProjection } from "../api/types";
-import { claimSemantics, confidenceText, formatEvidenceValue, formatQuality, friendlyCategory, humanEvidenceRows, observationLineageLabel, summarizeEvidence, summarizeReference, summarizeTableEvidence, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
+import { claimSemantics, confidenceText, formatEvidenceValue, formatQuality, friendlyCategory, humanEvidenceRows, observationLineageLabel, primaryEntityLabel, summarizeEvidence, summarizeReference, summarizeTableEvidence, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
 import { filterAlerts, filterResults } from "./filters";
 
 const alert: SihAlertProjection = {
@@ -65,6 +65,9 @@ describe("scientific display helpers", () => {
     expect(summarizeReference('["192.0.2.10","service/https","FORWARD"]')).toBe(
       "192.0.2.10 · service/https · FORWARD",
     );
+  });
+  it("keeps the Analyst Queue primary entity compact", () => {
+    expect(primaryEntityLabel('["10.0.1.10","service/dns-udp","FORWARD","2026-01-01T00:00:00+00:00",17]')).toBe("10.0.1.10");
   });
   it("formats capability families, mechanisms, and abbreviated result IDs", () => {
     expect(familyLabel("unusual_transfer")).toBe("Data transfer");

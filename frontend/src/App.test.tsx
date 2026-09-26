@@ -15,7 +15,7 @@ const alert = {
   supporting_evidence: { structured: { bytes_c2s_per_second: 409.6 }, evidence_items: [], source_observation_ids: ["obs-1"] }, source_result_ids: ["result-1"], visibility: { available: ["PACKET_FACTS"], unavailable: [], degraded: [] }, quality: { packet_loss: "UNKNOWN", sampling: "UNKNOWN", parser: "UNKNOWN", capture_gap: "UNKNOWN" }, claim_ceiling: "RESPONSE_SHAPED_TRAFFIC_ONLY;NO_AMPLIFICATION_RATIO;NO_SPOOFING_CONFIRMED;NO_DDOS_CONFIRMED;NO_ATTACKER_IDENTITY", model_refs: [], governing_ids: [], provenance_refs: [], quality_refs: [], parser_refs: [],
 };
 const alerts = { policy_version: "SIH_ALERT_POLICY_V1", policy_status: "ACTIVE", meaning_of_alert: "ANALYST_ATTENTION_RECORD", alerts: [alert], status_items: [] };
-const familyView = { family_view_id: "family-1", family: "DDoS", time_start: "2026-09-25T00:00:00Z", time_end: "2026-09-25T00:00:00Z", entity_references: ["192.0.2.10"], source_result_ids: ["result-1"], source_observation_ids: ["obs-1"], findings: [{ source_result_id: "result-1", title: "Reflection-shaped traffic", statements: ["Response-shaped traffic was observed."], result_type: "REVIEW_FINDING" }, { source_result_id: "result-2", title: "TCP initiating activity", statements: ["Initiating TCP attempts were measured."], result_type: "REVIEW_FINDING" }], limitations: ["This evidence does not confirm an attack."], missing_evidence: ["Reverse TCP state was not visible."], visibility_summary: [], quality_summary: [] };
+const familyView = { family_view_id: "family-1", family: "DDoS", time_start: "2026-09-25T00:00:00Z", time_end: "2026-09-25T00:00:00Z", entity_references: ["192.0.2.10"], source_result_ids: ["result-1"], source_observation_ids: ["obs-1"], findings: [{ source_result_id: "result-1", title: "Reflection-shaped traffic", statements: ["Response-shaped traffic was observed.", "state:provider.ddos.example:[\"192.0.2.10\"]"], result_type: "REVIEW_FINDING" }, { source_result_id: "result-2", title: "TCP initiating activity", statements: ["Initiating TCP attempts were measured."], result_type: "REVIEW_FINDING" }], limitations: ["This evidence does not confirm an attack."], missing_evidence: ["Reverse TCP state was not visible."], visibility_summary: [], quality_summary: ["parser:CLEAR", "parser:UNKNOWN"] };
 class MockEventSource {
   static current: MockEventSource | null = null;
   listeners = new Map<string, (event: Event) => void>();
@@ -84,6 +84,11 @@ describe("analyst-first console", () => {
     expect((await screen.findAllByText("DDoS evidence")).length).toBeGreaterThan(0);
     expect(screen.getByText("Why this was surfaced")).toBeInTheDocument();
     expect(screen.getByText("2 independent findings")).toBeInTheDocument();
+    expect(screen.getByText("Reflection-shaped traffic", { selector: ".mechanism-chips span" })).toBeInTheDocument();
+    expect(screen.queryByText(/state:provider/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Target Target 192.0.2.10")).not.toBeInTheDocument();
+    expect(screen.getByText("Mixed reporting")).toBeInTheDocument();
+    expect(screen.getAllByText("Parser")).toHaveLength(1);
     expect(screen.queryByText("DDOS-CV-B0")).not.toBeInTheDocument();
     expect(screen.getByText("What this evidence supports")).toBeInTheDocument();
     expect(screen.getByText("Response-shaped traffic was observed.")).toBeInTheDocument();
