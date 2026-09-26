@@ -131,8 +131,8 @@ export function VisibilitySnapshotView({
 function Snapshot({ rows }: { rows: string[][] }) {
   return (
     <div className="snapshot-list">
-      {rows.map(([label, value]) => (
-        <div className="snapshot-row" key={label}>
+      {rows.map(([label, value], index) => (
+        <div className="snapshot-row" key={`${label}:${index}`}>
           <span className="snapshot-state">{label}</span>
           <span className="snapshot-values">{value}</span>
         </div>

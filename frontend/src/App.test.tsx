@@ -55,16 +55,19 @@ describe("analyst-first console", () => {
     mockBackend(); render(<App />);
     expect(await screen.findByRole("heading", { name: "Investigations" })).toBeInTheDocument();
   });
-  it("shows concise runtime state and separates approved benchmark claims from artifact measurements", async () => {
+  it("leads with evidence posture and keeps runtime measurements behind a disclosure", async () => {
     mockBackend(); render(<App />);
-    expect(await screen.findByText("Passive input and evidence output")).toBeInTheDocument();
-    expect(screen.getByText("Threat-family coverage")).toBeInTheDocument();
+    expect(await screen.findByText("Evidence requiring review")).toBeInTheDocument();
+    expect(screen.getByText("Threat-family posture")).toBeInTheDocument();
     expect(screen.getByText("DGA + DNS")).toBeInTheDocument();
-    expect(screen.getByText("Controlled benchmark")).toBeInTheDocument();
-    expect(screen.getByText(/Processing p50 \/ p95 \/ p99: 186\.3378/)).toBeInTheDocument();
-    expect(screen.getByText(/not production capacity or an SLA/i)).toBeInTheDocument();
-    expect(screen.getByText("Not currently instrumented")).toBeInTheDocument();
+    expect(screen.getByText("Needs review")).toBeInTheDocument();
+    expect(screen.getByText("Evidence health")).toBeInTheDocument();
+    expect(screen.queryByText("Controlled benchmark")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not currently instrumented")).not.toBeInTheDocument();
     expect(screen.queryByText("Not exposed")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/System performance · Controlled benchmark/));
+    expect(screen.getByText(/Controlled benchmark: 50 observations\/s/)).toBeInTheDocument();
+    expect(screen.getByText("Benchmark measurements").closest("details")).not.toHaveAttribute("open");
   });
   it("shows runtime status without a global capability issue badge and exposes diagnostics on demand", async () => {
     mockBackend(); render(<App />);
@@ -102,7 +105,7 @@ describe("analyst-first console", () => {
   it("opens the dedicated factual investigation experience", async () => {
     const fetchMock = mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Investigations" }));
-    expect(await screen.findByText(/Review separate family evidence connected by exact shared source observations/)).toBeInTheDocument();
+    expect(await screen.findByText(/Chronology of separate family evidence connected by exact shared source observations/)).toBeInTheDocument();
     expect(screen.getByText("No exact shared-observation links are currently indexed.")).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/investigations"))).toBe(true);
   });

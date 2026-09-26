@@ -8,13 +8,13 @@ import { contextSummary, formatShortTime, formatTimestamp, friendlyCategory, gro
 import type { PageKey } from "../state/types";
 import type { NavigationContext } from "../state/navigation";
 
-export function AlertsPage({ initialAlert, clearInitial, openResult, navigate, initialFamilyViewId }: { initialAlert: SihAlertProjection | null; clearInitial: () => void; openResult: (id: string) => void; navigate: (page: PageKey, context?: NavigationContext) => void; initialFamilyViewId?: string }) {
+export function AlertsPage({ initialAlert, clearInitial, openResult, navigate, initialFamilyViewId, initialFamily }: { initialAlert: SihAlertProjection | null; clearInitial: () => void; openResult: (id: string) => void; navigate: (page: PageKey, context?: NavigationContext) => void; initialFamilyViewId?: string; initialFamily?: string }) {
   const { state } = useEvidence();
   const [views, setViews] = useState<FamilyEvidenceViewDto[]>([]);
   const [links, setLinks] = useState<InvestigationLinkDto[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [family, setFamily] = useState("");
+  const [family, setFamily] = useState(initialFamily ?? "");
   const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();

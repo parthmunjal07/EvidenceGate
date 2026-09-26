@@ -61,12 +61,13 @@ function ConsoleApp() {
       )}
       {page === "alerts" && (
         <AlertsPage
-          key={navigationContext.familyViewId ?? "default-family"}
+          key={navigationContext.familyViewId ?? navigationContext.family ?? "default-family"}
           initialAlert={null}
           clearInitial={() => undefined}
           openResult={(id) => void openResult(id)}
           navigate={navigate}
           {...(navigationContext.familyViewId ? { initialFamilyViewId: navigationContext.familyViewId } : {})}
+          {...(navigationContext.family ? { initialFamily: navigationContext.family } : {})}
         />
       )}
       {page === "investigations" && <InvestigationsPage key={navigationContext.linkId ?? navigationContext.family ?? "default-link"} navigate={navigate} {...(navigationContext.linkId ? { initialLinkId: navigationContext.linkId } : {})} {...(navigationContext.family ? { initialFamily: navigationContext.family } : {})} />}

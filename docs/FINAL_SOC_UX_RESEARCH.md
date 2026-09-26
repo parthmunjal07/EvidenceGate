@@ -2,6 +2,17 @@
 
 Accessed 2026-09-26. Official product documentation only; these patterns inform interface structure and do not imply that EvidenceGate uses the same detection science.
 
+## Overview and investigation patterns reviewed for the final closure
+
+| Product | Current documented pattern | EvidenceGate adaptation | Boundary |
+| --- | --- | --- | --- |
+| Microsoft Defender XDR / Sentinel | Incident summaries put first/last activity, affected scope, alert queue and reason-for-linking beside a chronological activity view. | Put latest observed activity, family evidence scope, sensor limits, and factual joint-review context on the security Overview. | Do not import correlated-incident, attack-story, response, severity or causality semantics. |
+| Elastic Security | The alert flyout foregrounds highlighted fields, hides empty/internal fields, and preserves the Alerts table while opening details. | Use compact evidence summaries and progressive disclosures for technical fields; provide direct navigation to evidence and investigations. | Do not import risk scores, alert status, threat intelligence or inferred relationship graphs. |
+| Splunk Mission Control | Queue-first triage groups related findings while keeping their constituent findings available and exposes investigation context from the selected item. | Make recent Family Evidence episodes the Overview's action surface and preserve separate Results behind each grouped episode. | Do not import urgency/assignment workflows or finding fusion. |
+| ExtraHop Reveal(x) | Security overview surfaces recent detection scope; detection views support recency sorting, network participants, and related timeline navigation. | Show actual network context and chronology using present Result fields, with grouped family summaries and factual source links. | Do not import offender/victim roles, risk scores, recommended investigations, attack chains, or campaigns. |
+
+These patterns favor an analyst's current work and its scope over a detector registry. The EvidenceGate overview therefore leads with evidence episodes, related family context, recent activity, and visibility/quality; runtime and benchmark details move behind a secondary disclosure.
+
 | Product | Observed UX pattern | Why it works | EvidenceGate adaptation | Do not copy | Source |
 | --- | --- | --- | --- | --- | --- |
 | Microsoft Defender XDR / Sentinel | A queue opens into a contextual incident page with separate alert, activity, asset, investigation, and evidence views. Alerts are chronological and show why they are linked. | Analysts can move from triage to details without losing the selected incident context; chronology and linkage rationale are explicit. | Keep mechanism Result, family evidence episode, and factual Investigation distinct; show shared-source rationale and chronology in the selected investigation workspace. | Defender's correlated-incident and attack-story claims, entity graph, severity, and response actions. EvidenceGate's shared source observations do not establish an incident or attack story. | [Investigate incidents in the Microsoft Defender portal](https://learn.microsoft.com/en-us/defender-xdr/investigate-incidents) |
@@ -17,4 +28,3 @@ Accessed 2026-09-26. Official product documentation only; these patterns inform 
 | Queue group to contextual detail | Splunk analyst queue and expandable finding groups | Family evidence is the queue-level episode; repeated child findings are visually grouped, with original Results retained. |
 | Chronology with selected-item navigation | Microsoft incident activity and ExtraHop investigation timeline | Investigation workspace orders contributing family Results by observed time and links back to exact Results. |
 | Separate evidence levels | Microsoft's distinct alerts, investigations, and evidence views | A Result is one mechanism output; Family Evidence is a read-only episode; an Investigation is factual joint-review context. |
-

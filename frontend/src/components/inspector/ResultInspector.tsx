@@ -1,5 +1,5 @@
 import type { ResultDto } from "../../api/types";
-import { dgaScoreNote } from "../../utils/copy";
+import { dgaScoreInterpretation } from "../../utils/copy";
 import { contextSummary, formatTimestamp, friendlyCategory, humanEvidenceRows, mechanismLabel, prerequisiteLabel, readable, whySurfaced } from "../../utils/formatting";
 import { ClaimCeiling, QualitySnapshotView, VisibilitySnapshotView } from "../common/Primitives";
 import { Header, Inspector } from "./InspectorShell";
@@ -28,7 +28,7 @@ export function ResultInspector({ result, onClose }: { result: ResultDto | null;
         </dl>
       </section>
 
-      {isDga && <p className="semantic-note">{dgaScoreNote(typeof result.evidence.dga_labelled_lexical_resemblance_score === "number" ? result.evidence.dga_labelled_lexical_resemblance_score : null)}</p>}
+      {isDga && <p className="semantic-note">{dgaScoreInterpretation}</p>}
 
       <section className="result-section">
         <h3>Interpretation</h3>

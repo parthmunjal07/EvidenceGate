@@ -41,7 +41,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
       <div className="sidebar-spacer" /><div className="sidebar-foot"><p>Controlled passive inputs</p></div>
     </aside>
     <div className="main-column">
-      <header className="topbar"><div className="breadcrumbs"><span>Evidence runtime</span></div><div className="topbar-right">
+      <header className="topbar"><div className="breadcrumbs"><span>Security evidence</span></div><div className="topbar-right">
         <button ref={healthButton} type="button" className="runtime-pill health-trigger" aria-expanded={healthOpen} aria-haspopup="dialog" onClick={() => setHealthOpen((open) => !open)}>
           <span className={`runtime-dot${badge === "Offline" ? " offline" : ""}`} /><strong>{badge}</strong>
         </button>

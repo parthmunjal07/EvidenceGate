@@ -105,7 +105,7 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         assert all(asset.status_code == 200 and asset.content for asset in built_assets)
         bundle = "\n".join(asset.text for asset in built_assets)
         assert "Analyst queue" in bundle and "Evidence results" in bundle
-        assert "Not calibrated attack probability" in bundle
+        assert "The score is not calibrated." in bundle
         assert "Observed evidence; no attack probability is implied." in bundle
         assert "stream_gap" in bundle
         assert (await client.get("/health")).status_code == 200
@@ -122,7 +122,7 @@ async def test_operator_console_preserves_scientific_and_presentation_boundaries
         bundle = "\n".join([(await client.get(path)).text for path in assets])
         assert 'id="root"' in page
         assert "Lexical model score" in bundle
-        assert "Not calibrated attack probability" in bundle
+        assert "The score is not calibrated." in bundle
         assert "Observed evidence; no attack probability is implied." in bundle
         assert "claim_ceiling" in bundle
         assert "default_target_count" in bundle and "dga_model_readiness" in bundle
