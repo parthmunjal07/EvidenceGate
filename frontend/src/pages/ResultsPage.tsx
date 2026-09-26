@@ -9,23 +9,39 @@ import { filterResults } from "../utils/filters";
 import type { ResultDto } from "../api/types";
 import { resultsSourceNote } from "../utils/copy";
 import { friendlyCategory } from "../utils/formatting";
+import { useEffect } from "react";
+import { api } from "../api/client";
 
 export function ResultsPage({
   initialResultId = null,
+  sourceResultIds = [],
 }: {
   initialResultId?: string | null;
+  sourceResultIds?: string[];
 }) {
-  const { state, loadOlder } = useEvidence();
+  const { state, loadOlder, dispatch } = useEvidence();
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState("");
   const [resultType, setResultType] = useState("");
   const [selectedId, setSelectedId] = useState(initialResultId);
+  const sourceIdKey = sourceResultIds.join("\u0000");
+  const stableSourceIds = useMemo(() => sourceIdKey ? sourceIdKey.split("\u0000") : [], [sourceIdKey]);
+  const missingSourceIds = useMemo(() => stableSourceIds.filter((id) => !state.results.has(id)), [stableSourceIds, state.results]);
+  useEffect(() => {
+    if (!missingSourceIds.length) return;
+    const controller = new AbortController();
+    void Promise.all(missingSourceIds.map((id) => api.result(id, controller.signal)))
+      .then((results) => { if (!controller.signal.aborted) dispatch({ type: "results", value: results }); })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [missingSourceIds, dispatch]);
   const all = state.orderedResults
     .map((id) => state.results.get(id))
     .filter((item): item is ResultDto => Boolean(item));
+  const scoped = sourceResultIds.length ? all.filter((item) => sourceResultIds.includes(item.result_id)) : all;
   const items = useMemo(
-    () => filterResults(all, { search, family, resultType }),
-    [all, search, family, resultType],
+    () => filterResults(scoped, { search, family, resultType }),
+    [scoped, search, family, resultType],
   );
   const families = [...new Set(all.map((item) => item.family))].sort();
   const selected = selectedId ? (state.results.get(selectedId) ?? null) : null;
@@ -36,6 +52,7 @@ export function ResultsPage({
         title="Evidence"
         deck="Search independent mechanism Results. Select a row to open its evidence details."
       />
+      {sourceResultIds.length > 0 && <div className="results-callout">Showing {sourceResultIds.length} source Result{sourceResultIds.length === 1 ? "" : "s"} from the selected family or investigation.</div>}
       <div className="results-callout">
         <span>
           {resultsSourceNote}

@@ -62,7 +62,7 @@ export function EvidenceFlow({
             )}
           </div>
         ))}
-        <div className="flow-branches" aria-label="Presentation">
+        <div className="flow-branches" aria-label="Presentation" key="presentation">
           <span className={alert ? "is-active" : ""}>Analyst review</span>
           <span className={status ? "is-active" : ""}>System status</span>
         </div>

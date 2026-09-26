@@ -94,7 +94,7 @@ export function QualitySnapshotView({ value }: { value: QualitySnapshot }) {
     parser: "Parser status",
     capture_gap: "Capture gaps",
   };
-  const stateLabel = (state: string) => ({ CLEAR: "Clear", DEGRADED: "Degraded", UNKNOWN: "Unknown" }[state] ?? "Unknown");
+  const stateLabel = (state: string) => ({ CLEAR: "Clear", DEGRADED: "Degraded", UNKNOWN: "Not reported" }[state] ?? "Not reported");
   if (Object.values(value).every((state) => state === "UNKNOWN")) return <div className="quality-summary">Capture quality: Not reported <details><summary>View quality details</summary><Snapshot rows={Object.entries(value).map(([key, state]) => [labels[key] ?? readable(key), stateLabel(state)])} /></details></div>;
   return (
     <Snapshot

@@ -75,6 +75,17 @@ export const api = {
       { signal: signal ?? null },
     );
   },
+  allResults: async (signal?: AbortSignal) => {
+    const results: ResultDto[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await api.results({ limit: 500, ...(cursor ? { cursor } : {}) }, signal);
+      results.push(...page.results);
+      if (!page.next_cursor || page.results.length < 500) break;
+      cursor = page.next_cursor;
+    }
+    return results;
+  },
   result: (id: string, signal?: AbortSignal) =>
     request<ResultDto>(`/results/${encodeURIComponent(id)}`, {
       signal: signal ?? null,

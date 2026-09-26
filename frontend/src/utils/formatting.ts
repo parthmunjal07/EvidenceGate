@@ -208,6 +208,7 @@ export function humanEvidenceRows(evidence: Record<string, unknown>) {
 }
 
 const claimMeanings: Record<string, string> = {
+  DNS_T1_STRUCTURAL_EVIDENCE_ONLY: "DNS query-name structure was measured for this domain.",
   OBSERVED_TCP_SYN_AND_CAPTURED_STATE_EVIDENCE_ONLY: "Observed TCP SYN activity and captured state are available as evidence.",
   NO_DDOS_CONFIRMED: "A DDoS attack is not confirmed.", NO_VICTIM_EXHAUSTION: "Victim resource exhaustion is not established.",
   NO_BACKLOG_EXHAUSTION: "Backlog exhaustion is not established.", NO_MALICIOUSNESS: "Malicious intent is not established.",

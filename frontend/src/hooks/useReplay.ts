@@ -42,8 +42,10 @@ export function useReplay() {
         speed,
       });
       dispatch({ type: "replay", value: replay });
+      return replay;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Replay failed");
+      return null;
     } finally {
       setBusy(false);
     }

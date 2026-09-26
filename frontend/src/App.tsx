@@ -8,6 +8,7 @@ import { AlertsPage } from "./pages/AlertsPage";
 import { ResultsPage } from "./pages/ResultsPage";
 import { ReplayPage } from "./pages/ReplayPage";
 import { InvestigationsPage } from "./pages/InvestigationsPage";
+import { contextFromHash, type NavigationContext } from "./state/navigation";
 
 const pageKeys: PageKey[] = [
   "overview",
@@ -22,16 +23,23 @@ function routeFromHash(): PageKey {
 }
 function ConsoleApp() {
   const [page, setPage] = useState<PageKey>(routeFromHash);
-  const [sourceResultId, setSourceResultId] = useState<string | null>(null);
+  const [navigationContext, setNavigationContext] = useState<NavigationContext>(contextFromHash);
   const { selectSourceResult } = useEvidence();
   useEffect(() => {
-    const update = () => setPage(routeFromHash());
+    const update = () => { setPage(routeFromHash()); setNavigationContext(contextFromHash()); };
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
   }, []);
-  const navigate = useCallback((next: PageKey) => {
+  const navigate = useCallback((next: PageKey, context: NavigationContext = {}) => {
     setPage(next);
-    if (location.hash !== `#/${next}`) location.hash = `/${next}`;
+    setNavigationContext(context);
+    const params = new URLSearchParams();
+    if (context.resultId) params.set("result_id", context.resultId);
+    for (const id of context.sourceResultIds ?? []) params.append("source_result_id", id);
+    if (context.familyViewId) params.set("family_view_id", context.familyViewId);
+    if (context.linkId) params.set("link_id", context.linkId);
+    const hash = `#/${next}${params.size ? `?${params.toString()}` : ""}`;
+    if (location.hash !== hash) location.hash = hash;
     window.scrollTo({
       top: 0,
       behavior: "instant",
@@ -40,8 +48,7 @@ function ConsoleApp() {
   async function openResult(id: string) {
     try {
       await selectSourceResult(id);
-      setSourceResultId(id);
-      navigate("results");
+      navigate("results", { resultId: id });
     } catch {
       /* Provider displays the request error. */
     }
@@ -53,14 +60,16 @@ function ConsoleApp() {
       )}
       {page === "alerts" && (
         <AlertsPage
+          key={navigationContext.familyViewId ?? "default-family"}
           initialAlert={null}
           clearInitial={() => undefined}
           openResult={(id) => void openResult(id)}
           navigate={navigate}
+          {...(navigationContext.familyViewId ? { initialFamilyViewId: navigationContext.familyViewId } : {})}
         />
       )}
-      {page === "investigations" && <InvestigationsPage navigate={navigate} />}
-      {page === "results" && <ResultsPage initialResultId={sourceResultId} />}
+      {page === "investigations" && <InvestigationsPage key={navigationContext.linkId ?? "default-link"} navigate={navigate} {...(navigationContext.linkId ? { initialLinkId: navigationContext.linkId } : {})} />}
+      {page === "results" && <ResultsPage key={`${navigationContext.resultId ?? ""}:${(navigationContext.sourceResultIds ?? []).join("\u0000")}`} {...(navigationContext.resultId ? { initialResultId: navigationContext.resultId } : {})} sourceResultIds={navigationContext.sourceResultIds ?? []} />}
       {page === "replay" && <ReplayPage navigate={navigate} />}
     </AppShell>
   );

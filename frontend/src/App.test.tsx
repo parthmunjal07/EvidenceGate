@@ -40,22 +40,24 @@ describe("analyst-first console", () => {
   it("uses the final primary navigation and hides the system status page", async () => {
     mockBackend(); render(<App />);
     expect(await screen.findByRole("button", { name: "Overview" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Analyst queue/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Analyst queue/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Evidence" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Traffic lab" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Traffic Lab" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Investigations" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "System status" })).not.toBeInTheDocument();
     expect(screen.queryByText("SIH_ALERT_POLICY_V1")).not.toBeInTheDocument();
     expect(screen.queryByText("Evidence flow")).not.toBeInTheDocument();
   });
-  it("shows runtime architecture and a separate measured benchmark on Overview", async () => {
+  it("shows concise runtime state and separates approved benchmark claims from artifact measurements", async () => {
     mockBackend(); render(<App />);
     expect(await screen.findByText("Streaming and evidence state")).toBeInTheDocument();
     expect(screen.getByText("Threat-family coverage")).toBeInTheDocument();
     expect(screen.getByText("DGA + DNS")).toBeInTheDocument();
-    expect(screen.getByText("Processing latency median across runs")).toBeInTheDocument();
+    expect(screen.getByText("APPROVED DEMO CLAIM")).toBeInTheDocument();
+    expect(screen.getByText(/Processing p50 \/ p95 \/ p99: 186\.3378/)).toBeInTheDocument();
     expect(screen.getByText(/not production capacity or an SLA/i)).toBeInTheDocument();
-    expect(screen.getAllByText("Not exposed").length).toBeGreaterThan(0);
+    expect(screen.getByText("Not instrumented live")).toBeInTheDocument();
+    expect(screen.queryByText("Not exposed")).not.toBeInTheDocument();
   });
   it("shows runtime status without a global capability issue badge and exposes diagnostics on demand", async () => {
     mockBackend(); render(<App />);
@@ -70,7 +72,9 @@ describe("analyst-first console", () => {
   });
   it("shows family evidence and an analyst-first card without technical details or IDs", async () => {
     mockBackend(); render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: /Analyst queue/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Analyst queue/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Review/ }));
+    expect(screen.getByRole("dialog", { name: "Family evidence" })).toBeInTheDocument();
     expect((await screen.findAllByText("DDoS evidence")).length).toBeGreaterThan(0);
     expect(screen.getByText("Why this was surfaced")).toBeInTheDocument();
     expect(screen.getByText("2 independent findings")).toBeInTheDocument();
@@ -85,14 +89,15 @@ describe("analyst-first console", () => {
   it("opens the dedicated factual investigation experience", async () => {
     const fetchMock = mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Investigations" }));
-    expect(await screen.findByText(/Cross-family links show exact shared passive source observations/)).toBeInTheDocument();
-    expect(screen.getByText(/FAMILY COMPOSITION ≠ INVESTIGATION LINK/)).toBeInTheDocument();
+    expect(await screen.findByText(/Links identify exact passive source observations shared by two family views/)).toBeInTheDocument();
+    expect(screen.getByText(/They do not establish causality, common attacker/)).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/investigations"))).toBe(true);
   });
   it("keeps Traffic lab factual and moves the trace into an on-demand modal", async () => {
     const fetchMock = mockBackend(); render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Traffic lab" }));
-    expect(screen.getByText(/Watch prepared passive input move through the runtime/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Traffic Lab" }));
+    expect(screen.getByText(/Follow controlled passive replay from source records to independent evidence/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /Presentation pace/ })).toHaveValue("demo");
     expect(screen.queryByText("mixed_ddos_recon")).not.toBeInTheDocument();
     expect(screen.queryByText("Visual pace")).not.toBeInTheDocument();
     expect(screen.queryByText("Processing trace")).not.toBeInTheDocument();

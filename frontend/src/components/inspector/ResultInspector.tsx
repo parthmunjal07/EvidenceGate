@@ -1,7 +1,7 @@
 import type { ResultDto } from "../../api/types";
 import { dgaScoreNote } from "../../utils/copy";
 import { formatTimestamp, friendlyCategory, humanEvidenceRows, mechanismLabel, prerequisiteLabel, summarizeReference, whySurfaced } from "../../utils/formatting";
-import { InspectorSection, KeyValueList, QualitySnapshotView, VisibilitySnapshotView } from "../common/Primitives";
+import { ClaimCeiling, InspectorSection, KeyValueList, QualitySnapshotView, VisibilitySnapshotView } from "../common/Primitives";
 import { Header, Inspector } from "./InspectorShell";
 
 export function ResultInspector({ result, onClose }: { result: ResultDto | null; onClose: () => void }) {
@@ -12,9 +12,9 @@ export function ResultInspector({ result, onClose }: { result: ResultDto | null;
       <Header kicker={`${friendlyCategory(result.family)} · ${result.result_type.replaceAll("_", " ").toLowerCase()}`} title={mechanismLabel(result.mechanism_id || result.lane_id)} subtitle={`${summarizeReference(result.entity_reference, result.mechanism_id)} · ${formatTimestamp(result.created_time)}`} onClose={onClose} />
       <InspectorSection title="Why this was surfaced"><p className="inspect-summary prominent-summary">{whySurfaced(result.mechanism_id || result.lane_id, result.evidence)}</p></InspectorSection>
       <InspectorSection title="What was observed"><KeyValueList rows={[["Result", result.result_type.replaceAll("_", " ").toLowerCase()], ["Recorded", formatTimestamp(result.created_time)], ["Entity / peer", summarizeReference(result.entity_reference, result.mechanism_id)], ...evidenceRows]} /></InspectorSection>
-      <InspectorSection title="Evidence basis"><p className="inspect-summary">{result.lane_id === "dga.m1" ? dgaScoreNote(typeof result.evidence.dga_labelled_lexical_resemblance_score === "number" ? result.evidence.dga_labelled_lexical_resemblance_score : null) : "Observed evidence; no attack probability is implied."}</p></InspectorSection>
+      <InspectorSection title="What this supports"><ClaimCeiling text={result.claim_ceiling} />{result.lane_id === "dga.m1" ? <p className="inspect-summary">{dgaScoreNote(typeof result.evidence.dga_labelled_lexical_resemblance_score === "number" ? result.evidence.dga_labelled_lexical_resemblance_score : null)}</p> : <p className="inspect-summary">Observed evidence; no attack probability is implied.</p>}</InspectorSection>
       {result.missing_prerequisites.length > 0 && <InspectorSection title="Missing evidence"><p>{result.missing_prerequisites.map(prerequisiteLabel).join(" · ")}</p></InspectorSection>}
-      <InspectorSection title="Visibility and quality"><VisibilitySnapshotView value={result.visibility_snapshot} /><QualitySnapshotView value={result.quality_snapshot} /></InspectorSection>
+      <InspectorSection title="Sensor visibility and quality"><details className="sensor-details"><summary>Show all sensor visibility</summary><VisibilitySnapshotView value={result.visibility_snapshot} /><QualitySnapshotView value={result.quality_snapshot} /></details></InspectorSection>
     </>}
   </Inspector>;
 }
