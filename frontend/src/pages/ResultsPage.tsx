@@ -50,7 +50,7 @@ export function ResultsPage({
       <PageHeading
         titleId="results-title"
         title="Evidence"
-        deck="Search independent mechanism Results. Select a row to open its evidence details."
+        deck="What an individual analytic observed. Each row is one independent mechanism Result."
       />
       {sourceResultIds.length > 0 && <div className="results-callout">Showing {sourceResultIds.length} source Result{sourceResultIds.length === 1 ? "" : "s"} from the selected family or investigation.</div>}
       <div className="results-callout">

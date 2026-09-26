@@ -15,7 +15,8 @@ const alert = {
   supporting_evidence: { structured: { bytes_c2s_per_second: 409.6 }, evidence_items: [], source_observation_ids: ["obs-1"] }, source_result_ids: ["result-1"], visibility: { available: ["PACKET_FACTS"], unavailable: [], degraded: [] }, quality: { packet_loss: "UNKNOWN", sampling: "UNKNOWN", parser: "UNKNOWN", capture_gap: "UNKNOWN" }, claim_ceiling: "RESPONSE_SHAPED_TRAFFIC_ONLY;NO_AMPLIFICATION_RATIO;NO_SPOOFING_CONFIRMED;NO_DDOS_CONFIRMED;NO_ATTACKER_IDENTITY", model_refs: [], governing_ids: [], provenance_refs: [], quality_refs: [], parser_refs: [],
 };
 const alerts = { policy_version: "SIH_ALERT_POLICY_V1", policy_status: "ACTIVE", meaning_of_alert: "ANALYST_ATTENTION_RECORD", alerts: [alert], status_items: [] };
-const familyView = { family_view_id: "family-1", family: "DDoS", time_start: "2026-09-25T00:00:00Z", time_end: "2026-09-25T00:00:00Z", entity_references: ["192.0.2.10"], source_result_ids: ["result-1"], source_observation_ids: ["obs-1"], findings: [{ source_result_id: "result-1", title: "Reflection-shaped traffic", statements: ["Response-shaped traffic was observed.", "state:provider.ddos.example:[\"192.0.2.10\"]"], result_type: "REVIEW_FINDING" }, { source_result_id: "result-2", title: "TCP initiating activity", statements: ["Initiating TCP attempts were measured."], result_type: "REVIEW_FINDING" }], limitations: ["This evidence does not confirm an attack."], missing_evidence: ["Reverse TCP state was not visible."], visibility_summary: [], quality_summary: ["parser:CLEAR", "parser:UNKNOWN"] };
+const familyView = { family_view_id: "family-1", family: "DDoS", time_start: "2026-09-25T00:00:00Z", time_end: "2026-09-25T00:00:00Z", entity_references: ["192.0.2.10"], source_result_ids: ["result-1"], source_observation_ids: ["obs-1"], findings: [{ source_result_id: "result-1", title: "Reflection-shaped traffic", statements: ["Response-shaped traffic was observed.", "state:provider.ddos.example:[\"192.0.2.10\"]"], result_type: "REVIEW_FINDING" }, { source_result_id: "result-2", title: "Reflection-shaped traffic", statements: ["Initiating TCP attempts were measured."], result_type: "REVIEW_FINDING" }], limitations: ["This evidence does not confirm an attack."], missing_evidence: ["Reverse TCP state was not visible."], visibility_summary: [], quality_summary: ["parser:CLEAR", "parser:UNKNOWN"] };
+const resultDto = { result_id: "result-1", schema_version: "3", result_type: "REVIEW_FINDING", created_time: "2026-09-25T00:00:00Z", lane_id: "ddos.reflection_victim", family: "DDoS", plugin_id: "ddos", plugin_version: "1", analytic_version: "1", governance_version: "1", entity_reference: "192.0.2.10", taxonomy: ["DOS", "DDoS", "evidence"], mechanism_id: "DDOS-CV-B0", status_snapshot: { scientific_status: "EVIDENCE_CONSTRUCTION", integration_status: "BASELINE_IMPLEMENTED", governance_version: "1", readiness: "READY", quality_degraded: false }, claim_ceiling: "RESPONSE_SHAPED_TRAFFIC_ONLY;NO_DDOS_CONFIRMED", evidence: { evidence_kind: "RESPONSE_SHAPED_TRAFFIC" }, evidence_items: [], missing_prerequisites: [], source_observation_ids: ["obs-1"], source_ids: [], quality_snapshot: { packet_loss: "CLEAR", sampling: "CLEAR", parser: "CLEAR", capture_gap: "CLEAR" }, visibility_snapshot: { available: ["PACKET_FACTS"], unavailable: [], degraded: [] }, state_version: null, config_hash: null, parser_refs: [], model_refs: [], governing_ids: [], quality_refs: [], provenance_refs: [], evidence_interval: null, reason_code: null };
 class MockEventSource {
   static current: MockEventSource | null = null;
   listeners = new Map<string, (event: Event) => void>();
@@ -28,7 +29,7 @@ function mockBackend() {
   vi.stubGlobal("EventSource", MockEventSource);
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), window.location.href);
-    const body = url.pathname === "/health" ? { status: "ok", database: "connected" } : url.pathname === "/runtime" ? runtime : url.pathname === "/alerts" ? alerts : url.pathname === "/family-evidence" ? { family_views: [familyView] } : url.pathname === "/investigations" ? { family_views: [familyView], links: [] } : url.pathname.startsWith("/replay") ? replay : { results: [], next_cursor: null, sync_cursor: url.searchParams.get("cursor") ?? "seed" };
+    const body = url.pathname === "/health" ? { status: "ok", database: "connected" } : url.pathname === "/runtime" ? runtime : url.pathname === "/alerts" ? alerts : url.pathname === "/family-evidence" ? { family_views: [familyView] } : url.pathname === "/investigations" ? { family_views: [familyView], links: [] } : url.pathname.startsWith("/replay") ? replay : url.pathname === "/results/result-1" ? resultDto : { results: [resultDto], next_cursor: null, sync_cursor: url.searchParams.get("cursor") ?? "seed" };
     void init;
     return { ok: true, status: 200, json: async () => body } as Response;
   });
@@ -56,10 +57,10 @@ describe("analyst-first console", () => {
   });
   it("shows concise runtime state and separates approved benchmark claims from artifact measurements", async () => {
     mockBackend(); render(<App />);
-    expect(await screen.findByText("Streaming and evidence state")).toBeInTheDocument();
+    expect(await screen.findByText("Passive input and evidence output")).toBeInTheDocument();
     expect(screen.getByText("Threat-family coverage")).toBeInTheDocument();
     expect(screen.getByText("DGA + DNS")).toBeInTheDocument();
-    expect(screen.getByText("CONTROLLED BENCHMARK")).toBeInTheDocument();
+    expect(screen.getByText("Controlled benchmark")).toBeInTheDocument();
     expect(screen.getByText(/Processing p50 \/ p95 \/ p99: 186\.3378/)).toBeInTheDocument();
     expect(screen.getByText(/not production capacity or an SLA/i)).toBeInTheDocument();
     expect(screen.getByText("Not currently instrumented")).toBeInTheDocument();
@@ -79,29 +80,30 @@ describe("analyst-first console", () => {
   it("shows family evidence and an analyst-first card without technical details or IDs", async () => {
     mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: /Analyst queue/i }));
-    fireEvent.click(await screen.findByRole("button", { name: /Review/ }));
-    expect(screen.getByRole("dialog", { name: "Family evidence" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Open evidence/ }));
+    expect(screen.getByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
     expect((await screen.findAllByText("DDoS evidence")).length).toBeGreaterThan(0);
-    expect(screen.getByText("Why this was surfaced")).toBeInTheDocument();
     expect(screen.getByText("2 independent findings")).toBeInTheDocument();
-    expect(screen.getByText("Reflection-shaped traffic", { selector: ".mechanism-chips span" })).toBeInTheDocument();
+    expect(screen.getByText("2 source Results")).toBeInTheDocument();
+    expect(screen.getAllByText("Reflection-shaped traffic")[0]?.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getAllByText("Reflection-shaped traffic")[0]!);
+    expect(screen.getAllByRole("button", { name: /View source Result/ })).toHaveLength(2);
     expect(screen.queryByText(/state:provider/)).not.toBeInTheDocument();
     expect(screen.queryByText("Target Target 192.0.2.10")).not.toBeInTheDocument();
-    expect(screen.getByText("Mixed reporting")).toBeInTheDocument();
-    expect(screen.getAllByText("Parser")).toHaveLength(1);
-    expect(screen.queryByText("DDOS-CV-B0")).not.toBeInTheDocument();
-    expect(screen.getByText("What this evidence supports")).toBeInTheDocument();
-    expect(screen.getByText("Response-shaped traffic was observed.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Evidence gaps" })).toBeInTheDocument();
     expect(screen.getByText("Reverse TCP state was not visible.")).toBeInTheDocument();
     expect(screen.getByText("This evidence does not confirm an attack.")).toBeInTheDocument();
-    expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
+    expect(screen.getByText("Visibility and quality").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Show source lineage").closest("details")).not.toHaveAttribute("open");
     expect(screen.queryByText("result-1")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Open source Results/ }));
+    expect(await screen.findByRole("heading", { name: "Evidence" })).toBeInTheDocument();
   });
   it("opens the dedicated factual investigation experience", async () => {
     const fetchMock = mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Investigations" }));
-    expect(await screen.findByText(/Links identify exact passive source observations shared by two family views/)).toBeInTheDocument();
-    expect(screen.getByText(/They do not establish causality, common attacker/)).toBeInTheDocument();
+    expect(await screen.findByText(/Review separate family evidence connected by exact shared source observations/)).toBeInTheDocument();
+    expect(screen.getByText("No exact shared-observation links are currently indexed.")).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/investigations"))).toBe(true);
   });
   it("keeps Traffic lab factual and moves the trace into an on-demand modal", async () => {

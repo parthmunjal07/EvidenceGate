@@ -37,9 +37,9 @@ export function OverviewPage({ navigate }: { navigate: (page: PageKey) => void }
   const pathTargets = new Map(familyCards.map((card) => [card.id, mechanisms.filter((target) => card.prefixes.includes(prefixes(target)))]));
 
   return <section className="page active-page" aria-labelledby="overview-title">
-    <PageHeading titleId="overview-title" title="Overview" deck="Current runtime, six family decompositions, and factual investigation context." meta={<span className="live-label"><i />{runtime?.state === "REPLAYING" ? "Replay in progress" : "Runtime connected"}</span>} />
+    <PageHeading titleId="overview-title" title="Overview" deck="What the passive evidence runtime is seeing and producing." meta={<span className="live-label"><i />{runtime?.state === "REPLAYING" ? "Replay in progress" : "Runtime connected"}</span>} />
     <section className="panel overview-runtime-panel">
-      <div className="panel-head compact"><div><span className="eyebrow">CURRENT RUNTIME</span><h2>Streaming and evidence state</h2><p>Latest replay counters and durable mechanism evidence.</p></div><span className={`status-chip ${runtime?.state === "REPLAYING" ? "running" : ""}`}>{runtime?.state ?? "CONNECTING"}</span></div>
+      <div className="panel-head compact"><div><span className="eyebrow">Current runtime</span><h2>Passive input and evidence output</h2><p>Latest replay counters and durable mechanism Results.</p></div><span className={`status-chip ${runtime?.state === "REPLAYING" ? "running" : ""}`}>{runtime?.state ?? "Connecting"}</span></div>
       <div className="runtime-strip">
         <RuntimeMetric label="Latest replay input" value={replay?.records_read ? `${replay.records_read} records` : "No replay"} detail={`${activeObservations} observations · ${inputRate ? `${inputRate} records/s` : "rate unavailable"}`} />
         <RuntimeMetric label="Analytics" value={`${mechanisms.length} registered`} detail={`${runtime?.family_status.length ?? 0} family statuses`} />
@@ -59,10 +59,10 @@ export function OverviewPage({ navigate }: { navigate: (page: PageKey) => void }
     </section>
 
     <section className="panel performance-panel">
-      <div className="panel-head compact"><div><span className="eyebrow">PERFORMANCE</span><h2>Live runtime and controlled benchmark</h2></div></div>
-      <div className="live-runtime-compact"><span className="eyebrow">LIVE RUNTIME</span><div><strong>Replay wall time</strong><span>{replay ? `${replay.elapsed_wall_seconds.toFixed(2)} s` : "?"}</span></div><div><strong>Records / observations</strong><span>{replay ? `${replay.records_read} / ${replay.observations_emitted}` : "?"}</span></div><div><strong>Live latency percentiles</strong><span>Not currently instrumented</span></div></div>
+      <div className="panel-head compact"><div><span className="eyebrow">Performance</span><h2>Live runtime and controlled benchmark</h2></div></div>
+      <div className="live-runtime-compact"><span className="eyebrow">Live runtime</span><div><strong>Replay wall time</strong><span>{replay ? `${replay.elapsed_wall_seconds.toFixed(2)} s` : "?"}</span></div><div><strong>Records / observations</strong><span>{replay ? `${replay.records_read} / ${replay.observations_emitted}` : "?"}</span></div><div><strong>Live latency percentiles</strong><span>Not currently instrumented</span></div></div>
       <div className="benchmark-card">
-        <div className="benchmark-heading"><div><span className="eyebrow">CONTROLLED BENCHMARK</span><h3>Approved operating point</h3><p>On the measured development machine, the controlled MVP sustained a configured offered rate of 50 input observations/s for 30 seconds with zero input/runtime drops under the declared mixed workload.</p></div></div>
+        <div className="benchmark-heading"><div><span className="eyebrow">Controlled benchmark</span><h3>Approved operating point</h3><p>On the measured development machine, the controlled MVP sustained a configured offered rate of 50 input observations/s for 30 seconds with zero input/runtime drops under the declared mixed workload.</p></div></div>
         <details className="benchmark-additional"><summary>Additional artifact-derived measurements</summary><span>Processing p50 / p95 / p99: 186.3378 / 883.2264 / 1,017.04 ms</span><span>End-to-end evidence p50 / p95 / p99: 312.552 / 983.132 / 1,165.4749 ms</span><span>Peak RSS: 244,203,520 bytes</span></details>
         <p className="benchmark-caveat">These development-machine measurements describe the controlled workload, not production capacity or an SLA.</p>
       </div>

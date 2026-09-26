@@ -1,6 +1,10 @@
 import type {
   ConfidenceBasis,
+  FamilyEvidenceViewDto,
+  FamilyFindingDto,
+  InvestigationLinkDto,
   QualitySnapshot,
+  ResultDto,
   SihAlertProjection,
   VisibilitySnapshot,
 } from "../api/types";
@@ -147,7 +151,7 @@ const evidenceNames: Record<string, string> = {
   bytes_c2s_per_second: "Client-to-server rate", bytes_s2c_per_second: "Server-to-client rate",
   unique_targets: "Distinct targets", unique_sources: "Distinct sources", unique_ports: "Distinct ports",
   recurrence_count: "Recurrence observations", recurrence_observations: "Recurrence observations",
-  evidence_kind: "Evidence type", dga_labelled_lexical_resemblance_score: "Lexical model score",
+  evidence_kind: "Evidence type", dga_labelled_lexical_resemblance_score: "DGA-labelled lexical resemblance score",
   packets_per_second: "Packet rate", syn_attempts: "SYN attempts", icmp_packets: "ICMP packets",
   apparent_source_cardinality_lower_bound: "Minimum apparent source count",
   packet_count: "Packets observed", byte_count: "Bytes observed",
@@ -225,10 +229,12 @@ export function humanEvidenceRows(evidence: Record<string, unknown>): Array<[str
       else if (Array.isArray(value) && value.every((item) => typeof item === "string")) rows.push([label, value.join(", ")]);
     }
   }
-  const representation = evidence.representation;
-  if (typeof representation === "object" && representation !== null && !Array.isArray(representation)) {
-    const version = (representation as Record<string, unknown>).m1_representation_version;
-    if (typeof version === "string") rows.push(["Representation", version]);
+  const representation = objectValue(evidence.representation);
+  const domain = stringValue(representation?.registrable_domain)
+    ?? stringValue(representation?.qname_canonical)
+    ?? stringValue(evidence.qname_canonical);
+  if (domain && !rows.some(([label]) => label === "Domain")) {
+    rows.unshift(["Domain", domain]);
   }
   if (evidence.tcp_reassembly_state === "COMPLETE_PREFIX") rows.push(["TCP reassembly", "Complete prefix observed"]);
   if (Array.isArray(evidence.gaps)) rows.push(["Reported capture gaps", evidence.gaps.length ? String(evidence.gaps.length) : "None"]);
@@ -274,7 +280,167 @@ export function prerequisiteLabel(value: string) {
     reverse_tcp_state: "Reverse TCP state",
     REVERSE_TCP_STATE: "Reverse TCP state",
   };
+  const c2History = value.match(/^(\d+) additional FLOW[_ ]START event\(s\)(?: was)? not available\.?$/i)
+    ?? value.match(/^(\d+) additional FLOW_START event\(s\)$/i);
+  if (c2History) {
+    const count = Number(c2History[1]);
+    return `Required recurrence history was unavailable (${count} additional connection-start ${count === 1 ? "observation" : "observations"}).`;
+  }
+  if (/\s/.test(value)) return value;
   return labels[value] ?? readable(value);
+}
+
+type ResultContext = Pick<ResultDto, "family" | "lane_id" | "mechanism_id" | "entity_reference" | "evidence">;
+
+/** Compact, threat-specific context built only from fields present in a Result. */
+export function contextSummary(result: ResultContext): string {
+  return summarizeAnalystContext(result.family, `${result.mechanism_id ?? ""} ${result.lane_id}`, result.entity_reference, result.evidence);
+}
+
+export function summarizeAnalystContext(family: string, mechanism: string, entityReference: string, evidence: Record<string, unknown>): string {
+  const representation = objectValue(evidence.representation);
+  const dgaDomain = stringValue(representation?.registrable_domain)
+    ?? stringValue(representation?.qname_canonical)
+    ?? stringValue(evidence.qname_canonical);
+  const id = `${family} ${mechanism}`.toLowerCase();
+
+  if (id.includes("dga")) return dgaDomain ?? "Domain unavailable";
+  if (id.includes("dns")) return stringValue(evidence.qname_canonical)
+    ?? stringValue(evidence.qname_rendered)
+    ?? "Queried domain unavailable";
+  if (id.includes("c2")) {
+    const entity = objectValue(evidence.entity);
+    const client = stringValue(entity?.client_ref);
+    const peer = stringValue(entity?.peer_ref);
+    const service = stringValue(entity?.service_ref);
+    if (client && peer) return `${client} → ${peer}${service ? `:${service.replace(/^service\//i, "")}` : ""}`;
+    const tuple = parsedArray(entityReference);
+    if (tuple && typeof tuple[0] === "string" && typeof tuple[1] === "string") {
+      const port = typeof tuple[2] === "string" || typeof tuple[2] === "number" ? `:${tuple[2]}` : "";
+      return `${tuple[0]} → ${tuple[1]}${port}`;
+    }
+    return "Client → peer";
+  }
+  if (id.includes("ddos")) {
+    const target = stringValue(evidence.target_ref);
+    const service = serviceLabel(stringValue(evidence.service_ref));
+    if (target) return `${target}${service ? ` · ${service}` : ""}`;
+    const tuple = parsedArray(entityReference);
+    if (tuple && typeof tuple[0] === "string") {
+      const tupleService = typeof tuple[1] === "string" ? serviceLabel(tuple[1]) : null;
+      return `${tuple[0]}${tupleService ? ` · ${tupleService}` : ""}`;
+    }
+    return "Target not available";
+  }
+  if (id.includes("recon")) {
+    const scanner = stringValue(evidence.scanner_ref) ?? stringValue(evidence.source_ref)
+      ?? stringValue(evidence.source);
+    const target = stringValue(evidence.target_scope) ?? stringValue(evidence.target_ref);
+    if (scanner && target) return `${scanner} → ${target}`;
+    if (scanner) return `Scanner · ${scanner}`;
+    if (target) return `Target scope · ${target}`;
+    return "Observed scan scope";
+  }
+  if (id.includes("encrypted")) {
+    const handshake = objectValue(evidence.parsed_handshake_metadata);
+    const serverName = stringValue(handshake?.sni);
+    return serverName ? `Session · ${serverName}` : "Encrypted session";
+  }
+  if (id.includes("transfer") || id.includes("unusual_transfer") || id.includes("cat6")) {
+    const endpoints = evidence.endpoints_source_order;
+    if (Array.isArray(endpoints) && typeof endpoints[0] === "string" && typeof endpoints[1] === "string") {
+      return `${endpoints[0]} → ${endpoints[1]}`;
+    }
+    if (evidence.direction_scope === "CLIENT_TO_SERVER_ONLY") return "Client → server";
+    if (evidence.direction_scope === "SERVER_TO_CLIENT_ONLY") return "Server → client";
+    return "Transfer direction unavailable";
+  }
+
+  return /^(flow|dns):/i.test(entityReference) ? "Observed context" : summarizeReference(entityReference, mechanism);
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function parsedArray(value: string): unknown[] | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function serviceLabel(value: string | null): string | null {
+  if (!value) return null;
+  return value.replace(/^service\//i, "").replaceAll("_", " ").toUpperCase();
+}
+
+export function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  const naturalPlural = plural === `${singular}s` && singular.endsWith("y")
+    ? `${singular.slice(0, -1)}ies`
+    : plural;
+  return `${count} ${count === 1 ? singular : naturalPlural}`;
+}
+
+export type GroupedFamilyFinding = {
+  title: string;
+  findings: FamilyFindingDto[];
+  sourceResultIds: string[];
+};
+
+/** Presentation grouping retains each underlying immutable Result reference. */
+export function groupFamilyFindings(findings: FamilyFindingDto[]): GroupedFamilyFinding[] {
+  const groups = new Map<string, GroupedFamilyFinding>();
+  for (const finding of findings) {
+    const title = finding.title.trim() || "Mechanism finding";
+    const group = groups.get(title) ?? { title, findings: [], sourceResultIds: [] };
+    group.findings.push(finding);
+    group.sourceResultIds.push(finding.source_result_id);
+    groups.set(title, group);
+  }
+  return [...groups.values()];
+}
+
+export type InvestigationNavigationGroup = {
+  key: string;
+  leftFamily: string;
+  rightFamily: string;
+  links: InvestigationLinkDto[];
+  latestTime: string;
+};
+
+/** Group links for navigation while retaining the factual link records intact. */
+export function groupInvestigationLinks(
+  links: InvestigationLinkDto[],
+  views: FamilyEvidenceViewDto[],
+): InvestigationNavigationGroup[] {
+  const byId = new Map(views.map((view) => [view.family_view_id, view]));
+  const groups = new Map<string, InvestigationNavigationGroup>();
+  for (const link of links) {
+    const left = byId.get(link.left_family_view_id);
+    const right = byId.get(link.right_family_view_id);
+    if (!left || !right) continue;
+    const orderedFamilies = [left.family, right.family].sort((a, b) => a.localeCompare(b));
+    const leftFamily = orderedFamilies[0]!;
+    const rightFamily = orderedFamilies[1]!;
+    const key = `${leftFamily}\u0000${rightFamily}`;
+    const group: InvestigationNavigationGroup = groups.get(key) ?? {
+      key, leftFamily, rightFamily, links: [], latestTime: "",
+    };
+    group.links.push(link);
+    const linkTime = [left.time_end, right.time_end].sort().at(-1) ?? "";
+    if (linkTime > group.latestTime) group.latestTime = linkTime;
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((a, b) => b.latestTime.localeCompare(a.latestTime));
 }
 
 export function shortId(value: string) {

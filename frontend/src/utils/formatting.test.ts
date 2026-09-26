@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SihAlertProjection } from "../api/types";
-import { claimSemantics, confidenceText, formatEvidenceValue, formatQuality, friendlyCategory, humanEvidenceRows, observationLineageLabel, primaryEntityLabel, summarizeEvidence, summarizeReference, summarizeTableEvidence, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
+import { claimSemantics, confidenceText, contextSummary, formatEvidenceValue, formatQuality, friendlyCategory, groupFamilyFindings, groupInvestigationLinks, humanEvidenceRows, observationLineageLabel, pluralize, primaryEntityLabel, summarizeEvidence, summarizeReference, summarizeTableEvidence, summarizeAnalystContext, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
 import { filterAlerts, filterResults } from "./filters";
 
 const alert: SihAlertProjection = {
@@ -125,7 +125,7 @@ describe("scientific display helpers", () => {
     claimValues.forEach((value) => expect(claimSemantics(value).hasUnknown, value).toBe(false));
     expect(claimSemantics("UNKNOWN_TOKEN").hasUnknown).toBe(true);
   });
-  it("surfaces factual TLS handshake fields and DGA representation version in Results", () => {
+  it("surfaces factual TLS handshake fields and keeps representation metadata out of primary facts", () => {
     expect(humanEvidenceRows({
       protocol: "TLS",
       parsed_handshake_metadata: {
@@ -141,8 +141,48 @@ describe("scientific display helpers", () => {
     ]);
     expect(humanEvidenceRows({
       dga_labelled_lexical_resemblance_score: 0.985,
-      representation: { m1_representation_version: "DGA_M1_REPRESENTATION_v1" },
-    })).toContainEqual(["Representation", "DGA_M1_REPRESENTATION_v1"]);
+      representation: { registrable_domain: "ajdkskqweoiuzx.com", m1_representation_version: "DGA_M1_REPRESENTATION_v1" },
+    })).toEqual([["Domain", "ajdkskqweoiuzx.com"], ["DGA-labelled lexical resemblance score", "0.985"]]);
+    expect(formatEvidenceValue("representation", { m1_representation_version: "DGA_M1_REPRESENTATION_v1" })).not.toContain("DGA_M1_REPRESENTATION_v1");
+  });
+  it("uses threat-specific context labels from observed fields only", () => {
+    expect(summarizeAnalystContext("DGA", "dga.m1", "flow:opaque", { representation: { registrable_domain: "sample.test" } })).toBe("sample.test");
+    expect(summarizeAnalystContext("DNS Tunnelling", "dns_tunnelling.t1", "dns:opaque", { qname_canonical: "query.test" })).toBe("query.test");
+    expect(summarizeAnalystContext("C2", "c2.r1", "opaque", { entity: { client_ref: "10.0.0.1", peer_ref: "198.51.100.2", service_ref: "service/https" } })).toBe("10.0.0.1 → 198.51.100.2:https");
+    expect(summarizeAnalystContext("DDoS", "ddos.syn_state", "[\"203.0.113.4\",\"service/https\"]", {})).toBe("203.0.113.4 · HTTPS");
+    expect(summarizeAnalystContext("Encrypted sessions", "encrypted_session.enc_a", "flow:opaque", {})).toBe("Encrypted session");
+    expect(summarizeAnalystContext("Data transfer", "unusual_transfer.m1", "flow:opaque", { direction_scope: "CLIENT_TO_SERVER_ONLY" })).toBe("Client → server");
+    expect(contextSummary({ family: "Reconnaissance", mechanism_id: "recon.h", lane_id: "recon.h", entity_reference: "flow:opaque", evidence: { target_scope: "10.1.0.0/24" } })).toBe("Target scope · 10.1.0.0/24");
+  });
+  it("groups duplicate family findings for display while preserving every source Result ID", () => {
+    const grouped = groupFamilyFindings([
+      { source_result_id: "r1", title: "Recurring communication pattern", statements: [], result_type: "REVIEW_FINDING" },
+      { source_result_id: "r2", title: "Recurring communication pattern", statements: [], result_type: "REVIEW_FINDING" },
+      { source_result_id: "r3", title: "DNS name structure", statements: [], result_type: "REVIEW_FINDING" },
+    ]);
+    expect(grouped.map((group) => [group.title, group.findings.length, group.sourceResultIds])).toEqual([
+      ["Recurring communication pattern", 2, ["r1", "r2"]], ["DNS name structure", 1, ["r3"]],
+    ]);
+  });
+  it("groups investigation navigation by family pair without discarding link records", () => {
+    const views = [
+      { family_view_id: "a1", family: "C2", time_start: "2026-01-01", time_end: "2026-01-01" },
+      { family_view_id: "b1", family: "Data transfer", time_start: "2026-01-01", time_end: "2026-01-01" },
+      { family_view_id: "a2", family: "C2", time_start: "2026-01-02", time_end: "2026-01-02" },
+      { family_view_id: "b2", family: "Data transfer", time_start: "2026-01-02", time_end: "2026-01-02" },
+    ] as Parameters<typeof groupInvestigationLinks>[1];
+    const links = [
+      { link_id: "l1", left_family_view_id: "a1", right_family_view_id: "b1", relation_types: [], shared_source_observation_ids: ["o1"], source_result_ids: ["r1"], claim_guard: [] },
+      { link_id: "l2", left_family_view_id: "a2", right_family_view_id: "b2", relation_types: [], shared_source_observation_ids: ["o2"], source_result_ids: ["r2"], claim_guard: [] },
+    ];
+    const grouped = groupInvestigationLinks(links, views);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?.links.map((link) => link.link_id)).toEqual(["l1", "l2"]);
+  });
+  it("uses singular and plural labels correctly", () => {
+    expect(pluralize(1, "entity")).toBe("1 entity");
+    expect(pluralize(2, "entity")).toBe("2 entities");
+    expect(pluralize(2, "entity", "entities")).toBe("2 entities");
   });
   it("keeps quality independent and searchable by filters", () => {
     expect(formatQuality(alert.quality)).toBe("Clear");

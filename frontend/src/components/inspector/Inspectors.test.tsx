@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ResultDto, SihAlertProjection } from "../../api/types";
 import {
   AlertInspector,
@@ -7,6 +7,8 @@ import {
   ResultInspector,
   ResultTable,
 } from "./Inspectors";
+
+afterEach(cleanup);
 
 const quality = {
   packet_loss: "CLEAR",
@@ -90,7 +92,7 @@ describe("evidence table and inspector components", () => {
   it("renders analyst-first alert columns and keyboard selection without mechanism IDs", () => {
     const select = vi.fn();
     render(<AlertTable alerts={[alert]} selectedId={null} onSelect={select} />);
-    expect(screen.getByText("Why surfaced")).toBeInTheDocument();
+    expect(screen.getByText("Summary")).toBeInTheDocument();
     expect(screen.queryByText("Mechanism")).not.toBeInTheDocument();
     const row = screen.getByText(/lexical resemblance score was recorded for review/).closest("tr");
     expect(row).toHaveAttribute("tabindex", "0");
@@ -130,13 +132,34 @@ describe("evidence table and inspector components", () => {
         <ResultInspector result={result} onClose={vi.fn()} />
       </>,
     );
-    expect(screen.getAllByText("DNS evidence")).toHaveLength(1);
-    expect(screen.getAllByText("DNS name structure")).toHaveLength(3);
-    expect(screen.getAllByText("Observed evidence; no attack probability is implied.")).toHaveLength(2);
+    expect(screen.getAllByText("DNS evidence").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("DNS name structure")).toHaveLength(2);
+    expect(screen.queryByText(/attack probability/i)).not.toBeInTheDocument();
     expect(container.querySelector(".inspector-modal")).toBeInTheDocument();
     expect(container.querySelector("[aria-modal='true']")).toBeInTheDocument();
-    expect(container.querySelector(".technical-details")).toBeNull();
-    expect(container.textContent).not.toContain("Mechanism ID");
+    expect(container.querySelector(".technical-details")).not.toHaveAttribute("open");
+  });
+  it("keeps DGA representation metadata collapsed and out of primary facts", () => {
+    const dgaResult: ResultDto = {
+      ...result,
+      family: "DGA",
+      lane_id: "dga.m1",
+      mechanism_id: "DGA-A1-M1",
+      entity_reference: "flow:internal-reference",
+      evidence: {
+        dga_labelled_lexical_resemblance_score: 0.985,
+        representation: { registrable_domain: "ajdkskqweoiuzx.com", m1_representation_version: "DGA_M1_REPRESENTATION_v1" },
+      },
+      claim_ceiling: "DGA_LABELLED_LEXICAL_REVIEW_EVIDENCE_ONLY;NO_MALWARE_CONFIRMATION",
+    };
+    render(<ResultInspector result={dgaResult} onClose={vi.fn()} />);
+    expect(screen.getByText("Domain").parentElement).toHaveTextContent("ajdkskqweoiuzx.com");
+    expect(screen.getAllByText("DGA-labelled lexical resemblance score")[0]?.parentElement).toHaveTextContent("0.985");
+    const technical = screen.getByText("Technical metadata").closest("details");
+    expect(technical).not.toHaveAttribute("open");
+    expect(screen.getByText("DGA_M1_REPRESENTATION_v1").closest("details")).toBe(technical);
+    fireEvent.click(screen.getByText("Technical metadata"));
+    expect(screen.getByText("DGA_M1_REPRESENTATION_v1")).toBeInTheDocument();
   });
   it("closes an open inspector with Escape", () => {
     const close = vi.fn();
