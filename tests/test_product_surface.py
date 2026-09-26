@@ -104,7 +104,7 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         built_assets = [await client.get(path) for path in assets]
         assert all(asset.status_code == 200 and asset.content for asset in built_assets)
         bundle = "\n".join(asset.text for asset in built_assets)
-        assert "Analyst queue" in bundle and "Evidence results" in bundle
+        assert "Analyst queue" in bundle and "Each row is one immutable mechanism Result" in bundle
         assert "The score is not calibrated." in bundle
         assert "Observed evidence; no attack probability is implied." in bundle
         assert "stream_gap" in bundle

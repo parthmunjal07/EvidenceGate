@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareTimeAsc, compareTimeDesc, formatEvidenceDateTime, formatEvidenceDateTimeCompact, formatEvidenceRange, formatEvidenceTime, formatTimeZoneLabel, latestObservedTime, normalizeTimeZoneLabel } from "./formatting";
+import { compareTimeAsc, compareTimeDesc, formatEvidenceDateTime, formatEvidenceDateTimeCompact, formatEvidenceRange, formatEvidenceTableClock, formatEvidenceTableDate, formatEvidenceTime, formatTimeZoneLabel, latestObservedTime, normalizeTimeZoneLabel } from "./formatting";
 
 describe("evidence time presentation", () => {
   const earlier = "2026-01-01T00:30:00Z";
@@ -29,5 +29,7 @@ describe("evidence time presentation", () => {
     expect(normalizeTimeZoneLabel("Asia/Calcutta", "GMT+5:30")).toBe("IST");
     expect(normalizeTimeZoneLabel("Asia/Kathmandu", "GMT+5:45")).toBe("GMT+5:45");
     expect(formatEvidenceDateTimeCompact("2026-01-01T00:00:00Z", "utc")).toBe("01 Jan 2026 · 00:00:00");
+    expect(formatEvidenceTableDate("2026-01-01T00:00:00Z", "utc")).toBe("01 Jan 2026");
+    expect(formatEvidenceTableClock("2026-01-01T00:00:00Z", "utc")).toBe("00:00:00");
   });
 });

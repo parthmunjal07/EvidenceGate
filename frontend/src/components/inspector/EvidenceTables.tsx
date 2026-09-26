@@ -2,11 +2,17 @@ import type { KeyboardEvent } from "react";
 import type { ResultDto, SihAlertProjection } from "../../api/types";
 import {
   contextSummary,
+  formatEvidenceDateTimeCompact,
+  formatEvidenceTableClock,
+  formatEvidenceTableDate,
+  formatTimeZoneLabel,
   formatTimestamp,
   friendlyCategory,
-  humanEvidenceRows,
   mechanismLabel,
-  readable,
+  normalizeFamilyName,
+  resultEvidenceStateLabel,
+  resultEvidenceStateTone,
+  resultEvidenceSummary,
   summarizeAnalystContext,
   whySurfaced,
 } from "../../utils/formatting";
@@ -29,16 +35,12 @@ export function AlertTable({ alerts, selectedId, onSelect }: { alerts: SihAlertP
 
 export function ResultTable({ results, selectedId, onSelect }: { results: ResultDto[]; selectedId: string | null; onSelect: (item: ResultDto) => void }) {
   const { zone } = useTimeZone();
-  return <div className="table-wrap"><table className="data-table evidence-table"><thead><tr>{[`Result time · ${zone === "utc" ? "UTC" : "Local"}`, "Family", "Finding", "Context", "Evidence state", "Summary"].map((name) => <th key={name}>{name}</th>)}</tr></thead><tbody>
+  return <div className="table-wrap"><table className="data-table evidence-table"><colgroup><col className="col-time" /><col className="col-family" /><col className="col-finding" /><col className="col-context" /><col className="col-state" /><col className="col-summary" /></colgroup><thead><tr>{[`Result time · ${formatTimeZoneLabel(zone)}`, "Family", "Finding", "Context", "Evidence state", "Summary"].map((name) => <th key={name}>{name}</th>)}</tr></thead><tbody>
     {results.map((result) => {
       const finding = mechanismLabel(result.mechanism_id || result.lane_id);
-      const evidence = humanEvidenceRows(result.evidence)
-        .map(([label, value]) => `${label}: ${value}`)
-        .slice(0, 2)
-        .join(" · ");
       const context = contextSummary(result);
       return <tr key={result.result_id} className={`selectable-row${selectedId === result.result_id ? " selected" : ""}`} tabIndex={0} onClick={() => onSelect(result)} onKeyDown={(event) => selectOnKeyboard(event, () => onSelect(result))}>
-        <td><time>{formatTimestamp(result.created_time, zone)}</time></td><td>{friendlyCategory(result.family)}</td><td>{finding}</td><td title={context}><span className="reference-summary">{context}</span></td><td><span className="review-item-status">{readable(result.result_type)}</span></td><td><span className="why-surfaced-summary">{evidence || "Structured evidence is available."}</span></td>
+        <td className="evidence-time-cell"><time dateTime={result.created_time ?? undefined} title={`Observed / Result time: ${formatEvidenceDateTimeCompact(result.created_time, zone)} ${formatTimeZoneLabel(zone)}`}><span>{formatEvidenceTableDate(result.created_time, zone)}</span><strong>{formatEvidenceTableClock(result.created_time, zone)}</strong></time></td><td>{normalizeFamilyName(result.family)}</td><td><span className="evidence-finding">{finding}</span></td><td title={context}><span className="reference-summary">{context}</span></td><td><span className={`evidence-state evidence-state-${resultEvidenceStateTone(result.result_type)}`}>{resultEvidenceStateLabel(result.result_type)}</span></td><td title={resultEvidenceSummary(result)}><span className="evidence-summary">{resultEvidenceSummary(result)}</span></td>
       </tr>;
     })}
   </tbody></table></div>;

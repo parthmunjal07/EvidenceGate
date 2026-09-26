@@ -84,13 +84,23 @@ export function formatEvidenceClockTime(value: string | null | undefined, zone: 
   return date ? timePart(date.toISOString(), zone) : "Time unavailable";
 }
 
+export function formatEvidenceTableDate(value: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {
+  const date = validDate(value);
+  return date ? datePart(date.toISOString(), zone) : "Time unavailable";
+}
+
+export function formatEvidenceTableClock(value: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {
+  const date = validDate(value);
+  return date ? timePart(date.toISOString(), zone) : "Time unavailable";
+}
+
 export function normalizeFamilyName(value: string) {
-  const normalized = familyLabel(value).replace(/\s+evidence$/i, "").trim().toLowerCase();
+  const normalized = familyLabel(value).replace(/\s+evidence$/i, "").trim().toLowerCase().replace(/^botnet\s+/, "");
   const names: Record<string, string> = {
     ddos: "DDoS", "ddos / reconnaissance": "DDoS + Reconnaissance", "ddos + reconnaissance": "DDoS + Reconnaissance",
     "c2 beaconing": "C2 / Beaconing", "c2 / beaconing": "C2 / Beaconing", c2: "C2 / Beaconing",
     dga: "DGA", "dga + dns": "DGA + DNS", "dns evidence": "DNS", "dns tunnelling": "DNS tunnelling",
-    reconnaissance: "Reconnaissance", "encrypted sessions": "Encrypted Sessions", "encrypted session": "Encrypted Sessions",
+    reconnaissance: "Reconnaissance", "encrypted sessions": "Encrypted Sessions", "encrypted session": "Encrypted Sessions", "encrypted-session": "Encrypted Sessions",
     "data transfer": "Data Transfer", "unusual transfer": "Data Transfer",
   };
   return names[normalized] ?? familyLabel(value).replace(/\s+evidence$/i, "");
@@ -211,17 +221,17 @@ export function mechanismLabel(value: string) {
     "DDOS-D-B0": "Source diversity evidence", "ddos.source_diversity": "Source diversity evidence",
     "DDOS-E1-B0": "ICMP demand", "ddos.icmp_demand": "ICMP demand",
     "DDOS-E2-B0": "Fragment demand", "ddos.fragment_demand": "Fragment demand",
-    "DDOS-E3-B0": "TCP initiating activity evidence", "ddos.connection_churn": "TCP initiating activity evidence",
-    "C2-M1": "Recurring connection pattern", "C2-A1-R1": "Recurring connection pattern", "c2.r1": "Recurring connection pattern", "c2.beacon": "Recurring connection pattern",
+    "DDOS-E3-B0": "TCP initiating activity", "ddos.connection_churn": "TCP initiating activity",
+    "C2-M1": "Recurring communication pattern", "C2-A1-R1": "Recurring communication pattern", "c2.r1": "Recurring communication pattern", "c2.beacon": "Recurring communication pattern",
     "DGA-A1-M1": "DGA lexical evidence", "dga.m1": "DGA lexical evidence",
     "DNS-T1": "DNS name structure", "dns_tunnelling.t1": "DNS name structure",
     "ENC-A": "TLS handshake metadata", "ENC-A1": "TLS handshake metadata", "encrypted_session.enc_a": "TLS handshake metadata", "encrypted_session.a1": "TLS handshake metadata",
-    "RECON-H": "Host fan-out", "recon.h": "Host fan-out", "RECON-V": "Port fan-out", "recon.v": "Port fan-out",
-    "RECON-2D": "Host and port fan-out", "recon.2d": "Host and port fan-out",
-    "RECON-TCP": "TCP scan activity", "recon.tcp": "TCP scan activity",
+    "RECON-H": "Host discovery evidence", "recon.h": "Host discovery evidence", "RECON-V": "Service discovery evidence", "recon.v": "Service discovery evidence",
+    "RECON-2D": "Host × service breadth", "recon.2d": "Host × service breadth",
+    "RECON-TCP": "TCP initiating activity", "recon.tcp": "TCP initiating activity",
     "RECON-SCAN": "Host fan-out", "RECON-PROBE": "Host fan-out", "RECON-FANOUT": "Host fan-out", "RECON-SWEEP": "Host fan-out",
     "recon.scan": "Host fan-out", "recon.probe": "Host fan-out", "recon.fanout": "Host fan-out", "recon.sweep": "Host fan-out",
-    "CAT6-EX-M1": "Unusual transfer magnitude evidence", "unusual_transfer.m1": "Unusual transfer magnitude evidence",
+    "CAT6-EX-M1": "Directional transfer magnitude", "unusual_transfer.m1": "Directional transfer magnitude",
   };
   return labels[value] ?? "Evidence finding";
 }
@@ -380,6 +390,116 @@ export function prerequisiteLabel(value: string) {
   }
   if (/\s/.test(value)) return value;
   return labels[value] ?? readable(value);
+}
+
+type EvidenceTableResult = Pick<ResultDto, "result_type" | "family" | "lane_id" | "mechanism_id" | "evidence" | "missing_prerequisites">;
+
+export function resultEvidenceStateLabel(resultType: string) {
+  const labels: Record<string, string> = {
+    REVIEW_FINDING: "Review",
+    INSUFFICIENT_EVIDENCE: "Insufficient evidence",
+    QUALITY_DEGRADED: "Quality degraded",
+    PREREQUISITE_MISSING: "Missing prerequisite",
+    ANALYTIC_UNAVAILABLE: "Analytic unavailable",
+    PLUGIN_STATUS: "Status",
+  };
+  return labels[resultType] ?? readable(resultType);
+}
+
+export function resultEvidenceStateTone(resultType: string) {
+  const tones: Record<string, string> = {
+    REVIEW_FINDING: "review",
+    INSUFFICIENT_EVIDENCE: "insufficient",
+    QUALITY_DEGRADED: "quality",
+    PREREQUISITE_MISSING: "missing",
+    ANALYTIC_UNAVAILABLE: "unavailable",
+    PLUGIN_STATUS: "status",
+  };
+  return tones[resultType] ?? "status";
+}
+
+export function resultEvidenceSummary(result: EvidenceTableResult) {
+  const evidence = result.evidence;
+  const mechanism = `${result.mechanism_id ?? ""} ${result.lane_id}`.toLowerCase();
+  const measurements = objectValue(evidence.measurements);
+
+  if (mechanism.includes("dga")) {
+    const score = evidence.dga_labelled_lexical_resemblance_score;
+    if (typeof score === "number" && Number.isFinite(score)) return `Lexical resemblance score: ${formatNumber(score, 3)}`;
+  }
+
+  if (mechanism.includes("dns")) {
+    const queryType = stringValue(evidence.qtype);
+    const labels = finiteNumber(evidence.label_count);
+    const facts = [queryType ? `${queryType.toUpperCase()} query` : null, labels === null ? null : `${labels} ${labels === 1 ? "label" : "labels"}`].filter((item): item is string => Boolean(item));
+    if (facts.length) return facts.join(" · ");
+    if (stringValue(evidence.qname_canonical) || stringValue(evidence.qname_rendered)) return "DNS name observed · structure measured";
+  }
+
+  if (mechanism.includes("c2")) {
+    const observed = finiteNumber(evidence.observed_event_count) ?? finiteNumber(measurements?.event_count);
+    const required = finiteNumber(evidence.required_event_count);
+    if (result.result_type === "INSUFFICIENT_EVIDENCE" && observed !== null && required !== null) {
+      return `${observed} / ${required} communication events observed`;
+    }
+    const history = finiteNumber(measurements?.history_span_seconds) ?? finiteNumber(evidence.history_span_seconds);
+    if (observed !== null && history !== null) return `${observed} communication events observed · ${formatNumber(history, 1)} s history`;
+    if (observed !== null && required !== null) return `${observed} / ${required} communication events observed`;
+  }
+
+  if (mechanism.includes("cat6") || mechanism.includes("unusual_transfer")) {
+    const clientRate = finiteNumber(evidence.bytes_c2s_per_second);
+    const serverRate = finiteNumber(evidence.bytes_s2c_per_second);
+    if (clientRate !== null) return `Client→server rate: ${formatNumber(clientRate, 3)} B/s`;
+    if (serverRate !== null) return `Server→client rate: ${formatNumber(serverRate, 3)} B/s`;
+  }
+
+  if (mechanism.includes("enc-a") || mechanism.includes("encrypted_session")) {
+    const handshake = objectValue(evidence.parsed_handshake_metadata);
+    const message = stringValue(handshake?.message_type);
+    if (message) return `${stringValue(evidence.protocol)?.toUpperCase() ?? "TLS"} · ${message}`;
+    if (stringValue(evidence.protocol)) return `${stringValue(evidence.protocol)!.toUpperCase()} handshake metadata observed`;
+  }
+
+  if (mechanism.includes("ddos")) {
+    const sourceVisibility = objectValue(evidence.source_visibility);
+    const reverseUnavailable = sourceVisibility?.REVERSE_FACTS === "UNAVAILABLE"
+      || evidence.evidence_kind === "REVERSE_TCP_STATE_UNOBSERVABLE"
+      || result.missing_prerequisites.some((item) => /reverse.*tcp.*state/i.test(item));
+    const observedSyn = evidence.observed_syn === true || (finiteNumber(evidence.observed_initiating_syn_count) ?? 0) > 0;
+    if (observedSyn && reverseUnavailable && result.result_type === "INSUFFICIENT_EVIDENCE") return "Forward initiation observed · reverse TCP evidence unavailable";
+    if (observedSyn) return "Initiating SYN observed";
+    const sources = finiteNumber(evidence.apparent_source_cardinality_lower_bound) ?? finiteNumber(evidence.unique_sources);
+    if (sources !== null) return `${sources === 1 ? "One" : sources} apparent ${sources === 1 ? "source" : "sources"} observed`;
+    const udp = finiteNumber(evidence.observed_udp_packet_count) ?? finiteNumber(evidence.udp_packets);
+    if (udp !== null) return `${udp} UDP ${udp === 1 ? "packet" : "packets"} observed`;
+    const packetsPerSecond = finiteNumber(evidence.packets_per_second);
+    if (packetsPerSecond !== null) return `Observed demand: ${formatNumber(packetsPerSecond, 3)} packets/s`;
+  }
+
+  if (mechanism.includes("recon")) {
+    const hosts = finiteNumber(measurements?.distinct_hosts) ?? finiteNumber(evidence.unique_targets);
+    const ports = finiteNumber(measurements?.distinct_ports) ?? finiteNumber(evidence.unique_ports);
+    if (hosts !== null && ports !== null) return `${hosts} ${hosts === 1 ? "host" : "hosts"} × ${ports} ${ports === 1 ? "port" : "ports"} observed`;
+    if (hosts !== null) return `${hosts} ${hosts === 1 ? "host" : "hosts"} observed`;
+    if (ports !== null) return `${ports} distinct ${ports === 1 ? "port" : "ports"} observed`;
+    const attempts = finiteNumber(measurements?.attempt_count);
+    if (attempts !== null) return `${attempts} scan ${attempts === 1 ? "attempt" : "attempts"} observed`;
+  }
+
+  return "Observed evidence available in detail";
+}
+
+export function resultCountLabel(count: number) {
+  return `${count} ${count === 1 ? "Result" : "Results"}`;
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatNumber(value: number, decimals: number) {
+  return value.toFixed(decimals).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
 }
 
 type ResultContext = Pick<ResultDto, "family" | "lane_id" | "mechanism_id" | "entity_reference" | "evidence">;

@@ -8,7 +8,7 @@ import { useEvidence } from "../state/EvidenceContext";
 import { filterResults } from "../utils/filters";
 import type { ResultDto } from "../api/types";
 import { resultsSourceNote } from "../utils/copy";
-import { friendlyCategory } from "../utils/formatting";
+import { normalizeFamilyName, resultCountLabel, resultEvidenceStateLabel } from "../utils/formatting";
 import { useEffect } from "react";
 import { api } from "../api/client";
 import { useTimeZone } from "../state/TimeZoneContext";
@@ -74,21 +74,21 @@ export function ResultsPage({
           />
         </label>
         <label>
-          Category
+          Family
           <select value={family} onChange={(e) => setFamily(e.target.value)}>
-            <option value="">All categories</option>
+            <option value="">All families</option>
             {families.map((value) => (
-              <option key={value} value={value}>{friendlyCategory(value)}</option>
+              <option key={value} value={value}>{normalizeFamilyName(value)}</option>
             ))}
           </select>
         </label>
         <label>
-          Result type
+          Evidence state
           <select
             value={resultType}
             onChange={(e) => setResultType(e.target.value)}
           >
-            <option value="">All result types</option>
+            <option value="">All states</option>
             {[
               "REVIEW_FINDING",
               "QUALITY_DEGRADED",
@@ -98,13 +98,13 @@ export function ResultsPage({
               "PLUGIN_STATUS",
             ].map((value) => (
               <option value={value} key={value}>
-                {value.replaceAll("_", " ").toLowerCase().replace(/^./, (char) => char.toUpperCase())}
+                {resultEvidenceStateLabel(value)}
               </option>
             ))}
           </select>
         </label>
         <span className="result-total" role="status" aria-live="polite">
-          {items.length} {items.length === 1 ? "record" : "records"}
+          {resultCountLabel(items.length)}
         </span>
       </div>
       {state.streamState === "reconnecting" && (
@@ -121,7 +121,7 @@ export function ResultsPage({
               onSelect={(result) => setSelectedId(result.result_id)}
             />
           ) : (
-            <EmptyState>{all.length ? "No evidence records match these filters." : "No evidence records are available yet. Run a controlled replay to create demo activity."}</EmptyState>
+            <EmptyState>{all.length ? "No Results match these filters." : "No Results are available yet. Run a controlled replay to create demo activity."}</EmptyState>
           )}
           {state.nextCursor && (
             <button

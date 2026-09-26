@@ -99,6 +99,20 @@ describe("evidence table and inspector components", () => {
     fireEvent.keyDown(row!, { key: "Enter" });
     expect(select).toHaveBeenCalledWith(alert);
   });
+  it("renders the six-column Result table with split timestamps and keyboard row selection", () => {
+    const select = vi.fn();
+    render(<ResultTable results={[result]} selectedId={null} onSelect={select} />);
+    expect(screen.getByRole("columnheader", { name: /Result time/ })).toHaveTextContent(/UTC|Local|IST|GMT/);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(6);
+    expect(screen.getByText("DNS tunnelling")).toBeInTheDocument();
+    expect(screen.getByText("Review")).toBeInTheDocument();
+    const time = screen.getByText("05:30:00").closest("time");
+    expect(time).toHaveAttribute("title", expect.stringContaining("Observed / Result time:"));
+    const row = screen.getByText("DNS name structure").closest("tr");
+    expect(row).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(row!, { key: " " });
+    expect(select).toHaveBeenCalledWith(result);
+  });
   it("keeps DGA score wording factual in the alert inspector", () => {
     render(
       <AlertInspector alert={alert} onClose={vi.fn()} onResult={vi.fn()} />,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SihAlertProjection } from "../api/types";
-import { claimSemantics, confidenceText, contextSummary, formatEvidenceValue, formatQuality, friendlyCategory, groupFamilyFindings, groupInvestigationLinks, humanEvidenceRows, observationLineageLabel, pluralize, primaryEntityLabel, summarizeEvidence, summarizeReference, summarizeTableEvidence, summarizeAnalystContext, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
+import { claimSemantics, confidenceText, contextSummary, formatEvidenceTableClock, formatEvidenceTableDate, formatEvidenceValue, formatQuality, friendlyCategory, groupFamilyFindings, groupInvestigationLinks, humanEvidenceRows, normalizeFamilyName, observationLineageLabel, pluralize, primaryEntityLabel, resultCountLabel, resultEvidenceStateLabel, resultEvidenceSummary, summarizeEvidence, summarizeReference, summarizeTableEvidence, summarizeAnalystContext, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
 import { filterAlerts, filterResults } from "./filters";
 
 const alert: SihAlertProjection = {
@@ -41,6 +41,43 @@ const alert: SihAlertProjection = {
 };
 
 describe("scientific display helpers", () => {
+  it("uses the normalized analyst family vocabulary", () => {
+    expect(normalizeFamilyName("Reconnaissance evidence")).toBe("Reconnaissance");
+    expect(normalizeFamilyName("Encrypted-session evidence")).toBe("Encrypted Sessions");
+    expect(normalizeFamilyName("BOTNET C2 BEACONING")).toBe("C2 / Beaconing");
+    expect(normalizeFamilyName("DGA + DNS")).toBe("DGA + DNS");
+  });
+  it("maps Result types to compact analyst evidence states", () => {
+    expect(resultEvidenceStateLabel("REVIEW_FINDING")).toBe("Review");
+    expect(resultEvidenceStateLabel("INSUFFICIENT_EVIDENCE")).toBe("Insufficient evidence");
+    expect(resultEvidenceStateLabel("ANALYTIC_UNAVAILABLE")).toBe("Analytic unavailable");
+  });
+  it("summarizes table evidence from factual mechanism fields only", () => {
+    const summarize = (partial: Record<string, unknown>) => resultEvidenceSummary({
+      result_type: "REVIEW_FINDING", family: "DGA + DNS", lane_id: "dga.m1", mechanism_id: "DGA-A1-M1",
+      evidence: {}, missing_prerequisites: [], ...partial,
+    } as Parameters<typeof resultEvidenceSummary>[0]);
+    expect(summarize({ evidence: { dga_labelled_lexical_resemblance_score: 0.985 } })).toBe("Lexical resemblance score: 0.985");
+    expect(summarize({ lane_id: "c2.r1", mechanism_id: "C2-M1", family: "C2", evidence: { observed_event_count: 3, measurements: { history_span_seconds: 120 } } })).toBe("3 communication events observed · 120 s history");
+    expect(summarize({ result_type: "INSUFFICIENT_EVIDENCE", lane_id: "c2.r1", mechanism_id: "C2-M1", family: "C2", evidence: { observed_event_count: 2, required_event_count: 3 } })).toBe("2 / 3 communication events observed");
+    expect(summarize({ lane_id: "unusual_transfer.m1", mechanism_id: "CAT6-EX-M1", family: "Data transfer", evidence: { bytes_c2s_per_second: 409.6 } })).toBe("Client→server rate: 409.6 B/s");
+    expect(summarize({ lane_id: "encrypted_session.enc_a", mechanism_id: "ENC-A", family: "Encrypted sessions", evidence: { protocol: "TLS", parsed_handshake_metadata: { message_type: "ClientHello" } } })).toBe("TLS · ClientHello");
+    expect(summarize({ lane_id: "ddos.syn_state", mechanism_id: "DDOS-A-B0", family: "DDoS", result_type: "INSUFFICIENT_EVIDENCE", evidence: { observed_syn: true, evidence_kind: "REVERSE_TCP_STATE_UNOBSERVABLE", source_visibility: { REVERSE_FACTS: "UNAVAILABLE" } } })).toBe("Forward initiation observed · reverse TCP evidence unavailable");
+    expect(summarize({ lane_id: "ddos.connection_churn", mechanism_id: "DDOS-E3-B0", family: "DDoS", result_type: "REVIEW_FINDING", evidence: { observed_syn: true, source_visibility: { REVERSE_FACTS: "UNAVAILABLE" } } })).toBe("Initiating SYN observed");
+    const generic = summarize({ evidence: { internal_blob: { a: 1, b: 2 } } });
+    expect(generic).toBe("Observed evidence available in detail");
+    expect(generic).not.toContain("structured fields available");
+  });
+  it("uses Results for the primary count and formats separate table date and clock in the selected zone", () => {
+    expect(resultCountLabel(62)).toBe("62 Results");
+    expect(resultCountLabel(1)).toBe("1 Result");
+    expect(resultCountLabel(62).toLowerCase()).not.toContain("records");
+    const value = "2026-09-23T00:00:00Z";
+    expect(formatEvidenceTableDate(value, "utc")).toBe("23 Sept 2026");
+    expect(formatEvidenceTableClock(value, "utc")).toBe("00:00:00");
+    expect(formatEvidenceTableDate(value, "local")).toBe(formatEvidenceTableDate(value));
+    expect(formatEvidenceTableClock(value, "local")).toBe(formatEvidenceTableClock(value));
+  });
   it("uses readable analyst labels for threat classes", () => {
     expect(threatClassLabel("DNS_TUNNELING")).toBe("DNS tunnelling");
     expect(threatClassLabel("DOS")).toBe("DDoS evidence");

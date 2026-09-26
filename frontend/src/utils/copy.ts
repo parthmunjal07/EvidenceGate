@@ -2,7 +2,7 @@ export const alertReviewDisclaimer =
   "Alert means analyst review, not confirmation of malicious activity.";
 
 export const resultsSourceNote =
-  "Evidence results are the source records behind analyst alerts.";
+  "Each row is one immutable mechanism Result behind family evidence and analyst review. Open it to review observed evidence, evidence limits and provenance.";
 
 export const nonDgaProbabilityNote =
   "Numeric attack probability is not defined by this analytic.";
