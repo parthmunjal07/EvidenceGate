@@ -18,7 +18,7 @@ const pageKeys: PageKey[] = [
   "replay",
 ];
 function routeFromHash(): PageKey {
-  const value = location.hash.replace(/^#\/?/, "") as PageKey;
+  const value = location.hash.replace(/^#\/?/, "").split("?", 1)[0] as PageKey;
   return pageKeys.includes(value) ? value : "overview";
 }
 function ConsoleApp() {

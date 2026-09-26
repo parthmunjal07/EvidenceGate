@@ -47,7 +47,12 @@ describe("analyst-first console", () => {
     expect(screen.queryByRole("button", { name: "System status" })).not.toBeInTheDocument();
     expect(screen.queryByText("SIH_ALERT_POLICY_V1")).not.toBeInTheDocument();
     expect(screen.queryByText("Evidence flow")).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/[ÃÂâ�]/);
+    expect(document.body.textContent).not.toMatch(/(?:\u00C3|\u00C2|\u00E2\u2020|\uFFFD)/);
+  });
+  it("restores a contextual page from a URL hash with query parameters", async () => {
+    window.history.replaceState(null, "", "#/investigations?link_id=investigation-1");
+    mockBackend(); render(<App />);
+    expect(await screen.findByRole("heading", { name: "Investigations" })).toBeInTheDocument();
   });
   it("shows concise runtime state and separates approved benchmark claims from artifact measurements", async () => {
     mockBackend(); render(<App />);
