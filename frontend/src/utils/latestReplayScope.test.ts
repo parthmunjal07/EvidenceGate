@@ -5,6 +5,7 @@ import { completeTraceRange, filterLatestReplayEvidence, replayMarkerMatches, ty
 const result = (id: string, family: string, observations: string[]) => ({ result_id: id, family, source_observation_ids: observations } as ResultDto);
 const view = (id: string, family: string, resultId: string) => ({ family_view_id: id, family, source_result_ids: [resultId] } as FamilyEvidenceViewDto);
 const trace = (sequence: number, observationId: string): RuntimeTraceEvent => ({ sequence, kind: "OBSERVATION_CREATED", occurred_at: "2026-01-01T00:00:00Z", observation_id: observationId, observation_type: "PACKET", lane_id: null, mechanism: null, readiness: null, reason: null, result_id: null, source_observation_ids: [] });
+const persisted = (sequence: number, resultId: string, sourceObservationIds: string[]): RuntimeTraceEvent => ({ sequence, kind: "RESULT_PERSISTED", occurred_at: "2026-01-01T00:00:00Z", observation_id: null, observation_type: null, lane_id: null, mechanism: null, readiness: null, reason: null, result_id: resultId, source_observation_ids: sourceObservationIds });
 const marker: LatestReplayMarker = { scenario: "mixed_ddos_recon", sourceType: "PCAP", startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z", startSequence: 10, endSequence: 11 };
 
 describe("latest replay evidence scope", () => {
@@ -15,8 +16,8 @@ describe("latest replay evidence scope", () => {
       { link_id: "l-current", left_family_view_id: "v-ddos", right_family_view_id: "v-recon", source_result_ids: ["r-ddos", "r-recon"] },
       { link_id: "l-old", left_family_view_id: "v-recon", right_family_view_id: "v-dga", source_result_ids: ["r-dga"] },
     ] as InvestigationLinkDto[];
-    const latest = filterLatestReplayEvidence(results, [trace(11, "obs-latest")], views, links);
-    const retained = filterLatestReplayEvidence(results, [trace(11, "obs-latest"), trace(12, "obs-old")], views, links);
+    const latest = filterLatestReplayEvidence(results, [trace(11, "obs-latest"), persisted(12, "r-ddos", ["obs-latest"]), persisted(13, "r-recon", ["obs-latest"])], views, links);
+    const retained = filterLatestReplayEvidence(results, [trace(11, "obs-latest"), persisted(12, "r-ddos", ["obs-latest"]), persisted(13, "r-recon", ["obs-latest"]), trace(14, "obs-old"), persisted(15, "r-dga", ["obs-old"])], views, links);
     expect(latest.results.map((item) => item.family).sort()).toEqual(["DDoS", "Reconnaissance"]);
     expect(latest.views.map((item) => item.family).sort()).toEqual(["DDoS", "Reconnaissance"]);
     expect(latest.links.map((item) => item.link_id)).toEqual(["l-current"]);

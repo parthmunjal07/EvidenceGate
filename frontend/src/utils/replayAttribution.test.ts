@@ -6,8 +6,8 @@ const result = (id: string, sourceIds: string[]) => ({
   result_id: id,
   source_observation_ids: sourceIds,
 }) as ResultDto;
-const event = (kind: string, observation_id: string | null): RuntimeTraceEvent => ({
-  sequence: 1,
+const event = (kind: string, observation_id: string | null, sequence = 1, result_id: string | null = null): RuntimeTraceEvent => ({
+  sequence,
   kind,
   occurred_at: "2026-09-26T00:00:00Z",
   observation_id,
@@ -16,7 +16,7 @@ const event = (kind: string, observation_id: string | null): RuntimeTraceEvent =
   mechanism: "DDoS",
   readiness: null,
   reason: null,
-  result_id: null,
+  result_id,
   source_observation_ids: [],
 });
 
@@ -24,7 +24,7 @@ describe("replay source lineage attribution", () => {
   it("excludes durable Results that were created by unrelated observations", () => {
     const linked = sourceLinkedReplayResults(
       [result("current", ["observation-a"]), result("unrelated", ["observation-old"])],
-      [event("OBSERVATION_CREATED", "observation-a")],
+      [event("OBSERVATION_CREATED", "observation-a"), event("RESULT_PERSISTED", null, 2, "current")],
     );
     expect(linked.map((item) => item.result_id)).toEqual(["current"]);
   });

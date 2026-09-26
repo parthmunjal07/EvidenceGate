@@ -99,6 +99,6 @@ export const api = {
     }),
   replayStatus: (signal?: AbortSignal) =>
     request<ReplayStatusResponse>("/replay/status", { signal: signal ?? null }),
-  runtimeTrace: (after = 0, signal?: AbortSignal) =>
-    request<RuntimeTraceResponse>(`/runtime/trace?after=${after}&limit=500`, { signal: signal ?? null }),
+  runtimeTrace: (after = 0, signal?: AbortSignal, limit = 500) =>
+    request<RuntimeTraceResponse>(`/runtime/trace?after=${after}&limit=${limit}`, { signal: signal ?? null }),
 };

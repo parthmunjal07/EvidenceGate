@@ -14,15 +14,6 @@ export type PresentationMode = "normal" | "fast" | "instant";
 export type PlayerState = { stepIndex: number; paused: boolean; followLive: boolean; selectedObservationId: string | null };
 export type PlayerAction = { type: "RESET" } | { type: "ADVANCE"; stepCount: number } | { type: "PAUSE" } | { type: "RESUME" } | { type: "SHOW_FINAL"; stepCount: number } | { type: "SELECT_OBSERVATION"; observationId: string } | { type: "FOLLOW_LIVE" };
 
-const eventTypes: Record<Exclude<ReplayPresentationStage, "FAMILY" | "RELATION">, string[]> = {
-  SOURCE: ["SOURCE_RECORD_ACCEPTED"],
-  OBSERVATION: ["OBSERVATION_CREATED"],
-  VISIBILITY: ["VISIBILITY_EVALUATED"],
-  ROUTING: ["ROUTED"],
-  EVALUATION: ["ANALYTIC_EVALUATING", "ANALYTIC_READINESS", "ANALYTIC_EVALUATED", "ADMISSION_REJECTED"],
-  RESULT: ["RESULT_PERSISTED"],
-};
-
 /** Build a judge-facing sequence exclusively from observed trace and durable evidence. */
 export function buildReplayPresentationSteps(
   events: RuntimeTraceEvent[],
@@ -31,25 +22,26 @@ export function buildReplayPresentationSteps(
   links: InvestigationLinkDto[],
 ): ReplayPresentationStep[] {
   const steps: ReplayPresentationStep[] = [];
-  const sourceEvents = events.filter((event) => eventTypes.SOURCE.includes(event.kind));
-  if (sourceEvents.length) steps.push({ key: "source", stage: "SOURCE", observationId: null, eventSequences: sourceEvents.map((event) => event.sequence), resultIds: [], familyViewIds: [], linkIds: [] });
-
-  const observations = events.filter((event) => event.kind === "OBSERVATION_CREATED" && event.observation_id);
-  for (const observation of observations) {
-    const id = observation.observation_id!;
-    const ownEvents = events.filter((event) => event.observation_id === id);
-    const linkedResults = results.filter((result) => result.source_observation_ids.includes(id));
-    const add = (stage: Exclude<ReplayPresentationStage, "SOURCE" | "FAMILY" | "RELATION">, type: string, resultIds: string[] = []) => {
-      const stageEvents = ownEvents.filter((event) => event.kind === type || (stage === "EVALUATION" && eventTypes.EVALUATION.includes(event.kind)));
-      if (stageEvents.length || (stage === "RESULT" && linkedResults.length)) {
-        steps.push({ key: `${id}:${stage}`, stage, observationId: id, eventSequences: stageEvents.map((event) => event.sequence), resultIds: stage === "RESULT" ? linkedResults.map((result) => result.result_id) : resultIds, familyViewIds: [], linkIds: [] });
-      }
-    };
-    add("OBSERVATION", "OBSERVATION_CREATED");
-    add("VISIBILITY", "VISIBILITY_EVALUATED");
-    add("ROUTING", "ROUTED");
-    add("EVALUATION", "ANALYTIC_EVALUATED");
-    add("RESULT", "RESULT_PERSISTED", linkedResults.map((result) => result.result_id));
+  const resultIds = new Set(results.map((result) => result.result_id));
+  const orderedEvents = [...events].sort((left, right) => left.sequence - right.sequence);
+  for (const event of orderedEvents) {
+    let stage: Exclude<ReplayPresentationStage, "FAMILY" | "RELATION"> | null = null;
+    if (event.kind === "SOURCE_RECORD_ACCEPTED") stage = "SOURCE";
+    else if (event.kind === "OBSERVATION_CREATED") stage = "OBSERVATION";
+    else if (event.kind === "VISIBILITY_EVALUATED") stage = "VISIBILITY";
+    else if (event.kind === "ROUTED") stage = "ROUTING";
+    else if (["ANALYTIC_EVALUATING", "ANALYTIC_READINESS", "ANALYTIC_EVALUATED", "ADMISSION_REJECTED"].includes(event.kind)) stage = "EVALUATION";
+    else if (event.kind === "RESULT_PERSISTED" && event.result_id && resultIds.has(event.result_id)) stage = "RESULT";
+    if (!stage) continue;
+    steps.push({
+      key: `${event.sequence}:${stage}`,
+      stage,
+      observationId: event.observation_id,
+      eventSequences: [event.sequence],
+      resultIds: stage === "RESULT" && event.result_id ? [event.result_id] : [],
+      familyViewIds: [],
+      linkIds: [],
+    });
   }
 
   if (familyViews.length) steps.push({ key: "family", stage: "FAMILY", observationId: null, eventSequences: [], resultIds: [], familyViewIds: familyViews.map((view) => view.family_view_id), linkIds: [] });

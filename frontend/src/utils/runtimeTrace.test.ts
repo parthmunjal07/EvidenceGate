@@ -3,7 +3,9 @@ import type { RuntimeTraceEvent } from "../api/types";
 import {
   latestReadinessByObservationLane,
   fetchFinalRuntimeTrace,
-  drainRuntimeTraceCursor,
+  captureRuntimeTraceBaseline,
+  advanceRuntimeTraceCursor,
+  hasRuntimeTraceGap,
   mergeRuntimeTraceEvents,
   observationLaneKey,
   replayJustCompleted,
@@ -51,20 +53,42 @@ describe("runtime trace presentation", () => {
     expect(mergeRuntimeTraceEvents([first], [first, final])).toEqual([first, final]);
   });
 
-  it("drains trace pages using the last event received, not the global head", async () => {
-    const cursors: number[] = [];
-    const pages = [
-      { events: [event(101, "ROUTED", "observation-a"), event(150, "ROUTED", "observation-b")], latest_sequence: 900 },
-      { events: [event(151, "ROUTED", "observation-c"), event(200, "ROUTED", "observation-d")], latest_sequence: 900 },
-      { events: [], latest_sequence: 200 },
-    ];
-    const cursor = await drainRuntimeTraceCursor(async (after) => {
-      cursors.push(after);
-      return pages.shift()!;
+  it("captures a long-history baseline from one latest-sequence head request", async () => {
+    const calls: Array<[number, number]> = [];
+    const baseline = await captureRuntimeTraceBaseline(async (after, limit) => {
+      calls.push([after, limit]);
+      return { events: [event(1, "SOURCE_RECORD_ACCEPTED", "")], latest_sequence: 4500 };
     });
+    expect(baseline).toBe(4500);
+    expect(calls).toEqual([[0, 1]]);
+  });
 
-    expect(cursors).toEqual([0, 150, 200]);
-    expect(cursor).toBe(200);
+  it("starts after the 4500-event baseline and admits only new replay events", async () => {
+    const baseline = await captureRuntimeTraceBaseline(async () => ({ events: [], latest_sequence: 4500 }));
+    const cursors: number[] = [];
+    const replayEvents = [event(4501, "OBSERVATION_CREATED", "new-observation"), event(4502, "ROUTED", "new-observation"), event(4503, "RESULT_PERSISTED", "new-observation")];
+    const page = async (after: number) => {
+      cursors.push(after);
+      return { events: replayEvents.filter((item) => item.sequence > after), latest_sequence: 4503 };
+    };
+    const first = await page(baseline);
+    expect(first.events.map((item) => item.sequence)).toEqual([4501, 4502, 4503]);
+    const cursor = advanceRuntimeTraceCursor(baseline, first.events);
+    expect(cursor).toBe(4503);
+    expect(cursors).toEqual([4500]);
+    expect(hasRuntimeTraceGap(baseline, first.events)).toBe(false);
+  });
+
+  it("advances forward pagination by the last event received, not the global latest sequence", () => {
+    const page = [event(101, "ROUTED", "observation-a"), event(200, "ROUTED", "observation-b")];
+    expect(advanceRuntimeTraceCursor(100, page)).toBe(200);
+    expect(advanceRuntimeTraceCursor(200, [])).toBe(200);
+  });
+
+  it("keeps true ring-buffer eviction as a detectable gap without fabricating events", () => {
+    const retained = [event(5001, "ROUTED", "observation-retained")];
+    expect(hasRuntimeTraceGap(4500, retained)).toBe(true);
+    expect(mergeRuntimeTraceEvents([], retained).map((item) => item.sequence)).toEqual([5001]);
   });
 
   it("fetches the final trace after completion using the last cursor", async () => {

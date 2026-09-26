@@ -18,7 +18,7 @@ This matrix separates the implemented MVP runtime from proposed system architect
 | Missing prerequisite evidence | **Implemented** when a persisted Result records missing prerequisites or a limitation | Limitation result in New Evidence and the analyst detail view |
 | REST result retrieval | **Implemented** through `/results`; persisted SQLite Results remain the scientific authority | Evidence Results page |
 | Server-sent result notifications | **Implemented** as hints followed by REST retrieval of the durable Result | Live New Evidence updates |
-| Bounded runtime trace | **Implemented** as a 500-event in-memory, best-effort presentation buffer; trace loss cannot change persisted Results | Traffic Lab runtime stages |
+| Bounded runtime trace | **Implemented** with 5,000 backend-retained events and a 500-event frontend presentation buffer; both are in-memory, best effort, and cannot change persisted Results | Traffic Lab runtime stages |
 | Family-first analyst review | **Implemented** as one queue row per composed family view, with independent findings and limitations preserved | Analyst Queue |
 | Live performance telemetry | **Partially exposed**: replay records, observations, elapsed time, and durable Result count are available; live processing percentiles, end-to-end latency, queue depth, and state footprint are not | Overview labels unavailable live measures as not exposed |
 | Governed benchmark display | **Implemented** from `benchmark_results/sustained_final_mvp_benchmark.json`; shown separately from live runtime state and labeled development-only | Overview measured benchmark card |
@@ -26,4 +26,4 @@ This matrix separates the implemented MVP runtime from proposed system architect
 | NetFlow, IPFIX, or sFlow ingestion | **Deferred** | Not presented as active |
 | Distributed multi-host processing | **Proposed / deferred** | Not presented as active |
 
-Runtime trace telemetry is presentation-only, bounded in memory, and best effort. `RESULT_PERSISTED` carries the Result's full source observation lineage. Trace events do not replace persisted Results or change routing, readiness, analytic, or persistence semantics. SQLite-backed `/results` remains authoritative if the trace is dropped or truncated.
+Runtime trace telemetry is presentation-only, bounded in memory, and best effort. The backend retains up to 5,000 events; the frontend's active presentation merge retains up to 500 events. A pre-replay baseline reads `latest_sequence` from a one-event trace request and then polls forward from that sequence. `RESULT_PERSISTED` carries the Result's full source observation lineage and its Result ID; playback reveals the durable Result at this trace event, while lineage remains attribution only. Trace events do not replace persisted Results or change routing, readiness, analytic, or persistence semantics. SQLite-backed `/results` remains authoritative if the trace is dropped or truncated.

@@ -31,17 +31,20 @@ export function mergeRuntimeTraceEvents(
   return [...bySequence.values()].sort((a, b) => a.sequence - b.sequence).slice(-500);
 }
 
-export async function drainRuntimeTraceCursor(
-  fetchTrace: (after: number) => Promise<RuntimeTraceResponse>,
+export async function captureRuntimeTraceBaseline(
+  fetchTrace: (after: number, limit: number) => Promise<RuntimeTraceResponse>,
 ) {
-  let cursor = 0;
-  for (let pageNumber = 0; pageNumber < 32; pageNumber += 1) {
-    const page = await fetchTrace(cursor);
-    const lastReceived = page.events.at(-1)?.sequence;
-    if (lastReceived === undefined || lastReceived <= cursor) return cursor;
-    cursor = lastReceived;
-  }
-  return cursor;
+  const head = await fetchTrace(0, 1);
+  return head.latest_sequence;
+}
+
+export function advanceRuntimeTraceCursor(cursor: number, events: RuntimeTraceEvent[]) {
+  return Math.max(cursor, events.at(-1)?.sequence ?? cursor);
+}
+
+export function hasRuntimeTraceGap(cursor: number, events: RuntimeTraceEvent[]) {
+  const firstReceived = events[0]?.sequence;
+  return firstReceived !== undefined && firstReceived > cursor + 1;
 }
 
 export function replayJustCompleted(

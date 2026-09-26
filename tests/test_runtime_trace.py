@@ -129,6 +129,24 @@ async def test_trace_api_pages_forward_while_reporting_global_latest(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_trace_api_head_query_returns_current_sequence_without_draining_history(tmp_path):
+    app = create_app(tmp_path / "trace-head.sqlite")
+    async with app.router.lifespan_context(app):
+        trace = app.state.service.runtime_trace
+        for index in range(4500):
+            trace.emit("SOURCE_RECORD_ACCEPTED", observation_id=f"record-{index}")
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test",
+        ) as client:
+            response = await client.get("/runtime/trace?after=0&limit=1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latest_sequence"] == 4500
+    assert len(payload["events"]) == 1
+
+
+@pytest.mark.asyncio
 async def test_persisted_result_trace_keeps_full_lineage_without_claiming_one_cause(tmp_path):
     app = create_app(tmp_path / "trace-lineage.sqlite")
     service = app.state.service

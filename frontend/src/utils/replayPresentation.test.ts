@@ -2,19 +2,24 @@ import { describe, expect, it } from "vitest";
 import type { FamilyEvidenceViewDto, InvestigationLinkDto, ResultDto, RuntimeTraceEvent } from "../api/types";
 import { normalizeFamilyName } from "./formatting";
 import { advancePlayer, buildReplayPresentationSteps, groupFamilyEpisodes, groupRelationsByFamilyPair, pausePlayer, playerReducer, presentationDurationMs, presentationSchedule, resumeLiveFocus, resumePlayer, selectObservation, showFinalPlayerState, type PlayerState } from "./replayPresentation";
+import { sourceLinkedReplayResults } from "./replayAttribution";
 
 const traceEvent = (sequence: number, kind: string, observationId: string | null = null): RuntimeTraceEvent => ({
   sequence, kind, occurred_at: `2026-01-01T00:00:${String(sequence).padStart(2, "0")}Z`, observation_id: observationId,
   observation_type: observationId ? "PACKET" : null, lane_id: kind === "ROUTED" || kind.startsWith("ANALYTIC_") ? `lane-${observationId}` : null,
   mechanism: null, readiness: kind === "ANALYTIC_EVALUATED" ? "READY" : null, reason: null, result_id: null, source_observation_ids: [],
 });
-const result = (id: string, observationId: string): ResultDto => ({
-  result_id: id, schema_version: "1", result_type: "REVIEW_FINDING", created_time: "2026-01-01T00:00:05Z", lane_id: `lane-${observationId}`,
+const result = (id: string, observationIds: string | string[]): ResultDto => {
+  const sources = Array.isArray(observationIds) ? observationIds : [observationIds];
+  return {
+  result_id: id, schema_version: "1", result_type: "REVIEW_FINDING", created_time: "2026-01-01T00:00:05Z", lane_id: `lane-${sources[0]}`,
   family: "DDoS", plugin_id: "test", plugin_version: "1", analytic_version: "1", governance_version: "1", entity_reference: "10.0.0.1",
   taxonomy: ["DOS", "DDoS", "evidence"], mechanism_id: "DDOS-CV-B0", status_snapshot: {} as ResultDto["status_snapshot"], claim_ceiling: "OBSERVED_EVIDENCE_ONLY",
-  evidence: {}, evidence_items: [], missing_prerequisites: [], source_observation_ids: [observationId], source_ids: [], quality_snapshot: { packet_loss: "UNKNOWN", sampling: "UNKNOWN", parser: "UNKNOWN", capture_gap: "UNKNOWN" },
+  evidence: {}, evidence_items: [], missing_prerequisites: [], source_ids: [], quality_snapshot: { packet_loss: "UNKNOWN", sampling: "UNKNOWN", parser: "UNKNOWN", capture_gap: "UNKNOWN" },
   visibility_snapshot: { available: [], unavailable: [], degraded: [] }, state_version: null, config_hash: null, parser_refs: [], model_refs: [], governing_ids: [], quality_refs: [], provenance_refs: [], evidence_interval: null, reason_code: null,
-});
+  source_observation_ids: sources,
+  };
+};
 const view = (id: string, family: string, resultId: string, observationId: string): FamilyEvidenceViewDto => ({
   family_view_id: id, family, time_start: "2026-01-01T00:00:01Z", time_end: "2026-01-01T00:00:02Z", entity_references: [], source_result_ids: [resultId], source_observation_ids: [observationId],
   findings: [{ source_result_id: resultId, title: "Finding", statements: [], result_type: "REVIEW_FINDING" }], limitations: [], missing_evidence: [], visibility_summary: [], quality_summary: [],
@@ -23,15 +28,57 @@ const link = (id: string, left: string, right: string, observation: string): Inv
 
 describe("semantic replay presentation", () => {
   it("derives semantic steps from actual trace and durable Results without mutating runtime data", () => {
-    const trace = [traceEvent(1, "SOURCE_RECORD_ACCEPTED"), traceEvent(2, "OBSERVATION_CREATED", "obs-a"), traceEvent(3, "VISIBILITY_EVALUATED", "obs-a"), traceEvent(4, "ROUTED", "obs-a"), traceEvent(5, "ANALYTIC_EVALUATED", "obs-a")];
+    const trace = [traceEvent(1, "SOURCE_RECORD_ACCEPTED"), traceEvent(2, "OBSERVATION_CREATED", "obs-a"), traceEvent(3, "VISIBILITY_EVALUATED", "obs-a"), traceEvent(4, "ROUTED", "obs-a"), traceEvent(5, "ANALYTIC_EVALUATED", "obs-a"), { ...traceEvent(6, "RESULT_PERSISTED"), result_id: "r-a", source_observation_ids: ["obs-a"] }];
     const results = [result("r-a", "obs-a")];
     const originalTrace = structuredClone(trace);
     const originalResults = structuredClone(results);
     const steps = buildReplayPresentationSteps(trace, results, [], []);
     expect(steps.map((item) => item.stage)).toEqual(["SOURCE", "OBSERVATION", "VISIBILITY", "ROUTING", "EVALUATION", "RESULT"]);
     expect(steps.find((item) => item.stage === "RESULT")?.resultIds).toEqual(["r-a"]);
+    expect(steps.find((item) => item.stage === "RESULT")?.eventSequences).toEqual([6]);
     expect(trace).toEqual(originalTrace);
     expect(results).toEqual(originalResults);
+  });
+
+  it("reveals a stateful C2 Result only at its RESULT_PERSISTED trace event", () => {
+    const history = [
+      traceEvent(1, "OBSERVATION_CREATED", "obs-1"), traceEvent(2, "ROUTED", "obs-1"), traceEvent(3, "ANALYTIC_READINESS", "obs-1"),
+      traceEvent(4, "OBSERVATION_CREATED", "obs-2"), traceEvent(5, "ROUTED", "obs-2"), traceEvent(6, "ANALYTIC_READINESS", "obs-2"),
+      traceEvent(7, "OBSERVATION_CREATED", "obs-3"), traceEvent(8, "ROUTED", "obs-3"), traceEvent(9, "ANALYTIC_READINESS", "obs-3"),
+    ];
+    const recurrence = result("result-c2", ["obs-1", "obs-2", "obs-3"]);
+    const persisted = { ...traceEvent(10, "RESULT_PERSISTED"), result_id: recurrence.result_id, source_observation_ids: [...recurrence.source_observation_ids] };
+    const priorSteps = buildReplayPresentationSteps(history, [recurrence], [], []);
+    expect(priorSteps.flatMap((step) => step.resultIds)).toEqual([]);
+    expect(buildReplayPresentationSteps(history.slice(0, 3), [recurrence], [], []).flatMap((step) => step.resultIds)).toEqual([]);
+    expect(buildReplayPresentationSteps(history.slice(0, 6), [recurrence], [], []).flatMap((step) => step.resultIds)).toEqual([]);
+    const complete = buildReplayPresentationSteps([...history, persisted], [recurrence], [], []);
+    const reveal = complete.find((step) => step.stage === "RESULT");
+    expect(reveal).toMatchObject({ observationId: null, eventSequences: [10], resultIds: ["result-c2"] });
+    expect(complete.at(-1)?.eventSequences).toEqual([10]);
+    expect(recurrence.source_observation_ids).toEqual(["obs-1", "obs-2", "obs-3"]);
+  });
+
+  it("attributes only persisted Results and keeps their trace order and full lineage", () => {
+    const first = result("first", ["obs-1", "obs-2"]);
+    const second = result("second", ["obs-2", "obs-3"]);
+    const linked = sourceLinkedReplayResults([first, second], [
+      traceEvent(1, "OBSERVATION_CREATED", "obs-1"), traceEvent(2, "OBSERVATION_CREATED", "obs-2"), traceEvent(3, "OBSERVATION_CREATED", "obs-3"),
+      { ...traceEvent(4, "RESULT_PERSISTED"), result_id: "second", source_observation_ids: [...second.source_observation_ids] },
+      { ...traceEvent(5, "RESULT_PERSISTED"), result_id: "first", source_observation_ids: [...first.source_observation_ids] },
+    ]);
+    expect(linked.map((item) => item.result_id)).toEqual(["second", "first"]);
+    expect(linked[0]?.source_observation_ids).toEqual(["obs-2", "obs-3"]);
+  });
+
+  it("reveals a stateless DGA Result at its matching persistence event", () => {
+    const observation = traceEvent(1, "OBSERVATION_CREATED", "obs-dga");
+    const persisted = { ...traceEvent(4, "RESULT_PERSISTED"), result_id: "result-dga", source_observation_ids: ["obs-dga"] };
+    const dga = result("result-dga", "obs-dga");
+    expect(buildReplayPresentationSteps([observation], [dga], [], []).flatMap((step) => step.resultIds)).toEqual([]);
+    const steps = buildReplayPresentationSteps([observation, traceEvent(2, "ROUTED", "obs-dga"), traceEvent(3, "ANALYTIC_EVALUATED", "obs-dga"), persisted], [dga], [], []);
+    expect(steps.at(-1)).toMatchObject({ stage: "RESULT", observationId: null, eventSequences: [4], resultIds: ["result-dga"] });
+    expect(dga.source_observation_ids).toEqual(["obs-dga"]);
   });
 
   it("does not invent composition or relation steps without derived records", () => {
