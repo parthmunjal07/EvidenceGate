@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareTimeAsc, compareTimeDesc, formatEvidenceDateTime, formatEvidenceRange, formatEvidenceTime, formatTimeZoneLabel, latestObservedTime } from "./formatting";
+import { compareTimeAsc, compareTimeDesc, formatEvidenceDateTime, formatEvidenceDateTimeCompact, formatEvidenceRange, formatEvidenceTime, formatTimeZoneLabel, latestObservedTime, normalizeTimeZoneLabel } from "./formatting";
 
 describe("evidence time presentation", () => {
   const earlier = "2026-01-01T00:30:00Z";
@@ -22,5 +22,12 @@ describe("evidence time presentation", () => {
   it("formats an observed range with one date when both times share a local date", () => {
     expect(formatEvidenceRange("2026-01-01T00:30:00Z", "2026-01-01T00:45:00Z", "utc"))
       .toBe("01 Jan 2026 · 00:30:00–00:45:00 UTC");
+  });
+
+  it("uses IST only for the recognized India IANA zones and keeps table times compact", () => {
+    expect(normalizeTimeZoneLabel("Asia/Kolkata", "GMT+5:30")).toBe("IST");
+    expect(normalizeTimeZoneLabel("Asia/Calcutta", "GMT+5:30")).toBe("IST");
+    expect(normalizeTimeZoneLabel("Asia/Kathmandu", "GMT+5:45")).toBe("GMT+5:45");
+    expect(formatEvidenceDateTimeCompact("2026-01-01T00:00:00Z", "utc")).toBe("01 Jan 2026 · 00:00:00");
   });
 });

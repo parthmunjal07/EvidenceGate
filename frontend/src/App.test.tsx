@@ -122,8 +122,9 @@ describe("analyst-first console", () => {
   it("keeps Traffic lab factual and moves the trace into an on-demand modal", async () => {
     const fetchMock = mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Traffic Lab" }));
-    expect(screen.getByText(/Follow controlled passive replay from source records to independent evidence/)).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /Presentation pace/ })).toHaveValue("demo");
+    expect(screen.getByText(/Watch passive observations route into separate evidence/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Demo playback" })).toHaveValue("normal");
+    expect(screen.getAllByRole("button", { name: "Run" })).toHaveLength(2);
     expect(screen.queryByText("mixed_ddos_recon")).not.toBeInTheDocument();
     expect(screen.queryByText("Visual pace")).not.toBeInTheDocument();
     expect(screen.queryByText("Processing trace")).not.toBeInTheDocument();

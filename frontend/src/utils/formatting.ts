@@ -46,8 +46,13 @@ function zoneOptions(zone: DisplayTimeZone) {
 
 export function formatTimeZoneLabel(zone: DisplayTimeZone = getDisplayTimeZone()) {
   if (zone === "utc") return "UTC";
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const parts = new Intl.DateTimeFormat("en", { ...zoneOptions(zone), timeZoneName: "short" }).formatToParts(new Date());
-  return parts.find((part) => part.type === "timeZoneName")?.value ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return normalizeTimeZoneLabel(timeZone, parts.find((part) => part.type === "timeZoneName")?.value ?? timeZone);
+}
+
+export function normalizeTimeZoneLabel(ianaZone: string, shortName: string) {
+  return ianaZone === "Asia/Kolkata" || ianaZone === "Asia/Calcutta" ? "IST" : shortName;
 }
 
 function validDate(value: string | null | undefined) {
@@ -67,6 +72,28 @@ function timePart(value: string, zone: DisplayTimeZone) {
 export function formatEvidenceDateTime(value: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {
   const date = validDate(value);
   return date ? `${datePart(date.toISOString(), zone)} · ${timePart(date.toISOString(), zone)} ${formatTimeZoneLabel(zone)}` : "Time unavailable";
+}
+
+export function formatEvidenceDateTimeCompact(value: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {
+  const date = validDate(value);
+  return date ? `${datePart(date.toISOString(), zone)} · ${timePart(date.toISOString(), zone)}` : "Time unavailable";
+}
+
+export function formatEvidenceClockTime(value: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {
+  const date = validDate(value);
+  return date ? timePart(date.toISOString(), zone) : "Time unavailable";
+}
+
+export function normalizeFamilyName(value: string) {
+  const normalized = familyLabel(value).replace(/\s+evidence$/i, "").trim().toLowerCase();
+  const names: Record<string, string> = {
+    ddos: "DDoS", "ddos / reconnaissance": "DDoS + Reconnaissance", "ddos + reconnaissance": "DDoS + Reconnaissance",
+    "c2 beaconing": "C2 / Beaconing", "c2 / beaconing": "C2 / Beaconing", c2: "C2 / Beaconing",
+    dga: "DGA", "dga + dns": "DGA + DNS", "dns evidence": "DNS", "dns tunnelling": "DNS tunnelling",
+    reconnaissance: "Reconnaissance", "encrypted sessions": "Encrypted Sessions", "encrypted session": "Encrypted Sessions",
+    "data transfer": "Data Transfer", "unusual transfer": "Data Transfer",
+  };
+  return names[normalized] ?? familyLabel(value).replace(/\s+evidence$/i, "");
 }
 
 export function formatEvidenceTime(value: string | null | undefined, zone: DisplayTimeZone = getDisplayTimeZone()) {

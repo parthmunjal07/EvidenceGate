@@ -46,7 +46,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
         <button ref={healthButton} type="button" className="runtime-pill health-trigger" aria-expanded={healthOpen} aria-haspopup="dialog" onClick={() => setHealthOpen((open) => !open)}>
           <span className={`runtime-dot${badge === "Offline" ? " offline" : ""}`} /><strong>{badge}</strong>
         </button>
-        <label className="timezone-control">Time: <select aria-label="Evidence time display zone" value={zone} onChange={(event) => setZone(event.target.value as "local" | "utc")}><option value="local">Local ({formatTimeZoneLabel("local")})</option><option value="utc">UTC</option></select></label>
+        <label className="timezone-control">Time zone: <select aria-label="Evidence time display zone" value={zone} onChange={(event) => setZone(event.target.value as "local" | "utc")}><option value="local">Local ({formatTimeZoneLabel("local")})</option><option value="utc">UTC</option></select></label>
       </div>
       {healthOpen && <div className="health-popover" role="dialog" aria-label="System health" onKeyDown={(event) => { if (event.key === "Escape") { setHealthOpen(false); healthButton.current?.focus(); } }}>
         <div className="health-popover-head"><h2>System health</h2><button aria-label="Close system health" onClick={() => { setHealthOpen(false); healthButton.current?.focus(); }}>×</button></div>
