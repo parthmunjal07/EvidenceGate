@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from itertools import islice
 from threading import Lock
 from typing import Any
 
@@ -49,7 +50,8 @@ class RuntimeTraceBuffer:
 
     def snapshot(self, after: int = 0, limit: int = 100) -> tuple[RuntimeTraceEvent, ...]:
         with self._lock:
-            return tuple(event for event in self._events if event.sequence > after)[-limit:]
+            events = (event for event in self._events if event.sequence > after)
+            return tuple(islice(events, limit))
 
     @property
     def latest_sequence(self) -> int:

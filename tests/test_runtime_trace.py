@@ -57,9 +57,22 @@ def test_trace_buffer_is_bounded_and_keeps_monotonic_cursor():
     buffer = RuntimeTraceBuffer(capacity=3)
     for index in range(5):
         buffer.emit("SOURCE_RECORD_ACCEPTED", reason=str(index))
-    events = buffer.snapshot(after=2, limit=10)
+    events = buffer.snapshot(after=1, limit=10)
     assert [event.sequence for event in events] == [3, 4, 5]
     assert buffer.latest_sequence == 5
+
+
+def test_trace_snapshot_pages_forward_from_cursor():
+    buffer = RuntimeTraceBuffer(capacity=1000)
+    for index in range(700):
+        buffer.emit("OBSERVATION_CREATED", observation_id=f"packet-{index}")
+
+    first = buffer.snapshot(after=100, limit=100)
+    second = buffer.snapshot(after=200, limit=100)
+
+    assert [event.sequence for event in first] == list(range(101, 201))
+    assert [event.sequence for event in second] == list(range(201, 301))
+    assert buffer.latest_sequence == 700
 
 
 def test_default_trace_buffer_retains_complete_pcaps_well_over_one_page():
@@ -92,6 +105,27 @@ async def test_trace_api_exposes_bounded_typed_events(tmp_path):
     assert payload["events"][0]["kind"] == "RESULT_PERSISTED"
     assert payload["events"][0]["source_observation_ids"] == ["obs-a", "obs-b", "obs-c"]
     assert payload["events"][0]["observation_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_trace_api_pages_forward_while_reporting_global_latest(tmp_path):
+    app = create_app(tmp_path / "trace-pagination.sqlite")
+    async with app.router.lifespan_context(app):
+        trace = app.state.service.runtime_trace
+        for index in range(700):
+            trace.emit("OBSERVATION_CREATED", observation_id=f"packet-{index}")
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test",
+        ) as client:
+            first = await client.get("/runtime/trace?after=100&limit=100")
+            second = await client.get("/runtime/trace?after=200&limit=100")
+
+    assert first.status_code == second.status_code == 200
+    first_payload = first.json()
+    second_payload = second.json()
+    assert [event["sequence"] for event in first_payload["events"]] == list(range(101, 201))
+    assert [event["sequence"] for event in second_payload["events"]] == list(range(201, 301))
+    assert first_payload["latest_sequence"] == second_payload["latest_sequence"] == 700
 
 
 @pytest.mark.asyncio
