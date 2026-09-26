@@ -81,6 +81,47 @@ class ResultsResponse(StrictModel):
     )
 
 
+class FamilyFindingDto(StrictModel):
+    source_result_id: str
+    title: str
+    statements: list[str]
+    result_type: str
+
+
+class FamilyEvidenceViewDto(StrictModel):
+    family_view_id: str
+    family: str
+    time_start: datetime
+    time_end: datetime
+    entity_references: list[str]
+    source_result_ids: list[str]
+    source_observation_ids: list[str]
+    findings: list[FamilyFindingDto]
+    limitations: list[str]
+    missing_evidence: list[str]
+    visibility_summary: list[str]
+    quality_summary: list[str]
+
+
+class FamilyEvidenceResponse(StrictModel):
+    family_views: list[FamilyEvidenceViewDto]
+
+
+class InvestigationLinkDto(StrictModel):
+    link_id: str
+    left_family_view_id: str
+    right_family_view_id: str
+    relation_types: list[str]
+    shared_source_observation_ids: list[str]
+    source_result_ids: list[str]
+    claim_guard: list[str]
+
+
+class InvestigationsResponse(StrictModel):
+    family_views: list[FamilyEvidenceViewDto]
+    links: list[InvestigationLinkDto]
+
+
 class ReplayRequest(StrictModel):
     scenario: str
     speed: float = Field(default=0, ge=0, le=1000)

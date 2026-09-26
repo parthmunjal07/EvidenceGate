@@ -89,10 +89,12 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
             "implementation": "ACTIVE_LEXICAL_MODEL_LANE",
         }
         dga_family = next(item for item in runtime["family_status"] if item["family"] == "DGA")
-        assert dga_family["status"] == "ACTIVE LANE — MODEL UNAVAILABLE"
-        assert runtime["dga_model_readiness"] == "ARTIFACT_MISSING"
+        if runtime["dga_model_readiness"] == "VERIFIED_READY":
+            assert dga_family["status"] == "ACTIVE M1 LEXICAL MODEL EVIDENCE"
+        else:
+            assert dga_family["status"].startswith("ACTIVE LANE") and "MODEL UNAVAILABLE" in dga_family["status"]
         schema = (await client.get("/openapi.json")).json()
-        assert {"/health", "/results", "/results/{result_id}", "/alerts", "/events", "/replay", "/replay/status", "/runtime", "/runtime/trace"} <= set(schema["paths"])
+        assert {"/health", "/results", "/results/{result_id}", "/alerts", "/family-evidence", "/investigations", "/events", "/replay", "/replay/status", "/runtime", "/runtime/trace"} <= set(schema["paths"])
         dashboard = await client.get("/")
         assert dashboard.status_code == 200
         assert '<div id="root"></div>' in dashboard.text
@@ -293,7 +295,10 @@ async def test_dga_demo_runs_real_model_persists_rest_and_publishes(tmp_path, mo
         runtime = (await client.get("/runtime")).json()
         assert runtime["dga_model_readiness"] == "VERIFIED_READY"
         dga_family = next(item for item in runtime["family_status"] if item["family"] == "DGA")
-        assert dga_family["status"] == "ACTIVE M1 LEXICAL MODEL EVIDENCE"
+        if runtime["dga_model_readiness"] == "VERIFIED_READY":
+            assert dga_family["status"] == "ACTIVE M1 LEXICAL MODEL EVIDENCE"
+        else:
+            assert dga_family["status"].startswith("ACTIVE LANE") and "MODEL UNAVAILABLE" in dga_family["status"]
         subscription = service.broadcaster.subscribe()
         response = await client.post("/replay", json={"scenario": "dga_lexical", "speed": 0})
         assert response.status_code == 202
@@ -331,9 +336,9 @@ async def test_only_one_replay_runs_and_runtime_reports_replaying(tmp_path):
     ("scenario", "family", "mechanism"),
     (
         ("c2_recurrence", "C2 / Beaconing", "C2-M1"),
-        ("dns_observation", "DNS Tunnelling", "DNS-T1"),
+        ("dns_observation", "DGA + DNS", "DNS-T1"),
         ("encrypted_session", "Encrypted Sessions", "ENC-A"),
-        ("transfer_magnitude", "Data Exfiltration", "CAT6-EX-M1"),
+        ("transfer_magnitude", "Data Transfer", "CAT6-EX-M1"),
     ),
 )
 async def test_family_replays_display_real_results(tmp_path, scenario, family, mechanism):

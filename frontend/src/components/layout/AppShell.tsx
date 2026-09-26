@@ -17,11 +17,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
   const healthButton = useRef<HTMLButtonElement>(null);
   const diagnosticClose = useRef<HTMLButtonElement>(null);
   const runtime = state.runtime;
-  const badge = state.pageError ? "Offline" : runtime ? "Online" : "Connecting";
-  const dgaIssue = Boolean(runtime && runtime.dga_model_readiness !== "VERIFIED_READY");
-  const additionalUnavailableCount = state.statusItems.filter((item) => item.result_type === "ANALYTIC_UNAVAILABLE" && !(dgaIssue && item.mechanism_id === "DGA-A1-M1")).length;
-  const issueCount = Number(dgaIssue) + additionalUnavailableCount;
-  const issueSummary = [dgaIssue ? "DGA model unavailable" : null, additionalUnavailableCount ? "one or more analytics unavailable" : null].filter(Boolean).join("; ");
+  const badge = state.pageError ? "Offline" : state.replay?.state === "RUNNING" ? "Replaying" : runtime ? "Online" : "Connecting";
 
   useEffect(() => {
     if (!healthOpen) return;
@@ -41,7 +37,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
         <span className="brand-mark" aria-hidden="true">EG</span><span><strong>EvidenceGate</strong><small>Passive network evidence</small></span>
       </a>
       <nav className="primary-nav">{links.map(([key, icon, label]) => <button type="button" key={key} data-page={key} onClick={() => onNavigate(key)} className={`nav-item${page === key ? " active" : ""}`} aria-current={page === key ? "page" : undefined}>
-        <span className="nav-icon" aria-hidden="true">{icon}</span>{label}{key === "alerts" && <span className="nav-count">{state.alerts.length}</span>}
+        <span className="nav-icon" aria-hidden="true">{icon}</span>{label}
       </button>)}</nav>
       <div className="sidebar-spacer" /><div className="sidebar-foot"><p>Passive · read-only</p></div>
     </aside>
@@ -51,19 +47,16 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
         <button ref={healthButton} type="button" className="runtime-pill health-trigger" aria-expanded={healthOpen} aria-haspopup="dialog" onClick={() => setHealthOpen((open) => !open)}>
           <span className={`runtime-dot${badge === "Offline" ? " offline" : ""}`} /><strong>{badge}</strong>
         </button>
-        {issueCount > 0 && <button className="capability-issue" onClick={() => setHealthOpen(true)} aria-label={`${issueCount} capability issue`}>⚠ {issueCount} capability issue</button>}
         <span className="clock">{clock}</span>
       </div>
       {healthOpen && <div className="health-popover" role="dialog" aria-label="System health" onKeyDown={(event) => { if (event.key === "Escape") { setHealthOpen(false); healthButton.current?.focus(); } }}>
         <div className="health-popover-head"><h2>System health</h2><button aria-label="Close system health" onClick={() => { setHealthOpen(false); healthButton.current?.focus(); }}>×</button></div>
         <dl>
           <div><dt>Runtime</dt><dd>{badge}</dd></div>
-          <div><dt>Analytics</dt><dd>{runtime ? runtime.targets.length - Number(dgaIssue) : 0} available</dd></div>
-          <div><dt>DGA model</dt><dd>{!runtime ? "Checking" : runtime.dga_model_readiness === "VERIFIED_READY" ? "Ready" : "Unavailable"}</dd></div>
+          <div><dt>Analytics</dt><dd>{runtime ? runtime.targets.length : 0} registered</dd></div>
           <div><dt>Evidence store</dt><dd>{runtime?.database_status === "connected" ? "Available" : "Checking"}</dd></div>
           <div><dt>Input</dt><dd>{state.replay?.state === "RUNNING" ? state.replay.source_type ?? "Replay" : "Controlled replay"}</dd></div>
         </dl>
-        <p>{issueCount ? `${issueCount} capability issue${issueCount === 1 ? "" : "s"}: ${issueSummary}.` : "No capability issues."}</p>
         <button className="text-button" onClick={() => { setHealthOpen(false); setDiagnosticsOpen(true); }}>Technical details →</button>
       </div>}</header>
       <main id="main-content">{(state.pageError || state.streamState === "reconnecting") && <div className="connection-notice" role="status"><strong>{state.pageError ? "Unable to reach EvidenceGate" : "Reconnecting to the service"}</strong><span>Previously captured evidence remains available if already loaded. Check backend connectivity if this persists.</span></div>}{children}</main>

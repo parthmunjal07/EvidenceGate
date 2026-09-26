@@ -46,7 +46,7 @@ export function ResultsPage({
           <span aria-hidden="true">⌕</span>
           <input
             type="search"
-            placeholder="Search entity, family or result ID"
+            placeholder="Search entity, family or finding"
             aria-label="Search evidence results"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

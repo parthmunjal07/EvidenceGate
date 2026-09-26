@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useEvidence } from "../state/EvidenceContext";
 import { EmptyState, PageHeading } from "../components/common/Primitives";
 import { api } from "../api/client";
-import type { RuntimeTraceEvent } from "../api/types";
+import type { FamilyEvidenceViewDto, InvestigationLinkDto, RuntimeTraceEvent } from "../api/types";
 import { familyLabel, formatShortTime, friendlyCategory, mechanismLabel, observationLineageLabel, readable, summarizeReference } from "../utils/formatting";
 import { useReplay } from "../hooks/useReplay";
 import type { PageKey } from "../state/types";
@@ -28,6 +28,8 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
   const [trace, setTrace] = useState<RuntimeTraceEvent[]>([]);
   const [cursor, setCursor] = useState(0);
   const [baseline, setBaseline] = useState<Set<string> | null>(null);
+  const [familyViews, setFamilyViews] = useState<FamilyEvidenceViewDto[]>([]);
+  const [investigationLinks, setInvestigationLinks] = useState<InvestigationLinkDto[]>([]);
   const [showPicker, setShowPicker] = useState(true);
   const previousReplayState = useRef(replay?.state);
   const running = replay?.state === "RUNNING";
@@ -66,6 +68,17 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
     return () => controller.abort();
   }, [replay?.state, cursor]);
 
+  useEffect(() => {
+    if (replay?.state !== "COMPLETED" || baseline === null) return;
+    const controller = new AbortController();
+    void api.investigations(controller.signal).then((value) => {
+      if (controller.signal.aborted) return;
+      setFamilyViews(value.family_views);
+      setInvestigationLinks(value.links);
+    }).catch(() => { /* Family views are derived presentation; persisted Results remain available. */ });
+    return () => controller.abort();
+  }, [replay?.state, replay?.finished_at, baseline]);
+
   const runScenario = async (id: string) => {
     let latestSequence = 0;
     try {
@@ -75,6 +88,8 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
     setCursor(latestSequence);
     setTrace([]);
     setBaseline(new Set(state.results.keys()));
+    setFamilyViews([]);
+    setInvestigationLinks([]);
     setShowPicker(false);
     await start(id, speed);
   };
@@ -105,6 +120,11 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
   const sourceRecords = sourceType.toLowerCase().includes("pcap") ? "Packets read" : "Records read";
   const reviewCount = runResults.filter((item) => item.result_type === "REVIEW_FINDING").length;
   const limitationCount = runResults.length - reviewCount;
+  const runResultIds = new Set(runResults.map((item) => item.result_id));
+  const runFamilyViews = familyViews.filter((view) => view.source_result_ids.some((id) => runResultIds.has(id)));
+  const runFamilyIds = new Set(runFamilyViews.map((view) => view.family_view_id));
+  const runLinks = investigationLinks.filter((link) => runFamilyIds.has(link.left_family_view_id) && runFamilyIds.has(link.right_family_view_id));
+  const viewsById = new Map(runFamilyViews.map((view) => [view.family_view_id, view]));
 
   return <section className="page active-page" aria-labelledby="replay-title">
     <PageHeading titleId="replay-title" title="Traffic lab" deck="Watch prepared passive input move through the runtime and into independent evidence." />
@@ -134,6 +154,12 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey) => void }) 
 
       <section className="panel replay-flow-panel"><div className="panel-head compact"><div><h2>New evidence</h2><p>Immutable results persisted during this replay.</p></div><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>
         {runResults.length ? <div className="replay-event-log">{runResults.slice(-10).reverse().map((result) => <div className="event-log-item" key={result.result_id}><time>{formatShortTime(result.created_time)}</time><strong>{friendlyCategory(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)} · {summarizeReference(result.entity_reference, result.mechanism_id)}{observationLineageLabel(result.source_observation_ids) ? ` · ${observationLineageLabel(result.source_observation_ids)}` : ""}</span><em>{result.result_type === "REVIEW_FINDING" ? "Review" : "Limitation"}</em></div>)}</div> : <p className="runtime-empty">Results will appear here after persistence.</p>}
+      </section>
+      <section className="panel replay-flow-panel"><div className="panel-head compact"><div><h2>Family evidence</h2><p>Independent Results composed by family and shared source lineage.</p></div><button className="text-button" onClick={() => navigate("alerts")}>Open analyst queue →</button></div>
+        {runFamilyViews.length ? <div className="family-stage-list">{runFamilyViews.map((view) => <article key={view.family_view_id}><strong>{view.family}</strong><span>{view.source_result_ids.length} mechanism Results → {view.findings.length} independent findings</span><small>{view.entity_references.map((entity) => summarizeReference(entity)).join(", ")}</small></article>)}</div> : <p className="runtime-empty">Family evidence will appear after the read-only view is refreshed.</p>}
+      </section>
+      <section className="panel replay-flow-panel"><div className="panel-head compact"><div><h2>Related for investigation</h2><p>Exact shared source observations link different official families.</p></div></div>
+        {runLinks.length ? <div className="family-stage-list">{runLinks.map((link) => { const left = viewsById.get(link.left_family_view_id); const right = viewsById.get(link.right_family_view_id); return left && right ? <article key={link.link_id}><strong>{left.family} evidence ↕ {right.family} evidence</strong><span>Shared passive observation</span><small>For joint investigation only; this does not establish causality, a common attacker, or an attack chain.</small></article> : null; })}</div> : <p className="runtime-empty">No cross-family shared observation is present in this replay.</p>}
       </section>
       <div className="run-summary"><span>{replay.observations_emitted} observations processed</span><span>{replay.results_persisted} results persisted</span><span>{reviewCount} review items · {limitationCount} limitations</span>{!running && <button className="text-button" onClick={() => setShowPicker((value) => !value)}>{showPicker ? "Hide scenarios" : "Run another scenario"}</button>}</div>
       {error && <div className="stream-notice" role="status">{error}</div>}

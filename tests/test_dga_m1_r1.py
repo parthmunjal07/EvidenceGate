@@ -12,7 +12,7 @@ from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.plugins.providers.dga_m1 import (
     ARTIFACT_BYTES, ARTIFACT_SHA256, CLAIM_CEILING, DgaM1ArtifactVerifier,
     DgaM1ModelService, DgaM1Plugin, DgaM1Readiness, DgaM1RepresentationAdapter,
-    PROMOTION_DECISION_ID, dga_m1_config_hash,
+    PROMOTION_DECISION_ID, dga_m1_config_hash, resolve_dga_model_path,
     r1_class_semantic_failure,
 )
 from evidencegate.routing.router import LaneTarget
@@ -21,6 +21,18 @@ from evidencegate.plugins.providers.registry import build_mvp_provider_registry
 
 NOW = datetime(2026, 9, 23, tzinfo=timezone.utc)
 ARTIFACT = Path("artifacts/dga/local/DGA_M1_R1_SERIALIZED_MODEL.joblib")
+
+
+def test_model_path_resolution_precedence_and_canonical_discovery(tmp_path):
+    explicit = tmp_path / "explicit.joblib"
+    environment = tmp_path / "environment.joblib"
+    canonical = tmp_path / "DGA_M1_R1_SERIALIZED_MODEL.joblib"
+    canonical.touch()
+    assert resolve_dga_model_path(str(explicit), environment_path=str(environment), canonical_path=canonical) == str(explicit)
+    assert resolve_dga_model_path(None, environment_path=str(environment), canonical_path=canonical) == str(environment)
+    assert resolve_dga_model_path(None, canonical_path=canonical) == str(canonical)
+    canonical.unlink()
+    assert resolve_dga_model_path(None, canonical_path=canonical) is None
 
 
 def observation(qname: str):

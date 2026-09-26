@@ -173,7 +173,7 @@ describe("scientific display helpers", () => {
   it("filters result list by source fields", () => {
     const result = {
       result_id: "r1",
-      family: "DGA",
+      family: "DGA + DNS",
       lane_id: "dga.m1",
       mechanism_id: "DGA-A1-M1",
       entity_reference: "example.invalid",
@@ -182,8 +182,8 @@ describe("scientific display helpers", () => {
     } as Parameters<typeof filterResults>[0][number];
     expect(
       filterResults([result], {
-        search: "dga-a1",
-        family: "DGA",
+        search: "example.invalid",
+        family: "DGA + DNS",
         resultType: "REVIEW_FINDING",
       }),
     ).toHaveLength(1);

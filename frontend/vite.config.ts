@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       '/health': 'http://127.0.0.1:8000', '/runtime': 'http://127.0.0.1:8000',
       '/results': 'http://127.0.0.1:8000', '/alerts': 'http://127.0.0.1:8000',
+      '/family-evidence': 'http://127.0.0.1:8000', '/investigations': 'http://127.0.0.1:8000',
       '/events': { target: 'http://127.0.0.1:8000', changeOrigin: true },
       '/replay': 'http://127.0.0.1:8000',
     },

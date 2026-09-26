@@ -15,7 +15,9 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from evidencegate.api.models import (
-    AlertsResponse, HealthResponse, QualitySnapshotDto, ReplayRequest, ReplayStatusResponse,
+    AlertsResponse, FamilyEvidenceResponse, FamilyEvidenceViewDto,
+    HealthResponse, InvestigationLinkDto, InvestigationsResponse,
+    QualitySnapshotDto, ReplayRequest, ReplayStatusResponse,
     ResultDto, ResultsResponse, RuntimeStatusResponse, RuntimeTraceEventDto,
     RuntimeTraceResponse, StatusSnapshotDto,
     VisibilitySnapshotDto,
@@ -27,6 +29,7 @@ from evidencegate.api.service import (
     EvidenceGateService, ReplayBusyError, ReplayScenario,
 )
 from evidencegate.domain.enums import ResultType
+from evidencegate.family.composer import FAMILY_BY_LANE, compose_family_evidence, index_investigations
 from evidencegate.results.types import AnalyticUnavailable, Result
 
 
@@ -37,22 +40,23 @@ STATIC_ROOT = Path(__file__).with_name("static")
 
 
 def family_for(result: Result) -> str:
-    lane = result.lane_id
-    if lane.startswith("ddos."):
-        return "DDoS"
-    if lane.startswith("c2."):
-        return "C2 / Beaconing"
-    if lane.startswith("dga."):
-        return "DGA"
-    if lane.startswith("dns_tunnelling."):
-        return "DNS Tunnelling"
-    if lane.startswith("encrypted_session."):
-        return "Encrypted Sessions"
-    if lane.startswith("recon."):
-        return "Reconnaissance"
-    if lane.startswith("unusual_transfer."):
-        return "Data Exfiltration"
-    return result.taxonomy[1]
+    return FAMILY_BY_LANE.get(result.lane_id, result.taxonomy[1])
+
+
+def _family_view_dto(view) -> FamilyEvidenceViewDto:
+    return FamilyEvidenceViewDto(
+        family_view_id=view.family_view_id, family=view.family,
+        time_start=view.time_start, time_end=view.time_end,
+        entity_references=list(view.entity_references),
+        source_result_ids=list(view.source_result_ids),
+        source_observation_ids=list(view.source_observation_ids),
+        findings=[{
+            "source_result_id": finding.source_result_id, "title": finding.title,
+            "statements": list(finding.statements), "result_type": finding.result_type,
+        } for finding in view.findings],
+        limitations=list(view.limitations), missing_evidence=list(view.missing_evidence),
+        visibility_summary=list(view.visibility_summary), quality_summary=list(view.quality_summary),
+    )
 
 
 def result_dto(result: Result) -> ResultDto:
@@ -220,6 +224,44 @@ def create_app(
         if result is None:
             raise HTTPException(status_code=404, detail="result not found")
         return result_dto(result)
+
+    @application.get(
+        "/family-evidence", response_model=FamilyEvidenceResponse,
+        summary="Derive read-only family evidence views from immutable Results",
+    )
+    async def get_family_evidence(
+        limit: int = Query(default=500, ge=1, le=500),
+        source_result_id: list[str] | None = Query(default=None),
+    ) -> FamilyEvidenceResponse:
+        results = await service.writer.list_results(limit=limit)
+        if source_result_id:
+            selected = set(source_result_id)
+            results = tuple(result for result in results if result.result_id in selected)
+        views = await asyncio.to_thread(compose_family_evidence, results)
+        return FamilyEvidenceResponse(family_views=[_family_view_dto(view) for view in views])
+
+    @application.get(
+        "/investigations", response_model=InvestigationsResponse,
+        summary="Derive factual cross-family investigation links",
+    )
+    async def get_investigations(
+        limit: int = Query(default=500, ge=1, le=500),
+    ) -> InvestigationsResponse:
+        results = await service.writer.list_results(limit=limit)
+        views = await asyncio.to_thread(compose_family_evidence, results)
+        links = await asyncio.to_thread(index_investigations, views)
+        return InvestigationsResponse(
+            family_views=[_family_view_dto(view) for view in views],
+            links=[InvestigationLinkDto(
+                link_id=item.link_id,
+                left_family_view_id=item.left_family_view_id,
+                right_family_view_id=item.right_family_view_id,
+                relation_types=list(item.relation_types),
+                shared_source_observation_ids=list(item.shared_source_observation_ids),
+                source_result_ids=list(item.source_result_ids),
+                claim_guard=list(item.claim_guard),
+            ) for item in links],
+        )
 
     if alerts_enabled:
         @application.get(

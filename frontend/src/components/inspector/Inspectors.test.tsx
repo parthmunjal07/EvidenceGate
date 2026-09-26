@@ -112,7 +112,7 @@ describe("evidence table and inspector components", () => {
     expect(screen.getByText("Mechanism ID")).toBeInTheDocument();
   });
   it("renders results as scientific records and keeps non-DGA probability undefined", () => {
-    render(
+    const { container } = render(
       <>
         <ResultTable results={[result]} selectedId={null} onSelect={vi.fn()} />
         <ResultInspector result={result} onClose={vi.fn()} />
@@ -121,6 +121,8 @@ describe("evidence table and inspector components", () => {
     expect(screen.getAllByText("DNS evidence")).toHaveLength(2);
     expect(screen.getAllByText("DNS name structure")).toHaveLength(2);
     expect(screen.getByText("Observed evidence; no attack probability is implied.")).toBeInTheDocument();
+    expect(container.querySelector(".technical-details")).toBeNull();
+    expect(container.textContent).not.toContain("Mechanism ID");
   });
   it("closes an open inspector with Escape", () => {
     const close = vi.fn();

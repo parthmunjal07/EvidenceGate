@@ -55,6 +55,40 @@ export type ResultsResponse = {
   next_cursor: string | null;
   sync_cursor: string | null;
 };
+export type FamilyFindingDto = {
+  source_result_id: string;
+  title: string;
+  statements: string[];
+  result_type: string;
+};
+export type FamilyEvidenceViewDto = {
+  family_view_id: string;
+  family: string;
+  time_start: string;
+  time_end: string;
+  entity_references: string[];
+  source_result_ids: string[];
+  source_observation_ids: string[];
+  findings: FamilyFindingDto[];
+  limitations: string[];
+  missing_evidence: string[];
+  visibility_summary: string[];
+  quality_summary: string[];
+};
+export type FamilyEvidenceResponse = { family_views: FamilyEvidenceViewDto[] };
+export type InvestigationLinkDto = {
+  link_id: string;
+  left_family_view_id: string;
+  right_family_view_id: string;
+  relation_types: string[];
+  shared_source_observation_ids: string[];
+  source_result_ids: string[];
+  claim_guard: string[];
+};
+export type InvestigationsResponse = {
+  family_views: FamilyEvidenceViewDto[];
+  links: InvestigationLinkDto[];
+};
 export type ConfidenceBasis =
   "MODEL_SCORE" | "STATISTICAL_SUPPORT" | "OBSERVED_EVIDENCE";
 export type SihAlertProjection = {

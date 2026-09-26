@@ -205,10 +205,32 @@ class DgaM1ArtifactVerifier:
         return DgaM1Verification(True, DgaM1Readiness.VERIFIED_READY, loaded=loaded)
 
 
+def resolve_dga_model_path(
+    model_path: str | None, *, environment_path: str | None = None,
+    canonical_path: Path | None = None,
+) -> str | None:
+    """Resolve the configured model location without bypassing verification."""
+    if model_path is not None:
+        return model_path
+    if environment_path:
+        return environment_path
+    if canonical_path is not None and canonical_path.is_file():
+        return str(canonical_path)
+    return None
+
+
 class DgaM1ModelService:
     def __init__(self, model_path: str | None = None, verifier: DgaM1ArtifactVerifier | None = None) -> None:
+        canonical_path = (
+            Path(__file__).resolve().parents[3] / "artifacts" / "dga" / "local"
+            / "DGA_M1_R1_SERIALIZED_MODEL.joblib"
+        )
+        resolved_path = resolve_dga_model_path(
+            model_path, environment_path=os.getenv("EVIDENCEGATE_DGA_MODEL"),
+            canonical_path=canonical_path,
+        )
         self.verification = (verifier or DgaM1ArtifactVerifier()).verify_and_load(
-            model_path or os.getenv("EVIDENCEGATE_DGA_MODEL")
+            resolved_path
         )
 
     @property

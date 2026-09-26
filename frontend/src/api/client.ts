@@ -1,5 +1,6 @@
 import type {
   AlertsResponse,
+  FamilyEvidenceResponse,
   HealthResponse,
   ReplayRequest,
   ReplayStatusResponse,
@@ -7,6 +8,7 @@ import type {
   ResultsResponse,
   RuntimeStatusResponse,
   RuntimeTraceResponse,
+  InvestigationsResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -57,6 +59,10 @@ export const api = {
     request<RuntimeStatusResponse>("/runtime", { signal: signal ?? null }),
   alerts: (signal?: AbortSignal) =>
     request<AlertsResponse>("/alerts", { signal: signal ?? null }),
+  familyEvidence: (signal?: AbortSignal) =>
+    request<FamilyEvidenceResponse>("/family-evidence", { signal: signal ?? null }),
+  investigations: (signal?: AbortSignal) =>
+    request<InvestigationsResponse>("/investigations", { signal: signal ?? null }),
   results: (
     query: { cursor?: string; limit?: number } = {},
     signal?: AbortSignal,

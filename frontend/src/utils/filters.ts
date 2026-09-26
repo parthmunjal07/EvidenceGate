@@ -40,9 +40,6 @@ export function filterResults(results: ResultDto[], filters: ResultFilters) {
       (!term ||
         [
           result.entity_reference,
-          result.lane_id,
-          result.mechanism_id,
-          result.result_id,
           result.family,
           summarizeEvidence(result.evidence),
         ]

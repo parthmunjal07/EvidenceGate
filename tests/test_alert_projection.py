@@ -184,16 +184,30 @@ async def test_active_endpoint_is_default_and_refresh_is_deterministic(tmp_path)
             result_class=AnalyticUnavailable,
             result_type=ResultType.ANALYTIC_UNAVAILABLE,
         )
+        dns = result_for("dns_tunnelling.t1", "DNS-T1", suffix="dns")
+        recon = result_for("recon.h", "RECON-H", suffix="recon")
         await service.persist_and_publish(dga)
         await service.persist_and_publish(status)
+        await service.persist_and_publish(dns)
+        await service.persist_and_publish(recon)
         first = (await client.get("/alerts")).json()
         second = (await client.get("/alerts")).json()
         assert first == second
         assert first["policy_status"] == "ACTIVE"
         assert first["policy_version"] == "SIH_ALERT_POLICY_V1"
         assert first["meaning_of_alert"] == "ANALYST_ATTENTION_RECORD"
-        assert len(first["alerts"]) == len(first["status_items"]) == 1
-        assert first["alerts"][0]["source_result_ids"] == [dga.result_id]
+        assert len(first["alerts"]) == 3
+        assert len(first["status_items"]) == 1
+        assert [item for item in first["alerts"] if item["source_result_ids"] == [dga.result_id]]
+        family_response = (await client.get("/family-evidence")).json()
+        dga_dns = next(view for view in family_response["family_views"] if view["family"] == "DGA + DNS")
+        assert set(dga_dns["source_result_ids"]) == {dga.result_id, dns.result_id, status.result_id}
+        assert len(dga_dns["findings"]) == 3
+        investigation = (await client.get("/investigations")).json()
+        assert len(investigation["links"]) == 1
+        assert investigation["links"][0]["relation_types"] == ["SHARED_SOURCE_OBSERVATION"]
+        before = (await client.get(f"/results/{dga.result_id}")).json()
+        assert before["result_id"] == dga.result_id
         result_body = (await client.get(f"/results/{dga.result_id}")).json()
         assert result_body["result_id"] == dga.result_id
         runtime = (await client.get("/runtime")).json()
@@ -210,3 +224,5 @@ def test_alert_endpoint_is_present_by_default_and_explicitly_disableable():
     assert "/alerts" in app.openapi()["paths"]
     disabled = create_app(":memory:", alerts_enabled=False)
     assert "/alerts" not in disabled.openapi()["paths"]
+    assert "/family-evidence" in app.openapi()["paths"]
+    assert "/investigations" in app.openapi()["paths"]

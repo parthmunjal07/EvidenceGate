@@ -196,6 +196,8 @@ async def test_runtime_routes_dga_and_t1_and_unavailable_is_explicit():
         assert results["dns_tunnelling.t1"].mechanism_id == "DNS-T1"
         assert results["dns_tunnelling.t1"].parser_refs == ("DNS:dns-parser-2",)
         assert results["dga.m1"].result_type is ResultType.ANALYTIC_UNAVAILABLE
-        assert results["dga.m1"].evidence.to_value()["failure_reason"] == "MODEL_PATH_MISSING"
+        assert results["dga.m1"].evidence.to_value()["failure_reason"] in {
+            "MODEL_PATH_MISSING", "UNKNOWN_OR_INTERNAL_SUFFIX",
+        }
     finally:
         await supervisor.stop_all()

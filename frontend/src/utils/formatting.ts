@@ -133,6 +133,7 @@ export function friendlyCategory(value: string) {
     DNS_TUNNELING: "DNS evidence", DNS_TUNNELLING: "DNS evidence",
     ENCRYPTED_SESSION: "Encrypted-session evidence", MALWARE_IN_ENCRYPTED_SESSION: "Encrypted-session evidence", RECONNAISSANCE: "Reconnaissance evidence",
     DATA_EXFILTRATION: "Data transfer", UNUSUAL_TRANSFER: "Data transfer",
+    "DGA + DNS": "DGA + DNS", DATA_TRANSFER: "Data Transfer",
   };
   return labels[value.toUpperCase().replaceAll(" ", "_")] ?? threatClassLabel(value);
 }
