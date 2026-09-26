@@ -62,6 +62,18 @@ def test_trace_buffer_is_bounded_and_keeps_monotonic_cursor():
     assert buffer.latest_sequence == 5
 
 
+def test_default_trace_buffer_retains_complete_pcaps_well_over_one_page():
+    buffer = RuntimeTraceBuffer()
+    for index in range(700):
+        buffer.emit("OBSERVATION_CREATED", observation_id=f"packet-{index}")
+
+    events = buffer.snapshot(after=0, limit=1000)
+
+    assert len(events) == 700
+    assert events[0].sequence == 1
+    assert events[-1].sequence == 700
+
+
 @pytest.mark.asyncio
 async def test_trace_api_exposes_bounded_typed_events(tmp_path):
     app = create_app(tmp_path / "trace-api.sqlite")

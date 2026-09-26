@@ -26,7 +26,7 @@ class RuntimeTraceEvent:
 class RuntimeTraceBuffer:
     """Thread-safe ring buffer. Appending is synchronous, bounded, and best effort."""
 
-    def __init__(self, capacity: int = 500):
+    def __init__(self, capacity: int = 5000):
         if capacity < 1:
             raise ValueError("capacity must be positive")
         self._events: deque[RuntimeTraceEvent] = deque(maxlen=capacity)

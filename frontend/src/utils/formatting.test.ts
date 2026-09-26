@@ -122,6 +122,25 @@ describe("scientific display helpers", () => {
     claimValues.forEach((value) => expect(claimSemantics(value).hasUnknown, value).toBe(false));
     expect(claimSemantics("UNKNOWN_TOKEN").hasUnknown).toBe(true);
   });
+  it("surfaces factual TLS handshake fields and DGA representation version in Results", () => {
+    expect(humanEvidenceRows({
+      protocol: "TLS",
+      parsed_handshake_metadata: {
+        message_type: "ClientHello",
+        sni: "example.test",
+        alpn: ["h2"],
+      },
+    })).toEqual([
+      ["Protocol", "tls"],
+      ["Handshake message", "ClientHello"],
+      ["Server name", "example.test"],
+      ["Application protocols", "h2"],
+    ]);
+    expect(humanEvidenceRows({
+      dga_labelled_lexical_resemblance_score: 0.985,
+      representation: { m1_representation_version: "DGA_M1_REPRESENTATION_v1" },
+    })).toContainEqual(["Representation", "DGA_M1_REPRESENTATION_v1"]);
+  });
   it("keeps quality independent and searchable by filters", () => {
     expect(formatQuality(alert.quality)).toBe("Clear");
     expect(

@@ -47,16 +47,17 @@ describe("analyst-first console", () => {
     expect(screen.queryByRole("button", { name: "System status" })).not.toBeInTheDocument();
     expect(screen.queryByText("SIH_ALERT_POLICY_V1")).not.toBeInTheDocument();
     expect(screen.queryByText("Evidence flow")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/[ÃÂâ�]/);
   });
   it("shows concise runtime state and separates approved benchmark claims from artifact measurements", async () => {
     mockBackend(); render(<App />);
     expect(await screen.findByText("Streaming and evidence state")).toBeInTheDocument();
     expect(screen.getByText("Threat-family coverage")).toBeInTheDocument();
     expect(screen.getByText("DGA + DNS")).toBeInTheDocument();
-    expect(screen.getByText("APPROVED DEMO CLAIM")).toBeInTheDocument();
+    expect(screen.getByText("CONTROLLED BENCHMARK")).toBeInTheDocument();
     expect(screen.getByText(/Processing p50 \/ p95 \/ p99: 186\.3378/)).toBeInTheDocument();
     expect(screen.getByText(/not production capacity or an SLA/i)).toBeInTheDocument();
-    expect(screen.getByText("Not instrumented live")).toBeInTheDocument();
+    expect(screen.getByText("Not currently instrumented")).toBeInTheDocument();
     expect(screen.queryByText("Not exposed")).not.toBeInTheDocument();
   });
   it("shows runtime status without a global capability issue badge and exposes diagnostics on demand", async () => {

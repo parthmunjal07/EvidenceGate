@@ -104,12 +104,24 @@ describe("evidence table and inspector components", () => {
     expect(
       screen.getByText(/Not calibrated attack probability/i),
     ).toBeInTheDocument();
-    expect(screen.getByText("What this evidence supports")).toBeInTheDocument();
+    expect(screen.getByText("Supported by this evidence")).toBeInTheDocument();
     expect(screen.getByText(alert.claim_ceiling).closest("details")).not.toHaveAttribute("open");
     expect(screen.getByText("SIH_ALERT_POLICY_V1").closest("details")).not.toHaveAttribute("open");
     fireEvent.click(screen.getByText("Technical details"));
     expect(screen.getByText(alert.claim_ceiling)).toBeInTheDocument();
     expect(screen.getByText("Mechanism ID")).toBeInTheDocument();
+  });
+  it("resets evidence modal scroll when the selected Result changes", () => {
+    const { rerender } = render(<ResultInspector result={result} onClose={vi.fn()} />);
+    const firstModal = screen.getByRole("dialog", { name: "Evidence record" });
+    firstModal.scrollTop = 420;
+    const next = { ...result, result_id: "result-2", lane_id: "dns_tunnelling.t2" };
+
+    rerender(<ResultInspector result={next} onClose={vi.fn()} />);
+
+    const nextModal = screen.getByRole("dialog", { name: "Evidence record" });
+    expect(nextModal).not.toBe(firstModal);
+    expect(nextModal.scrollTop).toBe(0);
   });
   it("renders results as scientific records and keeps non-DGA probability undefined", () => {
     const { container } = render(
@@ -119,8 +131,8 @@ describe("evidence table and inspector components", () => {
       </>,
     );
     expect(screen.getAllByText("DNS evidence")).toHaveLength(1);
-    expect(screen.getAllByText("DNS name structure")).toHaveLength(2);
-    expect(screen.getByText("Observed evidence; no attack probability is implied.")).toBeInTheDocument();
+    expect(screen.getAllByText("DNS name structure")).toHaveLength(3);
+    expect(screen.getAllByText("Observed evidence; no attack probability is implied.")).toHaveLength(2);
     expect(container.querySelector(".inspector-modal")).toBeInTheDocument();
     expect(container.querySelector("[aria-modal='true']")).toBeInTheDocument();
     expect(container.querySelector(".technical-details")).toBeNull();

@@ -3,6 +3,7 @@ export type NavigationContext = {
   sourceResultIds?: string[];
   familyViewId?: string;
   linkId?: string;
+  family?: string;
 };
 
 export function contextFromHash(): NavigationContext {
@@ -13,5 +14,6 @@ export function contextFromHash(): NavigationContext {
     sourceResultIds: params.getAll("source_result_id"),
     ...(params.has("family_view_id") ? { familyViewId: params.get("family_view_id")! } : {}),
     ...(params.has("link_id") ? { linkId: params.get("link_id")! } : {}),
+    ...(params.has("family") ? { family: params.get("family")! } : {}),
   };
 }

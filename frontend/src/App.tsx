@@ -38,6 +38,7 @@ function ConsoleApp() {
     for (const id of context.sourceResultIds ?? []) params.append("source_result_id", id);
     if (context.familyViewId) params.set("family_view_id", context.familyViewId);
     if (context.linkId) params.set("link_id", context.linkId);
+    if (context.family) params.set("family", context.family);
     const hash = `#/${next}${params.size ? `?${params.toString()}` : ""}`;
     if (location.hash !== hash) location.hash = hash;
     window.scrollTo({
@@ -68,7 +69,7 @@ function ConsoleApp() {
           {...(navigationContext.familyViewId ? { initialFamilyViewId: navigationContext.familyViewId } : {})}
         />
       )}
-      {page === "investigations" && <InvestigationsPage key={navigationContext.linkId ?? "default-link"} navigate={navigate} {...(navigationContext.linkId ? { initialLinkId: navigationContext.linkId } : {})} />}
+      {page === "investigations" && <InvestigationsPage key={navigationContext.linkId ?? navigationContext.family ?? "default-link"} navigate={navigate} {...(navigationContext.linkId ? { initialLinkId: navigationContext.linkId } : {})} {...(navigationContext.family ? { initialFamily: navigationContext.family } : {})} />}
       {page === "results" && <ResultsPage key={`${navigationContext.resultId ?? ""}:${(navigationContext.sourceResultIds ?? []).join("\u0000")}`} {...(navigationContext.resultId ? { initialResultId: navigationContext.resultId } : {})} sourceResultIds={navigationContext.sourceResultIds ?? []} />}
       {page === "replay" && <ReplayPage navigate={navigate} />}
     </AppShell>

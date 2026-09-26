@@ -58,7 +58,7 @@ export function EvidenceProvider({ children }: { children: ReactNode }) {
             animate: true,
           });
           syncCursor = page.sync_cursor ?? syncCursor;
-          if (page.results.length < 500 || !page.next_cursor) break;
+          if (!page.next_cursor) break;
           cursor = page.next_cursor;
         }
       }

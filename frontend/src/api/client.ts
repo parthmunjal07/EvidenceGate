@@ -81,7 +81,7 @@ export const api = {
     for (;;) {
       const page = await api.results({ limit: 500, ...(cursor ? { cursor } : {}) }, signal);
       results.push(...page.results);
-      if (!page.next_cursor || page.results.length < 500) break;
+      if (!page.next_cursor) break;
       cursor = page.next_cursor;
     }
     return results;
@@ -100,5 +100,5 @@ export const api = {
   replayStatus: (signal?: AbortSignal) =>
     request<ReplayStatusResponse>("/replay/status", { signal: signal ?? null }),
   runtimeTrace: (after = 0, signal?: AbortSignal) =>
-    request<RuntimeTraceResponse>(`/runtime/trace?after=${after}&limit=100`, { signal: signal ?? null }),
+    request<RuntimeTraceResponse>(`/runtime/trace?after=${after}&limit=500`, { signal: signal ?? null }),
 };

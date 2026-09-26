@@ -168,7 +168,7 @@ export function summarizeEvidence(evidence: Record<string, unknown>) {
   const rows = Object.entries(evidence).map(([key, value]) => formatEvidenceValue(key, value)).filter((v): v is string => Boolean(v));
   return rows.slice(0, 3).join(" · ") || "Evidence details available";
 }
-const primaryEvidenceKeys = new Set(["bytes_c2s_per_second", "bytes_s2c_per_second", "unique_targets", "unique_sources", "unique_ports", "recurrence_count", "recurrence_observations", "dga_labelled_lexical_resemblance_score", "packets_per_second", "syn_attempts", "icmp_packets", "apparent_source_cardinality_lower_bound", "packet_count", "byte_count", "observed_initiating_syn_count", "observed_icmp_packet_count", "observed_udp_packet_count", "observed_fragment_count", "direction_scope", "documented_end_state", "duration_seconds", "domain", "domain_count"]);
+const primaryEvidenceKeys = new Set(["bytes_c2s_per_second", "bytes_s2c_per_second", "unique_targets", "unique_sources", "unique_ports", "recurrence_count", "recurrence_observations", "dga_labelled_lexical_resemblance_score", "packets_per_second", "syn_attempts", "icmp_packets", "apparent_source_cardinality_lower_bound", "packet_count", "byte_count", "observed_initiating_syn_count", "observed_icmp_packet_count", "observed_udp_packet_count", "observed_fragment_count", "direction_scope", "documented_end_state", "duration_seconds", "domain", "domain_count", "protocol"]);
 export function whySurfaced(mechanismId: string, evidence: Record<string, unknown>) {
   const id = mechanismId.toLowerCase();
   if (id.includes("reflection_victim") || id.includes("ddos-cv") || evidence.evidence_kind === "RESPONSE_SHAPED_TRAFFIC") return "Response-shaped traffic was observed for this peer.";
@@ -194,8 +194,16 @@ export function whySurfaced(mechanismId: string, evidence: Record<string, unknow
   return `${mechanismLabel(mechanismId)} evidence was recorded for review.`;
 }
 
-export function humanEvidenceRows(evidence: Record<string, unknown>) {
-  const rows = Object.entries(evidence)
+const handshakeFieldNames: Record<string, string> = {
+  message_type: "Handshake message",
+  sni: "Server name",
+  ja4: "ClientHello fingerprint",
+  alpn: "Application protocols",
+  version: "TLS version",
+  cipher_suite: "Cipher suite",
+};
+export function humanEvidenceRows(evidence: Record<string, unknown>): Array<[string, string]> {
+  const rows: Array<[string, string]> = Object.entries(evidence)
     .filter(([key]) => primaryEvidenceKeys.has(key))
     .map(([key, value]) => {
       const formatted = formatEvidenceValue(key, value);
@@ -204,7 +212,22 @@ export function humanEvidenceRows(evidence: Record<string, unknown>) {
       return separator < 0 ? ["Observed evidence", formatted] as [string, string] : [formatted.slice(0, separator), formatted.slice(separator + 2)] as [string, string];
     })
     .filter((row): row is [string, string] => row !== null);
-  return rows.length || !Object.keys(evidence).length ? rows : [["Additional evidence", `${Object.keys(evidence).length} structured fields available`] as [string, string]];
+  const handshake = evidence.parsed_handshake_metadata;
+  if (typeof handshake === "object" && handshake !== null && !Array.isArray(handshake)) {
+    for (const [key, label] of Object.entries(handshakeFieldNames)) {
+      const value = (handshake as Record<string, unknown>)[key];
+      if (typeof value === "string" || typeof value === "number") rows.push([label, String(value)]);
+      else if (Array.isArray(value) && value.every((item) => typeof item === "string")) rows.push([label, value.join(", ")]);
+    }
+  }
+  const representation = evidence.representation;
+  if (typeof representation === "object" && representation !== null && !Array.isArray(representation)) {
+    const version = (representation as Record<string, unknown>).m1_representation_version;
+    if (typeof version === "string") rows.push(["Representation", version]);
+  }
+  if (evidence.tcp_reassembly_state === "COMPLETE_PREFIX") rows.push(["TCP reassembly", "Complete prefix observed"]);
+  if (Array.isArray(evidence.gaps)) rows.push(["Reported capture gaps", evidence.gaps.length ? String(evidence.gaps.length) : "None"]);
+  return rows.length || !Object.keys(evidence).length ? rows : [["Additional evidence", `${Object.keys(evidence).length} structured fields available`]];
 }
 
 const claimMeanings: Record<string, string> = {
