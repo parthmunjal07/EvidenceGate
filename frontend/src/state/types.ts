@@ -5,7 +5,7 @@ import type {
   RuntimeStatusResponse,
 } from "../api/types";
 
-export type PageKey = "overview" | "alerts" | "results" | "system" | "replay";
+export type PageKey = "overview" | "alerts" | "investigations" | "results" | "replay";
 export type EvidenceState = {
   runtime: RuntimeStatusResponse | null;
   results: Map<string, ResultDto>;

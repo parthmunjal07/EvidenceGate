@@ -43,9 +43,19 @@ describe("analyst-first console", () => {
     expect(screen.getByRole("button", { name: /Analyst queue/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Evidence" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Traffic lab" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Investigations" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "System status" })).not.toBeInTheDocument();
     expect(screen.queryByText("SIH_ALERT_POLICY_V1")).not.toBeInTheDocument();
     expect(screen.queryByText("Evidence flow")).not.toBeInTheDocument();
+  });
+  it("shows runtime architecture and a separate measured benchmark on Overview", async () => {
+    mockBackend(); render(<App />);
+    expect(await screen.findByText("Streaming and evidence state")).toBeInTheDocument();
+    expect(screen.getByText("Threat-family coverage")).toBeInTheDocument();
+    expect(screen.getByText("DGA + DNS")).toBeInTheDocument();
+    expect(screen.getByText("Processing latency median across runs")).toBeInTheDocument();
+    expect(screen.getByText(/not production capacity or an SLA/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Not exposed").length).toBeGreaterThan(0);
   });
   it("shows runtime status without a global capability issue badge and exposes diagnostics on demand", async () => {
     mockBackend(); render(<App />);
@@ -71,6 +81,13 @@ describe("analyst-first console", () => {
     expect(screen.getByText("This evidence does not confirm an attack.")).toBeInTheDocument();
     expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
     expect(screen.queryByText("result-1")).not.toBeInTheDocument();
+  });
+  it("opens the dedicated factual investigation experience", async () => {
+    const fetchMock = mockBackend(); render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Investigations" }));
+    expect(await screen.findByText(/Cross-family links show exact shared passive source observations/)).toBeInTheDocument();
+    expect(screen.getByText(/FAMILY COMPOSITION ≠ INVESTIGATION LINK/)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/investigations"))).toBe(true);
   });
   it("keeps Traffic lab factual and moves the trace into an on-demand modal", async () => {
     const fetchMock = mockBackend(); render(<App />);

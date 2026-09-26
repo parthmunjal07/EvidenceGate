@@ -6,9 +6,10 @@ import { Header, Inspector } from "./InspectorShell";
 
 export function ResultInspector({ result, onClose }: { result: ResultDto | null; onClose: () => void }) {
   const evidenceRows = result ? humanEvidenceRows(result.evidence) : [];
-  return <Inspector label="Evidence record" selected={Boolean(result)} onClose={onClose} placeholder="Select an evidence record" description="Inspect the observed facts, evidence conditions, and supporting details.">
+  if (!result) return null;
+  return <Inspector variant="modal" label="Evidence record" selected onClose={onClose} placeholder="Select an evidence record" description="Inspect the observed facts, evidence conditions, and supporting details.">
     {result && <>
-      <Header kicker={friendlyCategory(result.family)} title={mechanismLabel(result.mechanism_id || result.lane_id)} subtitle={summarizeReference(result.entity_reference, result.mechanism_id)} onClose={onClose} />
+      <Header kicker={`${friendlyCategory(result.family)} · ${result.result_type.replaceAll("_", " ").toLowerCase()}`} title={mechanismLabel(result.mechanism_id || result.lane_id)} subtitle={`${summarizeReference(result.entity_reference, result.mechanism_id)} · ${formatTimestamp(result.created_time)}`} onClose={onClose} />
       <InspectorSection title="Why this was surfaced"><p className="inspect-summary prominent-summary">{whySurfaced(result.mechanism_id || result.lane_id, result.evidence)}</p></InspectorSection>
       <InspectorSection title="What was observed"><KeyValueList rows={[["Result", result.result_type.replaceAll("_", " ").toLowerCase()], ["Recorded", formatTimestamp(result.created_time)], ["Entity / peer", summarizeReference(result.entity_reference, result.mechanism_id)], ...evidenceRows]} /></InspectorSection>
       <InspectorSection title="Evidence basis"><p className="inspect-summary">{result.lane_id === "dga.m1" ? dgaScoreNote(typeof result.evidence.dga_labelled_lexical_resemblance_score === "number" ? result.evidence.dga_labelled_lexical_resemblance_score : null) : "Observed evidence; no attack probability is implied."}</p></InspectorSection>

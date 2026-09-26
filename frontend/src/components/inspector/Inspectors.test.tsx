@@ -118,9 +118,11 @@ describe("evidence table and inspector components", () => {
         <ResultInspector result={result} onClose={vi.fn()} />
       </>,
     );
-    expect(screen.getAllByText("DNS evidence")).toHaveLength(2);
+    expect(screen.getAllByText("DNS evidence")).toHaveLength(1);
     expect(screen.getAllByText("DNS name structure")).toHaveLength(2);
     expect(screen.getByText("Observed evidence; no attack probability is implied.")).toBeInTheDocument();
+    expect(container.querySelector(".inspector-modal")).toBeInTheDocument();
+    expect(container.querySelector("[aria-modal='true']")).toBeInTheDocument();
     expect(container.querySelector(".technical-details")).toBeNull();
     expect(container.textContent).not.toContain("Mechanism ID");
   });

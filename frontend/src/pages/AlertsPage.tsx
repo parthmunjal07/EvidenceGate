@@ -5,7 +5,7 @@ import { EmptyState, PageHeading } from "../components/common/Primitives";
 import { useEvidence } from "../state/EvidenceContext";
 import { formatTimestamp, formatShortTime, summarizeReference } from "../utils/formatting";
 
-export function AlertsPage({ initialAlert, clearInitial, openResult }: { initialAlert: SihAlertProjection | null; clearInitial: () => void; openResult: (id: string) => void }) {
+export function AlertsPage({ initialAlert, clearInitial, openResult, navigate }: { initialAlert: SihAlertProjection | null; clearInitial: () => void; openResult: (id: string) => void; navigate: (page: "investigations") => void }) {
   const { state } = useEvidence();
   const [views, setViews] = useState<FamilyEvidenceViewDto[]>([]);
   const [links, setLinks] = useState<InvestigationLinkDto[]>([]);
@@ -44,7 +44,7 @@ export function AlertsPage({ initialAlert, clearInitial, openResult }: { initial
       <span className="result-total" role="status" aria-live="polite">{filtered.length} {filtered.length === 1 ? "evidence item" : "evidence items"}</span>
     </div>
     {loadError && <div className="stream-notice" role="status">Family evidence could not be loaded: {loadError}</div>}
-    <div className="investigation-layout">
+    <div className="investigation-layout analyst-layout">
       <section className="panel table-panel">
         {filtered.length ? <div className="table-wrap"><table className="data-table analyst-table"><thead><tr>{["Time", "Category", "Entity", "Evidence"].map((name) => <th key={name}>{name}</th>)}</tr></thead><tbody>{filtered.map((view) => <tr key={view.family_view_id} className={`selectable-row${selected?.family_view_id === view.family_view_id ? " selected" : ""}`} tabIndex={0} onClick={() => { setSelectedId(view.family_view_id); clearInitial(); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(view.family_view_id); clearInitial(); } }}>
           <td><time>{formatShortTime(view.time_start)}</time></td><td>{view.family} evidence</td><td>{view.entity_references.map((value) => summarizeReference(value)).join(", ") || "Entity unavailable"}</td><td>{view.findings.length} independent {view.findings.length === 1 ? "finding" : "findings"}{(view.limitations.length + view.missing_evidence.length) ? ` · ${new Set([...view.limitations, ...view.missing_evidence]).size} limitation${new Set([...view.limitations, ...view.missing_evidence]).size === 1 ? "" : "s"}` : ""}</td>
@@ -58,7 +58,7 @@ export function AlertsPage({ initialAlert, clearInitial, openResult }: { initial
           {selected.missing_evidence.length > 0 && <section className="inspect-section"><div className="inspect-section-head"><h3>Missing evidence</h3></div><ul>{selected.missing_evidence.map((item) => <li key={item}>{item}</li>)}</ul></section>}
           <section className="inspect-section"><div className="inspect-section-head"><h3>What this evidence supports</h3></div><p>The individual network behaviours listed above were observed.</p></section>
           {selected.limitations.length > 0 && <section className="inspect-section"><div className="inspect-section-head"><h3>What it does not establish</h3></div><ul>{selected.limitations.map((item) => <li key={item}>{item}</li>)}</ul></section>}
-          <section className="inspect-section related-evidence"><div className="inspect-section-head"><h3>Related evidence</h3></div>{related.length ? related.map((link) => { const otherId = link.left_family_view_id === selected.family_view_id ? link.right_family_view_id : link.left_family_view_id; const other = viewsById.get(otherId); return other ? <article key={link.link_id}><strong>{other.family} evidence</strong><p>{other.findings.length} independent {other.findings.length === 1 ? "finding" : "findings"}</p><p>Shared passive observation</p><small>These family evidence views share a source observation. This is a factual investigation link; it does not establish causality, a common attacker, an attack chain, or maliciousness.</small></article> : null; }) : <p>No cross-family shared observation is currently indexed.</p>}</section>
+          <section className="inspect-section related-evidence"><div className="inspect-section-head"><h3>Related investigations</h3><button className="text-button" onClick={() => navigate("investigations")}>Open Investigations →</button></div>{related.length ? related.map((link) => { const otherId = link.left_family_view_id === selected.family_view_id ? link.right_family_view_id : link.left_family_view_id; const other = viewsById.get(otherId); return other ? <article key={link.link_id}><strong>{other.family} evidence</strong><p>Shared passive observation · {link.shared_source_observation_ids.length} source {link.shared_source_observation_ids.length === 1 ? "observation" : "observations"}</p><small>For joint investigation only.</small></article> : null; }) : <p>No cross-family shared observation is currently indexed.</p>}</section>
         </div> : <EmptyState>Select a family evidence item to review.</EmptyState>}
       </section>
     </div>

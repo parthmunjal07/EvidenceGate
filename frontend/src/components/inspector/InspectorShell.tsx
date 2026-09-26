@@ -7,6 +7,7 @@ export function Inspector({
   description,
   onClose,
   children,
+  variant = "panel",
 }: {
   label: string;
   selected: boolean;
@@ -14,6 +15,7 @@ export function Inspector({
   description: string;
   onClose: () => void;
   children: ReactNode;
+  variant?: "panel" | "modal";
 }) {
   const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef(onClose);
@@ -34,12 +36,13 @@ export function Inspector({
 
   useEffect(() => {
     if (!selected) return;
+    const isDialog = modal || variant === "modal";
     const previousFocus = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
     panel?.querySelector<HTMLElement>(".inspector-close")?.focus();
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") closeRef.current();
-      if (!modal || event.key !== "Tab" || !panel) return;
+      if (!isDialog || event.key !== "Tab" || !panel) return;
       const focusable = Array.from(
         panel.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -61,29 +64,29 @@ export function Inspector({
       window.removeEventListener("keydown", onKeyDown);
       previousFocus?.focus();
     };
-  }, [selected, modal]);
+  }, [selected, modal, variant]);
 
   useEffect(() => {
-    document.body.classList.toggle("inspector-open", selected && modal);
+    document.body.classList.toggle("inspector-open", selected && (modal || variant === "modal"));
     return () => document.body.classList.remove("inspector-open");
-  }, [selected, modal]);
+  }, [selected, modal, variant]);
 
   return (
     <>
-      {selected && modal && (
+      {selected && (modal || variant === "modal") && (
         <button
           type="button"
-          className="inspector-backdrop"
+          className={`inspector-backdrop${variant === "modal" ? " inspector-modal-backdrop" : ""}`}
           aria-label="Close evidence inspector"
           onClick={onClose}
         />
       )}
       <aside
         ref={panelRef}
-        className={`inspector${selected ? " has-selection is-open" : ""}`}
+        className={`inspector${selected ? " has-selection is-open" : ""}${variant === "modal" ? " inspector-modal" : ""}`}
         aria-label={label}
-        aria-modal={selected && modal ? true : undefined}
-        role={selected && modal ? "dialog" : undefined}
+        aria-modal={selected && (modal || variant === "modal") ? true : undefined}
+        role={selected && (modal || variant === "modal") ? "dialog" : undefined}
       >
         {selected ? (
           children

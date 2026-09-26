@@ -7,11 +7,12 @@ import { OverviewPage } from "./pages/OverviewPage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { ResultsPage } from "./pages/ResultsPage";
 import { ReplayPage } from "./pages/ReplayPage";
-import type { SihAlertProjection } from "./api/types";
+import { InvestigationsPage } from "./pages/InvestigationsPage";
 
 const pageKeys: PageKey[] = [
   "overview",
   "alerts",
+  "investigations",
   "results",
   "replay",
 ];
@@ -21,9 +22,6 @@ function routeFromHash(): PageKey {
 }
 function ConsoleApp() {
   const [page, setPage] = useState<PageKey>(routeFromHash);
-  const [initialAlert, setInitialAlert] = useState<SihAlertProjection | null>(
-    null,
-  );
   const [sourceResultId, setSourceResultId] = useState<string | null>(null);
   const { selectSourceResult } = useEvidence();
   useEffect(() => {
@@ -51,20 +49,17 @@ function ConsoleApp() {
   return (
     <AppShell page={page} onNavigate={navigate}>
       {page === "overview" && (
-        <OverviewPage
-          navigate={navigate}
-          onAlert={(alert) => {
-            setInitialAlert(alert);
-          }}
-        />
+        <OverviewPage navigate={navigate} />
       )}
       {page === "alerts" && (
         <AlertsPage
-          initialAlert={initialAlert}
-          clearInitial={() => setInitialAlert(null)}
+          initialAlert={null}
+          clearInitial={() => undefined}
           openResult={(id) => void openResult(id)}
+          navigate={navigate}
         />
       )}
+      {page === "investigations" && <InvestigationsPage navigate={navigate} />}
       {page === "results" && <ResultsPage initialResultId={sourceResultId} />}
       {page === "replay" && <ReplayPage navigate={navigate} />}
     </AppShell>

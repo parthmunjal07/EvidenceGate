@@ -34,7 +34,7 @@ export function ResultsPage({
       <PageHeading
         titleId="results-title"
         title="Evidence"
-        deck="Search and inspect the recorded observations and analytic results."
+        deck="Search independent mechanism Results. Select a row to open its evidence details."
       />
       <div className="results-callout">
         <span>
@@ -91,7 +91,7 @@ export function ResultsPage({
           Live stream reconnecting; durable REST results remain available.
         </div>
       )}
-      <div className="investigation-layout results-layout">
+      <div className="results-layout">
         <section className="panel table-panel">
           {items.length ? (
             <ResultTable
@@ -111,11 +111,8 @@ export function ResultsPage({
             </button>
           )}
         </section>
-        <ResultInspector
-          result={selected}
-          onClose={() => setSelectedId(null)}
-        />
       </div>
+      <ResultInspector result={selected} onClose={() => setSelectedId(null)} />
     </section>
   );
 }

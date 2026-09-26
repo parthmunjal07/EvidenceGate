@@ -5,9 +5,10 @@ import { useEvidence } from "../../state/EvidenceContext";
 
 const links: Array<[PageKey, string, string]> = [
   ["overview", "◫", "Overview"],
-  ["alerts", "◇", "Analyst queue"],
-  ["results", "⊞", "Evidence"],
   ["replay", "▷", "Traffic lab"],
+  ["alerts", "◇", "Analyst queue"],
+  ["investigations", "↔", "Investigations"],
+  ["results", "⊞", "Evidence"],
 ];
 export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavigate: (page: PageKey) => void; children: ReactNode }) {
   const { state } = useEvidence();
