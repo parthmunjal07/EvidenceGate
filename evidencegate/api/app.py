@@ -264,10 +264,16 @@ def create_app(
     )
     async def get_investigations(
         limit: int = Query(default=500, ge=1, le=500),
+        source_result_id: list[str] | None = Query(default=None),
     ) -> InvestigationsResponse:
         results = await service.writer.list_results(limit=limit)
+        if source_result_id:
+            selected = set(source_result_id)
+            results = tuple(result for result in results if result.result_id in selected)
         views = await asyncio.to_thread(compose_family_evidence, results)
         links = await asyncio.to_thread(index_investigations, views)
+        view_ids = {item.family_view_id for item in views}
+        links = tuple(item for item in links if item.left_family_view_id in view_ids and item.right_family_view_id in view_ids)
         return InvestigationsResponse(
             family_views=[_family_view_dto(view) for view in views],
             links=[InvestigationLinkDto(
@@ -372,6 +378,7 @@ def create_app(
         replay_value = service.replay_status()
         targets = service.targets()
         return RuntimeStatusResponse(
+            build_sha=os.environ.get("EVIDENCEGATE_BUILD_SHA") or os.environ.get("RAILWAY_GIT_COMMIT_SHA") or "unknown",
             state="REPLAYING" if replay_value.state == "RUNNING" else "ONLINE",
             default_target_count=len(targets),
             active_lane_ids=[item.lane_id for item in targets],

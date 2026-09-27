@@ -465,6 +465,11 @@ body.inspector-open { overflow: hidden; }
 .overview-family-list-section { margin: 18px 0 15px; }
 .overview-family-list-section .overview-section-head { padding-left: 0; }
 .family-evidence-list { border-top: 1px solid #dfe6e8; }
+.observation-produced-result { display: grid; gap: 6px; padding: 7px 0; }
+.inline-result-explanation { grid-column: 1 / -1; margin: 4px 0 8px; padding: 10px 12px; background: #f6f9f9; border-left: 2px solid #6b948c; }
+.inline-result-explanation p { margin: 3px 0 8px; }
+.inline-result-explanation ul { margin: 2px 0 9px; padding-left: 19px; }
+.inline-result-explanation > strong { display: block; margin-top: 5px; color: #324650; font-size: 12px; }
 .family-evidence-head, .family-evidence-row { display: grid; grid-template-columns: minmax(155px,1.1fr) minmax(70px,.45fr) minmax(140px,.9fr) minmax(155px,1fr) minmax(185px,1fr) auto; align-items: center; gap: 13px; padding: 10px 11px; border-bottom: 1px solid #e9eef0; }
 .family-evidence-head { color: #687982; font-size: 11px; font-weight: 650; text-transform: uppercase; }
 .family-evidence-row { min-height: 50px; color: #455b64; font-size: 13px; }

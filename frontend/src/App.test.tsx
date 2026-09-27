@@ -4,10 +4,11 @@ import App from "./App";
 
 const replay = { state: "IDLE", scenario: null, source_type: null, records_read: 0, observations_emitted: 0, results_persisted: 0, elapsed_wall_seconds: 0, started_at: null, finished_at: null, error: null };
 const runtime = {
+  build_sha: "dev",
   state: "ONLINE", default_target_count: 16, active_lane_ids: ["ddos.reflection_victim", "dga.m1"],
   targets: [{ lane_id: "ddos.reflection_victim", mechanism_id: "DDOS-CV-B0", implementation: "ACTIVE_FACTUAL_MECHANISM" }, { lane_id: "dga.m1", mechanism_id: "DGA-A1-M1", implementation: "ACTIVE_LEXICAL_MODEL_LANE" }],
   family_status: [{ family: "ddos", status: "ACTIVE" }], database_status: "connected", durable_result_count: 1, live_subscriber_count: 0, replay,
-  scenarios: [{ id: "mixed_ddos_recon", label: "DDoS and reconnaissance", family: "DDoS", source_type: "NDJSON" }, { id: "raw_pcap_ddos_recon", label: "Recorded DDoS traffic", family: "DDoS", source_type: "PCAP" }, { id: "internal_fixture", label: "Internal fixture", family: "Test", source_type: "NDJSON" }],
+  scenarios: [{ id: "mixed_ddos_recon", label: "DDoS and reconnaissance", family: "DDoS / Reconnaissance", source_type: "NDJSON", asset_version:"mixed_ddos_recon_v2",demo_title:"DDoS + Recon fan-out",demo_purpose:"Controlled packet episode",source_label:"Controlled observations",episode_summary:[],expected_records:12,expected_observations:12,expected_routes:60,expected_results:65,expected_family_views:17,expected_relations:8,expected_zero_route_observations:2,max_trace_events:500 }, { id: "raw_pcap_ddos_recon", label: "Recorded DDoS traffic", family: "DDoS / Reconnaissance", source_type: "PCAP",asset_version:"raw_pcap_ddos_recon_v2",demo_title:"Recorded PCAP",source_label:"Recorded PCAP",episode_summary:[],expected_records:18,expected_observations:18,expected_routes:71,expected_results:58,expected_family_views:15,expected_relations:8,expected_zero_route_observations:5,max_trace_events:500 }, { id: "internal_fixture", label: "Internal fixture", family: "Test", source_type: "NDJSON" }],
   supported_sources: ["TYPED_NDJSON_REPLAY", "PCAP"], dga_model_readiness: "ARTIFACT_MISSING", dga_model_failure_reason: "ARTIFACT_MISSING", alert_projection_available: true, alert_policy_active: true, alert_policy_version: "SIH_ALERT_POLICY_V1",
 };
 const alert = {
@@ -25,11 +26,11 @@ class MockEventSource {
   emit(type: string, data = "{}") { this.listeners.get(type)?.(new MessageEvent(type, { data })); }
   close() {}
 }
-function mockBackend() {
+function mockBackend(runtimeResponse = runtime) {
   vi.stubGlobal("EventSource", MockEventSource);
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), window.location.href);
-    const body = url.pathname === "/health" ? { status: "ok", database: "connected" } : url.pathname === "/runtime" ? runtime : url.pathname === "/alerts" ? alerts : url.pathname === "/family-evidence" ? { family_views: [familyView] } : url.pathname === "/investigations" ? { family_views: [familyView], links: [] } : url.pathname.startsWith("/replay") ? replay : url.pathname === "/results/result-1" ? resultDto : { results: [resultDto], next_cursor: null, sync_cursor: url.searchParams.get("cursor") ?? "seed" };
+    const body = url.pathname === "/health" ? { status: "ok", database: "connected" } : url.pathname === "/runtime" ? runtimeResponse : url.pathname === "/alerts" ? alerts : url.pathname === "/family-evidence" ? { family_views: [familyView] } : url.pathname === "/investigations" ? { family_views: [familyView], links: [] } : url.pathname.startsWith("/replay") ? replay : url.pathname === "/results/result-1" ? resultDto : { results: [resultDto], next_cursor: null, sync_cursor: url.searchParams.get("cursor") ?? "seed" };
     void init;
     return { ok: true, status: 200, json: async () => body } as Response;
   });
@@ -134,5 +135,12 @@ describe("analyst-first console", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Run demo" })[0]!);
     await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input) === "/replay")).toBe(true));
     expect(JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input) === "/replay")?.[1]?.body))).toEqual({ scenario: "mixed_ddos_recon", speed: 0 });
+  });
+  it("blocks Traffic Lab with a clear message when frontend and backend builds differ", async () => {
+    mockBackend({ ...runtime, build_sha: "stale-backend-build" }); render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Traffic Lab" }));
+    expect(await screen.findByRole("heading", { name: "Application update mismatch" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Choose a demo scenario" })).not.toBeInTheDocument();
   });
 });

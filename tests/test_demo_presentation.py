@@ -21,6 +21,10 @@ def test_runtime_default_scenarios_are_only_curated_and_internal_is_opt_in(monke
         "raw_pcap_ddos_recon",
     }
     assert all("tests" not in str(item.bundle).lower() for item in scenarios.values())
+    mixed = scenarios["mixed_ddos_recon"]
+    assert mixed.bundle == Path.cwd() / "evidencegate" / "demo_data" / "mixed_ddos_recon_v2"
+    assert mixed.demo_contract and mixed.demo_contract["asset_version"] == "mixed_ddos_recon_v2"
+    assert mixed.demo_contract["expected_records"] == 12
     monkeypatch.setenv("EVIDENCEGATE_DEV_SCENARIOS", "1")
     internal = default_scenarios(Path.cwd())
     assert "encrypted_session" in internal and "mixed_ddos_recon_internal" in internal

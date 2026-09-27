@@ -213,6 +213,20 @@ export type ScenarioDto = {
   label: string;
   family: string;
   source_type: string;
+  asset_version?: string | null;
+  demo_title?: string | null;
+  demo_purpose?: string | null;
+  expected_records?: number | null;
+  expected_observations?: number | null;
+  expected_routes?: number | null;
+  expected_results?: number | null;
+  expected_family_views?: number | null;
+  expected_relations?: number | null;
+  expected_zero_route_observations?: number | null;
+  max_trace_events?: number | null;
+  needs_dga?: boolean;
+  source_label?: string | null;
+  episode_summary?: string[];
 };
 export type RuntimeTarget = {
   lane_id: string;
@@ -224,6 +238,7 @@ export type RuntimeTarget = {
 };
 export type FamilyStatus = { family: string; status: string };
 export type RuntimeStatusResponse = {
+  build_sha: string;
   state: "ONLINE" | "REPLAYING";
   default_target_count: number;
   active_lane_ids: string[];

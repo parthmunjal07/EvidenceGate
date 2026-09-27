@@ -4,6 +4,7 @@ import { formatEvidenceClockTime, mechanismLabel, pluralize, readable } from "..
 import type { DisplayTimeZone } from "../../utils/formatting";
 import type { NavigationContext } from "../../state/navigation";
 import type { PageKey } from "../../state/types";
+import { projectResultExplanation } from "../../utils/resultExplanation";
 
 type Row = { observation: ObservationPresentationDto; source: RuntimeTraceEvent["source_record"] };
 
@@ -123,6 +124,7 @@ function ObservationDetail({ row, routes, results, close, navigate }: {
   row: Row; routes: RuntimeTraceEvent[]; results: ResultDto[]; close: () => void;
   navigate: (page: PageKey, context?: NavigationContext) => void;
 }) {
+  const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
   const { observation, source } = row;
   return <div className="observation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
     <section className="observation-modal" role="dialog" aria-modal="true" aria-labelledby="observation-detail-title">
@@ -135,7 +137,7 @@ function ObservationDetail({ row, routes, results, close, navigate }: {
         </section>
         <section><h3>Visibility and quality</h3><p>Available: {formatStates(observation.visibility.available)} · Unavailable: {formatStates(observation.visibility.unavailable)} · Degraded: {formatStates(observation.visibility.degraded)}</p><FactList facts={observation.quality} empty="Quality not reported." /></section>
         <section><h3>Analytics routed</h3>{routes.length ? <ul>{routes.map((route) => <li key={route.sequence}>{mechanismLabel(route.mechanism || route.lane_id || "Analytic")}</li>)}</ul> : <p>No eligible analytics. This observation was retained, but no active analytic declared it eligible.</p>}</section>
-        <section><h3>Evidence produced</h3>{results.length ? <ul>{results.map((result) => <li key={result.result_id}><span>{mechanismLabel(result.mechanism_id || result.lane_id)} · {readable(result.result_type)}{result.mechanism_id === "DGA-A1-M1" && typeof result.evidence.dga_labelled_lexical_resemblance_score === "number" ? ` · DGA-labelled lexical resemblance score ${result.evidence.dga_labelled_lexical_resemblance_score}; not a calibrated attack probability` : ""}</span><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Open Result</button></li>)}</ul> : <p>No source-linked Result is available for this observation.</p>}</section>
+        <section><h3>Evidence produced</h3>{results.length ? <ul>{results.map((result) => { const explanation = projectResultExplanation(result, routes, observation); const open = expandedResultId === result.result_id; return <li key={result.result_id} className="observation-produced-result"><span><strong>{mechanismLabel(result.mechanism_id || result.lane_id)}</strong> · {readable(result.result_type)} · {explanation.resultReason}</span><div><button className="text-button" aria-expanded={open} onClick={() => setExpandedResultId(open ? null : result.result_id)}>{open ? "Hide explanation" : "Why this result?"}</button> <button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Open Result</button></div>{open && <div className="inline-result-explanation"><strong>Why this analytic ran</strong><p>{explanation.eligibilityReasons.join(" ")}</p><strong>Observed</strong><ul>{(explanation.observedFacts.length ? explanation.observedFacts : ["No scalar evidence items were reported."]).map(fact => <li key={fact}>{fact}</li>)}</ul><strong>Why the Result was emitted</strong><p>{explanation.resultReason}</p><strong>Supports</strong><ul>{explanation.supports.map(fact=><li key={fact}>{fact}</li>)}</ul><strong>Does not establish</strong><ul>{explanation.limitations.map(fact=><li key={fact}>{fact}</li>)}</ul>{explanation.missingEvidence.length>0 && <><strong>Missing evidence</strong><ul>{explanation.missingEvidence.map(fact=><li key={fact}>{fact}</li>)}</ul></>}<strong>Source lineage</strong><span>{explanation.sourceObservationIds.length} source observation{explanation.sourceObservationIds.length === 1 ? "" : "s"}</span></div>}</li>; })}</ul> : <p>No source-linked Result is available for this observation.</p>}</section>
         <details className="observation-lineage"><summary>Source lineage / audit detail</summary><p>Source record {source?.record_number ?? observation.source_position} · Observation {observation.observation_id}</p></details>
       </div>
     </section>

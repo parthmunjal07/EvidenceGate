@@ -35,6 +35,7 @@ class ReplayScenario:
     bundle: Path
     source_type: str = "NDJSON"
     manifest: Path | None = None
+    demo_contract: Mapping[str, object] | None = None
 
 
 @dataclass(slots=True)
@@ -63,21 +64,20 @@ BASE_FAMILY_STATUS = (
 
 def default_scenarios(root: Path) -> dict[str, ReplayScenario]:
     demos = root / "evidencegate" / "demo_data"
-    definitions = (
-        ("mixed_ddos_recon", "DDoS + Recon fan-out", "DDoS / Reconnaissance", "mixed_ddos_recon_v2"),
-        ("ddos_one_way", "One-way SYN visibility", "DDoS", "ddos_one_way_v2"),
-        ("c2_recurrence", "C2 recurrence", "C2 / Beaconing", "c2_recurrence_v2"),
-        ("dga_lexical", "DGA + DNS", "DGA / DNS", "dga_dns_v2"),
-    )
-    scenarios = {
-        scenario_id: ReplayScenario(scenario_id, label, family, demos / bundle)
-        for scenario_id, label, family, bundle in definitions
+    contracts: dict[str, dict[str, object]] = {
+        "mixed_ddos_recon": {"demo_title":"DDoS + Recon fan-out", "demo_purpose":"A controlled packet episode shows zero-to-many independent DDoS and Recon routing.", "expected_records":12,"expected_observations":12,"expected_routes":60,"expected_zero_route_observations":2,"expected_results":65,"expected_family_views":17,"expected_relations":8,"max_trace_events":500,"source_label":"Controlled observations","episode_summary":["12 packet observations","12 s source window","TCP · UDP · ICMP · other IP","2 no-route observations"]},
+        "ddos_one_way": {"demo_title":"One-way SYN visibility", "demo_purpose":"Forward initiation facts remain visible while reverse packet evidence is unavailable.", "expected_records":8,"expected_observations":8,"expected_routes":37,"expected_zero_route_observations":2,"expected_results":40,"expected_family_views":11,"expected_relations":5,"max_trace_events":500,"source_label":"Controlled observations","episode_summary":["8 packet observations","8 s source window","5 distinct TCP SYN attempts","reverse facts unavailable"]},
+        "c2_recurrence": {"demo_title":"C2 recurrence", "demo_purpose":"Flow history builds across repeated observations before recurrence evidence appears.", "expected_records":7,"expected_observations":7,"expected_routes":14,"expected_zero_route_observations":0,"expected_results":14,"expected_family_views":10,"expected_relations":7,"max_trace_events":500,"source_label":"Controlled observations","episode_summary":["7 flow observations","4 min 11 s source window","3 observed peers","forward flow facts · reverse facts unavailable"]},
+        "dga_lexical": {"demo_title":"DGA + DNS", "demo_purpose":"Each DNS observation produces independent lexical and structural evidence.", "expected_records":6,"expected_observations":6,"expected_routes":12,"expected_zero_route_observations":0,"expected_results":12,"expected_family_views":6,"expected_relations":0,"max_trace_events":500,"needs_dga":True,"source_label":"Controlled observations","episode_summary":["6 DNS observations","6 controlled query names","A · AAAA · UDP","clear DNS fields available"]},
+        "raw_pcap_ddos_recon": {"demo_title":"Recorded PCAP", "demo_purpose":"A controlled classic PCAP becomes canonical packet observations and linked evidence.", "expected_records":18,"expected_observations":18,"expected_routes":71,"expected_zero_route_observations":5,"expected_results":58,"expected_family_views":15,"expected_relations":8,"max_trace_events":500,"source_label":"Recorded PCAP","episode_summary":["18 recorded packets","2 s capture window","11 observed endpoints","5 no-route observations"]},
     }
+    definitions = (("mixed_ddos_recon", "DDoS + Recon fan-out", "DDoS / Reconnaissance", "mixed_ddos_recon_v2"), ("ddos_one_way", "One-way SYN visibility", "DDoS", "ddos_one_way_v2"), ("c2_recurrence", "C2 recurrence", "C2 / Beaconing", "c2_recurrence_v2"), ("dga_lexical", "DGA + DNS", "DGA / DNS", "dga_dns_v2"))
+    scenarios = {sid: ReplayScenario(sid, label, family, demos / bundle, demo_contract={"asset_version":bundle, **contracts[sid]}) for sid,label,family,bundle in definitions}
     pcap_bundle = demos / "raw_pcap_ddos_recon_v2"
     scenarios["raw_pcap_ddos_recon"] = ReplayScenario(
         "raw_pcap_ddos_recon", "Raw PCAP — DDoS + Recon",
         "DDoS / Reconnaissance", pcap_bundle / "capture.pcap", "PCAP",
-        pcap_bundle / "manifest.json",
+        pcap_bundle / "manifest.json", {"asset_version":"raw_pcap_ddos_recon_v2", **contracts["raw_pcap_ddos_recon"]},
     )
     if os.environ.get("EVIDENCEGATE_DEV_SCENARIOS", "").strip().lower() in {"1", "true", "yes"}:
         fixtures = root / "tests" / "fixtures" / "replay"
@@ -277,6 +277,7 @@ class EvidenceGateService:
             ScenarioDto(
                 id=item.scenario_id, label=item.label, family=item.family,
                 source_type=item.source_type,
+                **(item.demo_contract or {}),
             )
             for item in self.scenarios.values()
         ]

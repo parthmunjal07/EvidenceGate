@@ -47,6 +47,13 @@ export function hasRuntimeTraceGap(cursor: number, events: RuntimeTraceEvent[]) 
   return firstReceived !== undefined && firstReceived > cursor + 1;
 }
 
+export function hasCompleteRuntimeTraceRange(events: RuntimeTraceEvent[], startSequence: number, endSequence: number) {
+  if (endSequence < startSequence) return false;
+  const current = events.filter(event => event.sequence > startSequence && event.sequence <= endSequence).sort((a,b)=>a.sequence-b.sequence);
+  if (current.length !== endSequence - startSequence) return false;
+  return current.every((event,index)=>event.sequence === startSequence + index + 1);
+}
+
 export function replayJustCompleted(
   previous: ReplayStatusResponse["state"] | undefined,
   current: ReplayStatusResponse["state"] | undefined,

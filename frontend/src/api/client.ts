@@ -61,8 +61,11 @@ export const api = {
     request<AlertsResponse>("/alerts", { signal: signal ?? null }),
   familyEvidence: (signal?: AbortSignal) =>
     request<FamilyEvidenceResponse>("/family-evidence", { signal: signal ?? null }),
-  investigations: (signal?: AbortSignal) =>
-    request<InvestigationsResponse>("/investigations", { signal: signal ?? null }),
+  investigations: (signal?: AbortSignal, sourceResultIds?: string[]) => {
+    const params = new URLSearchParams();
+    sourceResultIds?.forEach((id) => params.append("source_result_id", id));
+    return request<InvestigationsResponse>(`/investigations${params.size ? `?${params}` : ""}`, { signal: signal ?? null });
+  },
   results: (
     query: { cursor?: string; limit?: number } = {},
     signal?: AbortSignal,

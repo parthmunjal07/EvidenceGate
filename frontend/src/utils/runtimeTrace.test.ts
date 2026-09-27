@@ -5,6 +5,7 @@ import {
   fetchFinalRuntimeTrace,
   captureRuntimeTraceBaseline,
   advanceRuntimeTraceCursor,
+  hasCompleteRuntimeTraceRange,
   hasRuntimeTraceGap,
   mergeRuntimeTraceEvents,
   observationLaneKey,
@@ -32,6 +33,12 @@ const event = (
 });
 
 describe("runtime trace presentation", () => {
+  it("accepts a fully drained trace range and rejects missing events or a stale head", () => {
+    const events=[event(11,"SOURCE_RECORD_ACCEPTED","obs"),event(12,"OBSERVATION_CREATED","obs"),event(13,"ROUTED","obs")];
+    expect(hasCompleteRuntimeTraceRange(events,10,13)).toBe(true);
+    expect(hasCompleteRuntimeTraceRange(events.filter(item=>item.sequence!==12),10,13)).toBe(false);
+    expect(hasCompleteRuntimeTraceRange(events,10,14)).toBe(false);
+  });
   it("scopes readiness to the exact observation and lane", () => {
     const latest = latestReadinessByObservationLane([
       event(1, "ANALYTIC_READINESS", "observation-a", "recon.h", "READY"),

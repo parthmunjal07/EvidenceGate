@@ -192,6 +192,20 @@ class ScenarioDto(StrictModel):
     label: str
     family: str
     source_type: str = "NDJSON"
+    asset_version: str | None = None
+    demo_title: str | None = None
+    demo_purpose: str | None = None
+    expected_records: int | None = None
+    expected_observations: int | None = None
+    expected_routes: int | None = None
+    expected_results: int | None = None
+    expected_family_views: int | None = None
+    expected_relations: int | None = None
+    expected_zero_route_observations: int | None = None
+    max_trace_events: int | None = None
+    needs_dga: bool = False
+    source_label: str | None = None
+    episode_summary: list[str] = Field(default_factory=list)
 
 
 class TargetStatusDto(StrictModel):
@@ -208,6 +222,7 @@ class FamilyStatusDto(StrictModel):
 
 
 class RuntimeStatusResponse(StrictModel):
+    build_sha: str
     state: Literal["ONLINE", "REPLAYING"]
     default_target_count: int
     active_lane_ids: list[str]

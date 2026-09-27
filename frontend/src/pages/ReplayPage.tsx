@@ -8,12 +8,13 @@ import { useReplay } from "../hooks/useReplay";
 import { useTimeZone } from "../state/TimeZoneContext";
 import type { PageKey } from "../state/types";
 import type { NavigationContext } from "../state/navigation";
-import { advanceRuntimeTraceCursor, captureRuntimeTraceBaseline, hasRuntimeTraceGap, latestReadinessByObservationLane, mergeRuntimeTraceEvents, observationLaneKey } from "../utils/runtimeTrace";
+import { advanceRuntimeTraceCursor, captureRuntimeTraceBaseline, hasCompleteRuntimeTraceRange, hasRuntimeTraceGap, latestReadinessByObservationLane, mergeRuntimeTraceEvents, observationLaneKey } from "../utils/runtimeTrace";
 import { sourceLinkedReplayResults } from "../utils/replayAttribution";
 import { clearLatestReplayMarker, saveLatestReplayMarker } from "../utils/latestReplayScope";
 import { buildReplayPresentationSteps, groupFamilyEpisodes, groupRelationsByFamilyPair, playerReducer, presentationSchedule, type ReplayPresentationStage } from "../utils/replayPresentation";
-import { JUDGE_DEMOS, judgeDemoScenarios, validateJudgeDemo } from "../utils/judgeDemos";
+import { judgeDemoScenarios, validateJudgeDemo, validateScopedEvidence } from "../utils/judgeDemos";
 import { NetworkObservationsSection, ObservationWorkbench } from "../components/replay/NetworkObservationsSection";
+import { projectResultExplanation } from "../utils/resultExplanation";
 
 type Lifecycle = "IDLE" | "STARTING" | "PROCESSING" | "FINALIZING" | "READY" | "FAILED";
 
@@ -46,6 +47,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const [demoFailure, setDemoFailure] = useState<string[]>([]);
   const [playbackFailure, setPlaybackFailure] = useState(false);
   const [startingScenarioId, setStartingScenarioId] = useState<string | null>(null);
+  const [expandedFanoutResultId, setExpandedFanoutResultId] = useState<string | null>(null);
   const [lifecycle, setLifecycle] = useState<Lifecycle>("IDLE");
   const [player, dispatchPlayer] = useReducer(playerReducer, { stepIndex: -1, paused: false, followLive: true, selectedObservationId: null });
   const [showPicker, setShowPicker] = useState(true);
@@ -70,6 +72,9 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const demoContract = scenarioInfo?.demo;
   const scenarioName = scenarioInfo?.demo?.title || selectedScenario?.label || "Traffic replay";
   const sourceType = replay?.source_type || selectedScenario?.source_type || "Controlled observations";
+  const frontendBuildSha = import.meta.env.VITE_EVIDENCEGATE_BUILD_SHA || (import.meta.env.PROD ? "unknown" : "dev");
+  const runtimeBuildMismatch = Boolean(state.runtime && (frontendBuildSha === "unknown" || state.runtime.build_sha === "unknown" || frontendBuildSha !== state.runtime.build_sha));
+  const demoAssetMismatch = Boolean(scenarioInfo?.demo && scenarioInfo.asset_version !== scenarioInfo.demo.assetVersion);
   const sourceLabel = (value: string) => /pcap/i.test(value) ? "Recorded PCAP replay" : /ndjson|typed/i.test(value) ? "Controlled NDJSON replay" : value;
   const running = lifecycle === "STARTING" || lifecycle === "PROCESSING" || lifecycle === "FINALIZING";
   const tracePolling = lifecycle === "PROCESSING" || lifecycle === "FINALIZING";
@@ -91,7 +96,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
           setReceivedTrace(merged);
           traceCursor.current = advanceRuntimeTraceCursor(traceCursor.current, update.events);
         }
-      } catch { traceIssueRef.current = true; setTraceUnavailable(true); }
+      } catch { if (!controller.signal.aborted) { traceIssueRef.current = true; setTraceUnavailable(true); } }
       if (!controller.signal.aborted) timer = setTimeout(poll, 300);
     };
     void poll();
@@ -153,10 +158,12 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       // Trace is explanatory only. Drain until the sequence is stable; durable Results remain authoritative.
       let stable = 0;
       let lastSequence = traceCursor.current;
+      let drainedTraceHead = lastSequence;
       let drainedTrace: RuntimeTraceEvent[] = [];
       while (stable < 2) {
         try {
           const update = await api.runtimeTrace(traceCursor.current, controller.signal);
+          drainedTraceHead = update.latest_sequence;
           if (update.events.length) {
             if (hasRuntimeTraceGap(traceCursor.current, update.events)) {
               traceIssueRef.current = true;
@@ -170,7 +177,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
           }
           stable = update.latest_sequence === lastSequence && update.events.length === 0 ? stable + 1 : 0;
           lastSequence = update.latest_sequence;
-        } catch { traceIssueRef.current = true; setTraceUnavailable(true); stable = 2; }
+        } catch { if (!controller.signal.aborted) { traceIssueRef.current = true; setTraceUnavailable(true); } stable = 2; }
         if (stable < 2) await sleep(120);
       }
 
@@ -186,7 +193,12 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       }
       const durable = durableSnapshot ?? [];
       if (durableSnapshot === null) setResultSyncUnavailable(true);
-      const sourceLinkedResults = traceIssueRef.current ? [] : sourceLinkedReplayResults(durable, mergeRuntimeTraceEvents(receivedRef.current, drainedTrace));
+      const finalTrace = mergeRuntimeTraceEvents(receivedRef.current, drainedTrace);
+      const startSequence = replayTraceStartSequence.current;
+      const rangeComplete = startSequence !== null && traceCursor.current === drainedTraceHead && hasCompleteRuntimeTraceRange(finalTrace, startSequence, drainedTraceHead);
+      if (rangeComplete) { traceIssueRef.current = false; setTraceUnavailable(false); }
+      else { traceIssueRef.current = true; setTraceUnavailable(true); }
+      const sourceLinkedResults = traceIssueRef.current ? [] : sourceLinkedReplayResults(durable, finalTrace);
       const runResultsSorted = sourceLinkedResults;
       if (controller.signal.aborted) return;
       runResultsRef.current = runResultsSorted;
@@ -194,12 +206,12 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       dispatch({ type: "results", value: runResultsSorted, animate: true });
 
       try {
-        const derived = await api.investigations(controller.signal);
-        const runIds = new Set(runResultsSorted.map((result) => result.result_id));
-        const views = derived.family_views.filter((view) => view.source_result_ids.some((resultId) => runIds.has(resultId)));
-        const viewIds = new Set(views.map((view) => view.family_view_id));
-        const links = derived.links.filter((link) => viewIds.has(link.left_family_view_id) && viewIds.has(link.right_family_view_id));
-        const acceptanceContract = JUDGE_DEMOS.find((demo) => demo.id === replay.scenario);
+        const runIds = [...new Set(runResultsSorted.map((result) => result.result_id))];
+        const derived = await api.investigations(controller.signal, runIds);
+        const views = derived.family_views;
+        const links = derived.links;
+        if (!validateScopedEvidence(views, links)) setDerivedUnavailable(true);
+        const acceptanceContract = scenarioInfo?.demo;
         if (acceptanceContract) {
           const validation = validateJudgeDemo(acceptanceContract, {
             records: replay.records_read,
@@ -207,7 +219,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
             results: runResultsSorted,
             familyViews: views,
             links,
-            trace: mergeRuntimeTraceEvents(receivedRef.current, drainedTrace),
+            trace: finalTrace,
             traceAvailable: !traceIssueRef.current,
             runtimeCompleted: replay.state === "COMPLETED",
           });
@@ -223,7 +235,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       }
     })();
     return () => controller.abort();
-  }, [replay?.state, replay?.started_at, replay?.finished_at, replay?.results_persisted, replay?.scenario, replay?.source_type, replay?.records_read, replay?.observations_emitted, baseline, dispatch]);
+  }, [replay?.state, replay?.started_at, replay?.finished_at, replay?.results_persisted, replay?.scenario, replay?.source_type, replay?.records_read, replay?.observations_emitted, baseline, dispatch, scenarioInfo?.demo]);
 
   const presentationSteps = useMemo(() => buildReplayPresentationSteps(receivedTrace, runResults, familyViews, investigationLinks), [receivedTrace, runResults, familyViews, investigationLinks]);
   const observationEvents = useMemo(() => receivedTrace.filter((event) => event.kind === "OBSERVATION_CREATED" && event.observation_id), [receivedTrace]);
@@ -340,6 +352,8 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const runtimeCaption = replay?.state === "COMPLETED" ? `Runtime completed in ${replay.elapsed_wall_seconds.toFixed(2)} s` : running ? "Runtime processing is separate from presentation playback" : "Runtime processing time not available";
   const resetPlayback = () => { setPlaybackFailure(false); dispatchPlayer({ type: "RESET" }); };
 
+  if (runtimeBuildMismatch) return <section className="page active-page traffic-lab-page"><PageHeading title="Application update mismatch" deck="The browser and runtime are on different EvidenceGate versions. Refresh after deployment completes." /><button className="secondary-button" onClick={() => window.location.reload()}>Refresh</button></section>;
+  if (demoAssetMismatch) return <section className="page active-page traffic-lab-page"><PageHeading title="Demo version mismatch" deck="The runtime completed, but the loaded demo asset does not match this interface version. Refresh or restart the application." /></section>;
   return <section className="page active-page traffic-lab-page" aria-labelledby="replay-title">
     <PageHeading titleId="replay-title" title="Traffic Lab" deck="Watch recorded or controlled passive observations become independent evidence." />
     {state.runtime?.dga_model_readiness && !dgaReady && <div className="stream-notice" role="status">DGA model unavailable in this deployment. The DGA + DNS demo is disabled.</div>}
@@ -373,7 +387,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
         <ol className="episode-stage-rail" aria-label="Replay evidence stages">{stages.map((label, index) => { const notApplicable = index === 6 && relateNotApplicable; const complete = !notApplicable && (playbackDone || stageAvailable[index] && index < activeStage); const active = !notApplicable && !complete && index === activeStage && lifecycle === "READY" && !demoFailure.length && !playbackFailure; return <li key={label} className={(complete ? "complete" : "") + (active ? " active" : "") + (notApplicable ? " not-applicable" : "")} title={notApplicable ? "No cross-family relation is expected for this scenario" : undefined} aria-current={active ? "step" : undefined}><span>{notApplicable ? "—" : complete ? "✓" : active ? "●" : "○"}</span>{label}</li>; })}</ol>
       </section>
 
-      {demoFailure.length > 0 && <div className="replay-diagnostic demo-unavailable" role="alert"><strong>Demo unavailable</strong><p>The runtime completed, but this scenario did not produce the expected demonstration evidence.</p><details><summary>Technical details</summary><ul>{demoFailure.map((reason) => <li key={reason}>{reason}</li>)}</ul></details></div>}
+      {demoFailure.length > 0 && <div className="replay-diagnostic demo-unavailable" role="alert"><strong>{replay?.state === "COMPLETED" ? "Demo contract mismatch" : "Runtime failure"}</strong><p>{replay?.state === "COMPLETED" ? "The scientific runtime completed, but the curated demo contract did not match the presented evidence." : "The runtime did not complete this replay."}</p><details><summary>Technical details</summary><ul>{demoFailure.map((reason) => <li key={reason}>{reason}</li>)}</ul></details></div>}
       {playbackFailure && <div className="replay-diagnostic" role="alert"><strong>Playback could not complete</strong><p>Runtime evidence remains available below.</p><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>}
       {lifecycle === "FAILED" && <div className="replay-diagnostic" role="alert"><strong>Replay failed</strong><p>{error || replay.error || "Runtime replay could not be completed."}</p><button className="secondary-button" onClick={() => void runScenario(replay.scenario!)}>Try again</button></div>}
       {traceUnavailable && replay.results_persisted > 0 && <div className="replay-diagnostic" role="status"><strong>Detailed playback unavailable</strong><p>The runtime reports {replay.results_persisted} persisted Results. The presentation trace could not be verified, so this timeline was not animated.</p><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>}
@@ -388,17 +402,17 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
           {selectableObservations.length > 1 && !multiSourceResult && <div className="observation-pager"><button className="text-button" disabled={!selectedObservation || observationIndex <= 0} onClick={() => { const previous = selectableObservations[observationIndex - 1]; if (previous?.observation_id) dispatchPlayer({ type: "SELECT_OBSERVATION", observationId: previous.observation_id }); }}>← Previous</button><span>{selectedObservation ? observationIndex + 1 + " / " + totalObservationCount : "—"}</span><button className="text-button" disabled={!selectedObservation || observationIndex >= selectableObservations.length - 1} onClick={() => { const next = selectableObservations[observationIndex + 1]; if (next?.observation_id) dispatchPlayer({ type: "SELECT_OBSERVATION", observationId: next.observation_id }); }}>Next →</button></div>}
         </article>
         <section className="panel fanout-panel"><div className="player-panel-head"><div><span className="eyebrow">Zero-to-many routing</span><strong>{selectedObservation ? routingCompletedObservationIds.has(selectedObservation.observation_id || "") && !presentedRouteCount ? "No eligible analytics" : presentedRouteCount + " analytics" : multiSourceResult ? "Source-linked evidence" : "Analytics"}</strong></div><span className="stage-state-pill">{selectedObservation && routingCompletedObservationIds.has(selectedObservation.observation_id || "") ? "Routing complete" : lifecycle === "READY" ? "In playback" : "Processing"}</span></div>
-          {selectedObservation && analytics.length ? <div className="fanout-list">{analytics.map((item, index) => <article className="fanout-analytic" key={(item.observation_id || "") + (item.lane_id || "")} style={{ "--route-delay": Math.min(index, 8) * 150 + "ms" } as CSSProperties}><span className="fanout-connector" aria-hidden="true" /><div><strong>{mechanismLabel(item.mechanism || item.lane_id || "Analytic")}</strong><small>{item.status}</small></div>{item.status === "Evidence produced" ? <span className="fanout-result-mark">✓</span> : null}</article>)}</div> : selectedObservation && routingCompletedObservationIds.has(selectedObservation.observation_id || "") && !presentedRouteCount ? <div className="fanout-empty"><strong>No eligible analytics</strong><p>This observation was retained, but no active analytic declared it eligible.</p></div> : <div className="fanout-empty">{playbackDone ? "No eligible analytics for the selected observation." : "Routing stage not shown yet."}</div>}
+          {selectedObservation && analytics.length ? <div className="fanout-list">{analytics.map((item, index) => { const result = runResults.find(value => value.lane_id === item.lane_id && value.source_observation_ids.includes(selectedObservation.observation_id || "")); const expanded = result?.result_id === expandedFanoutResultId; const explanation = result ? projectResultExplanation(result, receivedTrace, selectedObservation.canonical_observation) : null; return <article className="fanout-analytic" key={(item.observation_id || "") + (item.lane_id || "")} style={{ "--route-delay": Math.min(index, 8) * 150 + "ms" } as CSSProperties}><span className="fanout-connector" aria-hidden="true" /><div><strong>{mechanismLabel(item.mechanism || item.lane_id || "Analytic")}</strong><small>{item.status}</small>{result && explanation && <><button className="text-button fanout-why-button" aria-expanded={expanded} onClick={() => setExpandedFanoutResultId(expanded ? null : result.result_id)}>{expanded ? "Hide explanation" : "Why this result?"}</button>{expanded && <div className="inline-result-explanation"><strong>Why this analytic ran</strong><p>{explanation.eligibilityReasons.join(" ")}</p><strong>Observed</strong><ul>{explanation.observedFacts.map(fact=><li key={fact}>{fact}</li>)}</ul><strong>Why the Result was emitted</strong><p>{explanation.resultReason}</p><strong>Supports</strong><ul>{explanation.supports.map(fact=><li key={fact}>{fact}</li>)}</ul><strong>Does not establish</strong><ul>{explanation.limitations.map(fact=><li key={fact}>{fact}</li>)}</ul>{explanation.missingEvidence.length>0&&<><strong>Missing evidence</strong><ul>{explanation.missingEvidence.map(fact=><li key={fact}>{fact}</li>)}</ul></>}<span>Source lineage · {explanation.sourceObservationIds.length} observation</span></div>}</>}</div>{item.status === "Evidence produced" ? <span className="fanout-result-mark">✓</span> : null}</article>; })}</div> : selectedObservation && routingCompletedObservationIds.has(selectedObservation.observation_id || "") && !presentedRouteCount ? <div className="fanout-empty"><strong>No eligible analytics</strong><p>This observation was retained, but no active analytic declared it eligible.</p></div> : <div className="fanout-empty">{playbackDone ? "No eligible analytics for the selected observation." : "Routing stage not shown yet."}</div>}
         </section>
       </section>
 
       <NetworkObservationsSection events={receivedTrace} results={runResults} zone={zone} navigate={navigate} />
       <section className="panel evidence-outcome-panel"><div className="outcome-heading"><div><span className="eyebrow">Playback evidence</span><h2>{visibleRunResults.length} / {runResults.length} Results shown</h2></div><span>{presentedReviewCount} review · {presentedLimitationCount} evidence limitations shown</span></div>
-        <div className="outcome-track"><div><strong>Mechanism evidence</strong><span>{visibleRunResults.length} of {runResults.length} source-linked Results shown</span>{familyResultCounts.size > 0 && <div className="result-family-counts">{[...familyResultCounts].map(([family, count]) => <div key={family}><span>{normalizeFamilyName(family)}</span><strong>{count}</strong></div>)}</div>}</div><span className="outcome-chevron">↓</span><div><strong>Family evidence</strong><span>{derivedUnavailable ? "Family composition unavailable" : familiesPresented ? familyGroups.length + " families composed" : lifecycle === "READY" ? "Family stage not shown yet" : "Runtime processing"}</span>{familyGroups.length > 0 && <div className="family-outcome-groups">{familyGroups.map((group) => <details className="family-outcome-group" key={group.family}><summary><strong>{normalizeFamilyName(group.family)}</strong><span>{group.views.length} episode{group.views.length === 1 ? "" : "s"} · {group.views.reduce((sum, view) => sum + view.findings.length, 0)} independent findings · {group.views.filter((view) => view.limitations.length || view.missing_evidence.length).length} with limits</span></summary><div className="family-episode-list">{group.views.map((view) => <div key={view.family_view_id}><time title={formatEvidenceDateTime(view.time_start, zone)}>{formatEvidenceClockTime(view.time_start, zone)}</time><span>{pluralize(view.findings.length, "finding")} · {view.limitations.length + view.missing_evidence.length} limits</span><button className="text-button" onClick={() => navigate("alerts", { familyViewId: view.family_view_id })}>Review →</button></div>)}</div></details>)}</div>}</div><span className="outcome-chevron">↓</span><div><strong>Related context</strong><span>{derivedUnavailable ? "Related context unavailable" : investigationLinks.length === 0 ? "No cross-family relationship in this scenario" : linksPresented ? "Shared source context; no causal inference" : "Relation stage not shown yet"}</span>{relationGroups.map((group) => <article className="relation-outcome" key={group.leftFamily + ":" + group.rightFamily}><div><strong>{normalizeFamilyName(group.leftFamily)} ↔ {normalizeFamilyName(group.rightFamily)}</strong><span>{pluralize(group.links.length, "factual relationship")} · {new Set(group.sharedObservationIds).size} shared source observations</span></div><small>Joint review only · no causality or common attacker inferred</small></article>)}</div></div>
+        <div className="outcome-track"><div><strong>Mechanism evidence</strong><span>{visibleRunResults.length} of {runResults.length} source-linked Results shown</span>{familyResultCounts.size > 0 && <div className="result-family-counts">{[...familyResultCounts].map(([family, count]) => <div key={family}><span>{normalizeFamilyName(family)}</span><strong>{count}</strong></div>)}</div>}</div><span className="outcome-chevron">↓</span><div><strong>Family evidence</strong><span>{derivedUnavailable ? "Family composition unavailable" : familiesPresented ? familyGroups.length + " families composed" : lifecycle === "READY" ? "Family stage not shown yet" : "Runtime processing"}</span>{derivedUnavailable && <p>Derived evidence unavailable</p>}{familyGroups.length > 0 && <div className="family-outcome-groups">{familyGroups.map((group) => <details className="family-outcome-group" key={group.family}><summary><strong>{normalizeFamilyName(group.family)}</strong><span>{group.views.length} episode{group.views.length === 1 ? "" : "s"} · {group.views.reduce((sum, view) => sum + view.findings.length, 0)} independent findings · {group.views.filter((view) => view.limitations.length || view.missing_evidence.length).length} with limits</span></summary><p className="family-composition-note">Composed from {group.views.reduce((sum, view) => sum + view.findings.length, 0)} independent mechanism Results through shared source-observation lineage. This preserves child claim ceilings and applies no score fusion.</p><div className="family-episode-list">{group.views.map((view) => <div key={view.family_view_id}><time title={formatEvidenceDateTime(view.time_start, zone)}>{formatEvidenceClockTime(view.time_start, zone)}</time><span>{pluralize(view.findings.length, "finding")} · {view.limitations.length + view.missing_evidence.length} limits</span><button className="text-button" onClick={() => navigate("alerts", { familyViewId: view.family_view_id })}>Review →</button></div>)}</div></details>)}</div>}</div><span className="outcome-chevron">↓</span><div><strong>Related context</strong><span>{derivedUnavailable ? "Related context unavailable" : investigationLinks.length === 0 ? "No cross-family relationship in this scenario" : linksPresented ? "Shared source context; no causal inference" : "Relation stage not shown yet"}</span>{relationGroups.map((group) => <article className="relation-outcome" key={group.leftFamily + ":" + group.rightFamily}><div><strong>{normalizeFamilyName(group.leftFamily)} ↔ {normalizeFamilyName(group.rightFamily)}</strong><span>{pluralize(group.links.length, "factual relationship")} · {new Set(group.sharedObservationIds).size} shared source observations</span></div><small>These family views share {new Set(group.sharedObservationIds).size} exact passive source observations. This supports joint analyst review; it does not establish causality, a common attacker, or attack progression.</small></article>)}</div></div>
       </section>
       <section className="panel recent-evidence-panel"><div className="player-panel-head"><div><span className="eyebrow">{resultTimeHeading}</span><strong>Recent evidence</strong></div><button className="text-button" onClick={() => navigate("results")}>View all evidence ({runResults.length}) →</button></div>{recentResults.length ? <div className="recent-result-list">{recentResults.map((result) => <article key={result.result_id}><time title={formatEvidenceDateTime(result.created_time, zone)}>{formatEvidenceClockTime(result.created_time, zone)}</time><div><strong>{mechanismLabel(result.mechanism_id || result.lane_id)}</strong><small>{readable(result.result_type)} · {pluralize(result.source_observation_ids.length, "source observation")}</small><span>{contextSummary(result)}</span></div><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Review →</button></article>)}</div> : <p className="player-waiting">{resultSyncUnavailable ? "Durable Results could not be synchronized." : lifecycle === "READY" && !runResults.length ? diagnostic || "No mechanism Result was produced." : "Results will appear after runtime finalization."}</p>}</section>
       {error && <div className="stream-notice" role="status">{error}</div>}
-      <details className="technical-details-panel"><summary>Run details</summary><div className="technical-details-grid"><div><span>Scenario</span><strong>{scenarioName}</strong></div><div><span>Input type</span><strong>{sourceType}</strong></div><div><span>Runtime elapsed</span><strong>{replay.elapsed_wall_seconds.toFixed(2)} s</strong></div><div><span>Durable source-linked Results</span><strong>{runResults.length}</strong></div><div><span>Results shown</span><strong>{visibleRunResults.length}</strong></div><div><span>Trace events presented</span><strong>{presentedTrace.length}{traceUnavailable ? " · partial/unavailable" : ""}</strong></div><div><span>Demo contract</span><strong>{demoContract ? demoFailure.length ? "Failed" : playbackDone ? "Passed" : "Pending" : "Internal scenario"}</strong></div></div></details>
+      <details className="technical-details-panel"><summary>Run details</summary><div className="technical-details-grid"><div><span>Scenario</span><strong>{scenarioName}</strong></div><div><span>Input type</span><strong>{sourceType}</strong></div><div><span>Frontend build</span><strong>{frontendBuildSha}</strong></div><div><span>Backend build</span><strong>{state.runtime?.build_sha ?? "Unavailable"}</strong></div><div><span>Demo asset</span><strong>{scenarioInfo?.asset_version ?? "Not reported"}</strong></div><div><span>Demo contract</span><strong>{demoContract ? demoFailure.length ? "Failed · judge-demo-v2" : playbackDone ? "Passed · judge-demo-v2" : "Pending · judge-demo-v2" : "Internal scenario"}</strong></div><div><span>Runtime elapsed</span><strong>{replay.elapsed_wall_seconds.toFixed(2)} s</strong></div><div><span>Durable source-linked Results</span><strong>{runResults.length}</strong></div><div><span>Results shown</span><strong>{visibleRunResults.length}</strong></div><div><span>Trace events presented</span><strong>{presentedTrace.length}{traceUnavailable ? " · partial/unavailable" : ""}</strong></div></div></details>
       <details className="technical-details-panel"><summary>View evidence Results ({visibleRunResults.length} shown / {runResults.length} total)</summary>{visibleRunResults.map((result) => <div className="technical-result-row" key={result.result_id}><strong>{normalizeFamilyName(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)}</span><code>{result.result_id}</code><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Open →</button></div>)}</details>
       <details className="technical-details-panel raw-trace-details"><summary>View presented runtime trace ({presentedTrace.length} events)</summary><p className="technical-time-heading">{stageTimeTitle} · not observed network event time</p>{presentedTrace.map((event) => <div className="technical-result-row trace-detail-row" key={event.sequence}><time title={"Runtime trace · " + formatEvidenceDateTime(event.occurred_at, "local")}>{formatEvidenceClockTime(event.occurred_at, "local")}</time><strong>{readable(event.kind)}</strong><span>{event.mechanism || event.reason || event.readiness || "Runtime telemetry"}</span><code>#{event.sequence}</code></div>)}</details>
     </>}

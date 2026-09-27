@@ -18,6 +18,32 @@ DEMOS = (
 
 
 @pytest.mark.asyncio
+async def test_mixed_demo_deterministic_rerun_recomposes_exact_source_results(tmp_path: Path):
+    async with client_for(tmp_path / "mixed-rerun.db") as (client, service):
+        run_result_ids = []
+        for attempt in range(2):
+            started = await client.post("/replay", json={"scenario":"mixed_ddos_recon", "speed":0})
+            assert started.status_code == 202
+            status = await service.wait_for_replay()
+            assert status.state == "COMPLETED"
+            if attempt == 1:
+                assert status.results_persisted == 0
+            trace = (await client.get("/runtime/trace", params={"after":0,"limit":500})).json()["events"]
+            observations = {event["observation_id"] for event in trace if event["kind"] == "OBSERVATION_CREATED" and event["canonical_observation"]}
+            results = (await client.get("/results", params={"limit":500})).json()["results"]
+            source_results = [result for result in results if result["source_observation_ids"] and set(result["source_observation_ids"]) <= observations]
+            assert len(source_results) == 65
+            ids = sorted(result["result_id"] for result in source_results)
+            run_result_ids.append(ids)
+            derived = (await client.get("/investigations", params=[("source_result_id", item) for item in ids])).json()
+            assert len(derived["family_views"]) == 17
+            view_ids = {view["family_view_id"] for view in derived["family_views"]}
+            assert len(derived["links"]) == 8
+            assert all(link["left_family_view_id"] in view_ids and link["right_family_view_id"] in view_ids for link in derived["links"])
+        assert run_result_ids[0] == run_result_ids[1]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("scenario,observations,result_count,routes,view_count,families,relations,zero_routes,max_trace", DEMOS)
 async def test_curated_judge_demo_completes_with_its_presentation_contract(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scenario: str,
@@ -52,12 +78,13 @@ async def test_curated_judge_demo_completes_with_its_presentation_contract(
         assert len(results) == result_count
         result_ids = {result["result_id"] for result in results}
 
-        derived = (await client.get("/investigations")).json()
-        views = [view for view in derived["family_views"] if set(view["source_result_ids"]) & result_ids]
+        derived = (await client.get("/investigations", params=[("source_result_id", item) for item in result_ids])).json()
+        views = derived["family_views"]
         assert len(views) == view_count
         assert families <= {view["family"] for view in views}
         view_ids = {view["family_view_id"] for view in views}
-        links = [link for link in derived["links"] if link["left_family_view_id"] in view_ids and link["right_family_view_id"] in view_ids]
+        links = derived["links"]
+        assert all(link["left_family_view_id"] in view_ids and link["right_family_view_id"] in view_ids for link in links)
         if relations is not None:
             assert len(links) == relations
 
