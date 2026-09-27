@@ -1,0 +1,27 @@
+{
+  "capture_end": "2026-09-27T05:33:14Z",
+  "capture_start": "2026-09-27T05:30:00Z",
+  "direction_basis": "CLIENT_SERVER_ROLE",
+  "event_time_order": "NONDECREASING",
+  "input_observation_contract": "REPLAY_TYPED_V1",
+  "quality": {
+    "capture_gap": "UNKNOWN",
+    "packet_loss": "UNKNOWN",
+    "parser": "CLEAR",
+    "sampling": "UNKNOWN"
+  },
+  "record_count": 6,
+  "schema_version": "evidencegate-replay-manifest-v1",
+  "source_id": "judge-dga-dns-v2",
+  "source_kind": "DERIVED",
+  "timestamp_semantics": "SOURCE_EVENT_TIME",
+  "visibility": {
+    "available": [
+      "CLEAR_DNS_FIELDS",
+      "FORWARD_FACTS"
+    ],
+    "degraded": [],
+    "unavailable": []
+  },
+  "wire_direction": "FORWARD"
+}

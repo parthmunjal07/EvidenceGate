@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict
 
 from evidencegate.domain.enums import ResultType
 from evidencegate.results.types import Result
+from evidencegate.api.privacy import public_reference_list
 
 
 POLICY_VERSION = "SIH_ALERT_POLICY_V1"
@@ -222,7 +223,7 @@ def project_result(result: Result) -> tuple[ProjectionRecord, ...]:
         "quality": _quality(result),
         "claim_ceiling": result.claim_ceiling,
         "governing_ids": result.governing_ids,
-        "provenance_refs": result.provenance_refs,
+        "provenance_refs": tuple(public_reference_list(result.provenance_refs)),
         "quality_refs": result.quality_refs,
         "parser_refs": result.parser_refs,
     }
@@ -236,7 +237,7 @@ def project_result(result: Result) -> tuple[ProjectionRecord, ...]:
             confidence_score=score,
             confidence_basis=basis,
             confidence_statement=statement,
-            model_refs=result.model_refs,
+            model_refs=tuple(public_reference_list(result.model_refs)),
             **common,
         ),)
     status_policy = _STATUS_POLICY.get(result.result_type)

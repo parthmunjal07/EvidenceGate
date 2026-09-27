@@ -26,17 +26,22 @@ describe("judge demo contracts", () => {
 
   it("fails closed when a finalized demo misses a deterministic expectation", () => {
     const demo = JUDGE_DEMOS.find((item) => item.id === "mixed_ddos_recon")!;
-    const resultState = validateJudgeDemo(demo, { observations: 2, results: [result("r1")], familyViews: [view("DDoS")], links: [], trace, traceAvailable: true, runtimeCompleted: true });
+    const resultState = validateJudgeDemo(demo, { records: 2, observations: 2, results: [result("r1")], familyViews: [view("DDoS")], links: [], trace, traceAvailable: true, runtimeCompleted: true });
     expect(resultState.ok).toBe(false);
-    expect(resultState.reasons).toContain("Expected 8 source-linked Results; received 1");
+    expect(resultState.reasons).toContain("Expected 65 source-linked Results; received 1");
     expect(resultState.reasons).toContain("Expected family evidence for Reconnaissance");
-    expect(resultState.reasons).toContain("Expected 1 factual relationships; received 0");
+    expect(resultState.reasons).toContain("Expected 8 factual relationships; received 0");
   });
 
   it("accepts the raw PCAP contract only when all required runtime facts are present", () => {
     const demo = JUDGE_DEMOS.find((item) => item.id === "raw_pcap_ddos_recon")!;
-    const familyViews = [view("DDoS"), view("Reconnaissance")];
-    const outcome = { observations: 11, results: Array.from({ length: 35 }, (_, index) => result("r" + index)), familyViews, links: [makeLink("1"), makeLink("2"), makeLink("3")], trace, traceAvailable: true, runtimeCompleted: true };
+    const familyViews = [...Array.from({ length: 8 }, () => view("DDoS")), ...Array.from({ length: 7 }, () => view("Reconnaissance"))];
+    const canonical = { observation_id: "obs-a", observation_type: "PACKET", event_time: "2026-09-27T05:30:00Z", source_position: "1", wire_direction: "FORWARD", direction_basis: "CAPTURE_INTERFACE", finality: "CURRENT", availability_basis: "DECLARED", present_fields: [], identity: { observed_identifiers: [], identifier_basis: "UNKNOWN", role_assignments: [] }, visibility: { available: [], unavailable: [], degraded: [] }, quality: { packet_loss: "UNKNOWN", sampling: "UNKNOWN", parser: "CLEAR", capture_gap: "UNKNOWN" }, facts: {} };
+    const trace = [
+      ...Array.from({ length: 18 }, (_, index) => ({ sequence: index + 1, kind: "OBSERVATION_CREATED", observation_id: `obs-${index}`, canonical_observation: { ...canonical, observation_id: `obs-${index}` } })),
+      ...Array.from({ length: 71 }, (_, index) => ({ sequence: index + 19, kind: "ROUTED", observation_id: `obs-${index % 13}` })),
+    ] as RuntimeTraceEvent[];
+    const outcome = { records: 18, observations: 18, results: Array.from({ length: 58 }, (_, index) => result("r" + index)), familyViews, links: Array.from({ length: 8 }, (_, index) => makeLink(String(index))), trace, traceAvailable: true, runtimeCompleted: true };
     expect(validateJudgeDemo(demo, outcome)).toEqual({ ok: true, reasons: [] });
     expect(validateJudgeDemo(demo, { ...outcome, traceAvailable: false }).ok).toBe(false);
   });

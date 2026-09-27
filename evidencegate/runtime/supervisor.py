@@ -127,10 +127,18 @@ class RuntimeSupervisor:
 
     async def ingest_observation(self, observation: NetworkObservation):
         if self.trace_sink is not None:
+            from evidencegate.api.observation_presentation import project_observation
+
+            try:
+                canonical_presentation = project_observation(observation)
+            except Exception:
+                # UI projection is best effort; it must not change routing or evaluation.
+                canonical_presentation = None
             emit_trace(
                 self.trace_sink, "OBSERVATION_CREATED",
                 observation_id=observation.observation_id,
                 observation_type=observation.observation_type.value,
+                canonical_observation=canonical_presentation,
             )
             visibility_parts = []
             for state_name, capabilities in (

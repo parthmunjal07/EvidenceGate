@@ -22,6 +22,8 @@ class RuntimeTraceEvent:
     reason: str | None = None
     result_id: str | None = None
     source_observation_ids: list[str] = field(default_factory=list)
+    source_record: dict[str, Any] | None = None
+    canonical_observation: dict[str, Any] | None = None
 
 
 class RuntimeTraceBuffer:

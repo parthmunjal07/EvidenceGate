@@ -232,7 +232,15 @@ class ReplayRunner:
                 records_read += 1
                 if self.progress_sink is not None:
                     self.progress_sink(records_read, observations_emitted)
-                emit_trace(self.trace_sink, "SOURCE_RECORD_ACCEPTED")
+                source_presentation = None
+                if self.trace_sink is not None:
+                    try:
+                        from evidencegate.api.observation_presentation import project_source_record
+                        source_presentation = project_source_record(record)
+                    except Exception:
+                        # A malformed display summary cannot reject an accepted input record.
+                        pass
+                emit_trace(self.trace_sink, "SOURCE_RECORD_ACCEPTED", source_record=source_presentation)
                 result = self.canonicalizer.canonicalize(
                     record, manifest, f"quality:{manifest.source_id}:{record.position}",
                     self._clock_now(),

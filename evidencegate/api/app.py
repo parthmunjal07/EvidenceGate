@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from evidencegate.api.models import (
@@ -22,6 +22,7 @@ from evidencegate.api.models import (
     RuntimeTraceResponse, StatusSnapshotDto,
     VisibilitySnapshotDto,
 )
+from evidencegate.api.privacy import public_reference_list
 from evidencegate.api.projection import (
     POLICY_VERSION, SihAlertProjection, SihStatusProjection, project_results,
 )
@@ -95,9 +96,9 @@ def result_dto(result: Result) -> ResultDto:
             degraded=sorted(item.value for item in visibility.degraded),
         ),
         state_version=result.state_version, config_hash=result.config_hash,
-        parser_refs=list(result.parser_refs), model_refs=list(result.model_refs),
+        parser_refs=list(result.parser_refs), model_refs=public_reference_list(list(result.model_refs)),
         governing_ids=list(result.governing_ids), quality_refs=list(result.quality_refs),
-        provenance_refs=list(result.provenance_refs),
+        provenance_refs=public_reference_list(list(result.provenance_refs)),
         evidence_interval=result.evidence_interval,
         reason_code=(result.reason_code.value if isinstance(result, AnalyticUnavailable) else None),
     )
@@ -138,6 +139,7 @@ def create_app(
         finally:
             await service.close()
 
+    public_mode = os.environ.get("EVIDENCEGATE_PUBLIC_MODE", "").strip().lower() in {"1", "true", "yes"}
     application = FastAPI(
         title="SIH26145 EvidenceGate", version="0.2.0",
         description=(
@@ -145,8 +147,20 @@ def create_app(
             "allowlisted controlled replay. Current results retain their factual semantics."
         ),
         lifespan=lifespan,
+        docs_url=None if public_mode else "/docs",
+        redoc_url=None if public_mode else "/redoc",
+        openapi_url=None if public_mode else "/openapi.json",
     )
     application.state.service = service
+
+    @application.middleware("http")
+    async def public_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Frame-Options"] = "DENY"
+        return response
     application.mount(
         "/assets", StaticFiles(directory=STATIC_ROOT / "assets"), name="assets",
     )
@@ -155,6 +169,10 @@ def create_app(
     @application.get("/", include_in_schema=False)
     async def dashboard() -> FileResponse:
         return FileResponse(STATIC_ROOT / "index.html")
+
+    @application.get("/robots.txt", include_in_schema=False)
+    async def robots_txt() -> PlainTextResponse:
+        return PlainTextResponse("User-agent: *\nDisallow: /\n")
 
     @application.get(
         "/health", response_model=HealthResponse,
@@ -323,7 +341,7 @@ def create_app(
         except KeyError:
             raise HTTPException(status_code=422, detail="unknown replay scenario") from None
         except ReplayBusyError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from None
+            raise HTTPException(status_code=409, detail="A demo is already running. Try again in a few seconds.") from exc
 
     @application.get(
         "/replay/status", response_model=ReplayStatusResponse,

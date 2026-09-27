@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -276,8 +277,8 @@ async def test_allowlist_rejects_paths_and_mixed_replay_is_zero_to_many(tmp_path
         assert started.status_code == 202
         status = await service.wait_for_replay()
         assert status.state == "COMPLETED"
-        assert status.records_read == status.observations_emitted == 2
-        assert status.results_persisted > 1
+        assert status.records_read == status.observations_emitted == 12
+        assert status.results_persisted == 65
         notification = await asyncio.wait_for(subscription.get(), timeout=1)
         assert isinstance(notification, ResultNotification)
         results = (await client.get("/results", params={"limit": 500})).json()["results"]
@@ -303,17 +304,22 @@ async def test_dga_demo_runs_real_model_persists_rest_and_publishes(tmp_path, mo
         response = await client.post("/replay", json={"scenario": "dga_lexical", "speed": 0})
         assert response.status_code == 202
         status = await service.wait_for_replay()
-        assert status.state == "COMPLETED" and status.results_persisted == 2
-        notifications = [await asyncio.wait_for(subscription.get(), timeout=1) for _ in range(2)]
+        assert status.state == "COMPLETED" and status.results_persisted == 12
+        notifications = [await asyncio.wait_for(subscription.get(), timeout=1) for _ in range(12)]
         assert {item.mechanism_id for item in notifications} == {"DGA-A1-M1", "DNS-T1"}
-        results = (await client.get("/results", params={"limit": 10})).json()["results"]
+        results = (await client.get("/results", params={"limit": 100})).json()["results"]
         dga = next(item for item in results if item["mechanism_id"] == "DGA-A1-M1")
+        dga_results = [item for item in results if item["mechanism_id"] == "DGA-A1-M1"]
+        assert len(dga_results) == 6
+        recorded = json.loads(Path("evidencegate/demo_data/dga_dns_v2/model_measurements.json").read_text(encoding="utf-8"))
+        expected_by_input = {row["model_input_domain"]: row["dga_labelled_lexical_resemblance_score"] for row in recorded["rows"]}
+        actual_by_input = {item["evidence"]["representation"]["model_input"]: item["evidence"]["dga_labelled_lexical_resemblance_score"] for item in dga_results}
+        assert actual_by_input == expected_by_input
         assert dga["result_type"] == "REVIEW_FINDING"
-        assert dga["evidence"]["dga_labelled_lexical_resemblance_score"] == pytest.approx(
-            0.9851716132182514, abs=1e-12
-        )
+        assert isinstance(dga["evidence"]["dga_labelled_lexical_resemblance_score"], float)
         assert "C3-DEC-DGA-M1-R1-PROMOTION-V1" in dga["governing_ids"]
         assert "sha256:39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df" in dga["model_refs"]
+        assert all("drive:" not in ref.lower() and "drive.google.com" not in ref.lower() for ref in dga["model_refs"])
         assert dga["config_hash"] and dga["source_observation_ids"]
         assert dga["visibility_snapshot"]["available"]
         assert dga["quality_snapshot"]["parser"] == "CLEAR"
@@ -327,7 +333,7 @@ async def test_only_one_replay_runs_and_runtime_reports_replaying(tmp_path):
         assert started.status_code == 202
         assert (await client.get("/replay/status")).json()["state"] == "RUNNING"
         assert (await client.get("/runtime")).json()["state"] == "REPLAYING"
-        second = await client.post("/replay", json={"scenario": "dns_observation", "speed": 0})
+        second = await client.post("/replay", json={"scenario": "dga_lexical", "speed": 0})
         assert second.status_code == 409
 
 
@@ -336,28 +342,37 @@ async def test_only_one_replay_runs_and_runtime_reports_replaying(tmp_path):
     ("scenario", "family", "mechanism"),
     (
         ("c2_recurrence", "C2 / Beaconing", "C2-M1"),
-        ("dns_observation", "DGA + DNS", "DNS-T1"),
+        ("dga_lexical_internal", "DGA + DNS", "DNS-T1"),
         ("encrypted_session", "Encrypted Sessions", "ENC-A"),
         ("transfer_magnitude", "Data Transfer", "CAT6-EX-M1"),
     ),
 )
 async def test_family_replays_display_real_results(tmp_path, scenario, family, mechanism):
-    async with client_for(tmp_path / f"{scenario}.db") as (client, service):
-        response = await client.post("/replay", json={"scenario": scenario, "speed": 0})
-        assert response.status_code == 202
-        status = await service.wait_for_replay()
-        assert status.state == "COMPLETED" and status.results_persisted > 0
-        results = (await client.get("/results", params={"mechanism_id": mechanism})).json()["results"]
-        assert results and {item["family"] for item in results} == {family}
-        assert {item["mechanism_id"] for item in results} == {mechanism}
-        if scenario == "c2_recurrence":
-            assert {item["result_type"] for item in results} == {
-                "INSUFFICIENT_EVIDENCE", "REVIEW_FINDING",
-            }
-            filtered = (await client.get("/results", params={
-                "mechanism_id": mechanism, "result_type": "INSUFFICIENT_EVIDENCE",
-            })).json()["results"]
-            assert filtered and {item["result_type"] for item in filtered} == {"INSUFFICIENT_EVIDENCE"}
+    import os
+    previous = os.environ.get("EVIDENCEGATE_DEV_SCENARIOS")
+    os.environ["EVIDENCEGATE_DEV_SCENARIOS"] = "1"
+    try:
+        async with client_for(tmp_path / f"{scenario}.db") as (client, service):
+            response = await client.post("/replay", json={"scenario": scenario, "speed": 0})
+            assert response.status_code == 202
+            status = await service.wait_for_replay()
+            assert status.state == "COMPLETED" and status.results_persisted > 0
+            results = (await client.get("/results", params={"mechanism_id": mechanism})).json()["results"]
+            assert results and {item["family"] for item in results} == {family}
+            assert {item["mechanism_id"] for item in results} == {mechanism}
+            if scenario == "c2_recurrence":
+                assert {item["result_type"] for item in results} == {
+                    "INSUFFICIENT_EVIDENCE", "REVIEW_FINDING",
+                }
+                filtered = (await client.get("/results", params={
+                    "mechanism_id": mechanism, "result_type": "INSUFFICIENT_EVIDENCE",
+                })).json()["results"]
+                assert filtered and {item["result_type"] for item in filtered} == {"INSUFFICIENT_EVIDENCE"}
+    finally:
+        if previous is None:
+            os.environ.pop("EVIDENCEGATE_DEV_SCENARIOS", None)
+        else:
+            os.environ["EVIDENCEGATE_DEV_SCENARIOS"] = previous
 
 
 @pytest.mark.asyncio

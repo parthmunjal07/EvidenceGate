@@ -1284,3 +1284,62 @@ time, .metric-card strong, .runtime-metric strong, .clock, .investigation-fact-s
   .relationship-summary-visual { margin-right: 16px; margin-left: 16px; }
   .inspector.inspector-modal { width: calc(100vw - 24px); max-height: 92vh; }
 }
+/* Source-to-canonical workbench and scenario-scoped event browser. */
+.scenario-episode-summary { color:#526871 !important; font-size:11px !important; }
+.observation-workbench { padding:14px; }
+.source-canonical-workbench { display:grid; grid-template-columns:minmax(0,.88fr) 28px minmax(0,1.12fr); gap:12px; align-items:stretch; }
+.source-record-summary,.canonical-observation-summary { min-width:0; padding:12px; border:1px solid #e1e8ea; border-radius:4px; background:#fff; }
+.source-record-summary { background:#f9fbfb; }
+.source-record-summary h3,.canonical-observation-summary h3 { margin:4px 0 8px; color:#2e4853; font-size:16px; font-weight:650; }
+.source-record-summary time,.canonical-time-line time { color:#536b74; font-size:12px; font-variant-numeric:tabular-nums; }
+.source-canonical-arrow { align-self:center; justify-self:center; color:#438477; font-size:22px; }
+.canonical-time-line { display:flex; justify-content:space-between; gap:10px; margin:0 0 8px; padding-bottom:7px; border-bottom:1px solid #edf0f2; color:#718089; font-size:12px; }
+.observation-fact-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 12px; margin:8px 0; }
+.observation-fact-list>div { min-width:0; }
+.observation-fact-list dt { color:#718089; font-size:11px; }
+.observation-fact-list dd { margin:2px 0 0; color:#314a54; font-size:12px; font-weight:550; overflow-wrap:anywhere; }
+.source-record-summary .observation-fact-list,.canonical-observation-summary .observation-fact-list { grid-template-columns:1fr; }
+.observation-identity-line { margin:8px 0; color:#556a73; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
+.observation-visibility-block,.observation-quality-block { margin-top:10px; padding-top:9px; border-top:1px solid #edf0f2; }
+.observation-visibility-block>strong,.observation-quality-block>strong { display:block; margin-bottom:6px; color:#435c65; font-size:12px; }
+.observation-visibility-block ul { display:flex; flex-wrap:wrap; gap:5px 12px; margin:0; padding:0; list-style:none; }
+.observation-visibility-block li { display:flex; align-items:center; gap:5px; color:#455e67; font-size:11px; }
+.observation-visibility-block li small { color:#73818a; }
+.observation-quality-block { display:flex; flex-wrap:wrap; gap:5px 8px; }
+.observation-quality-block>strong { flex:0 0 100%; }
+.observation-quality-block>span { padding:3px 6px; border:1px solid #e8edef; border-radius:3px; color:#62747c; font-size:10px; }
+.canonical-observation-summary details { margin-top:8px; color:#556a73; font-size:11px; }
+.canonical-observation-summary details summary { cursor:pointer; }
+.canonical-observation-summary details p { margin:6px 0; overflow-wrap:anywhere; }
+.observation-routes-summary { margin-top:10px; padding:10px 12px; border:1px solid #e3e9eb; border-radius:4px; background:#f8fafb; }
+.observation-routes-summary>strong { color:#435c65; font-size:12px; }
+.observation-routes-summary ul { display:flex; flex-wrap:wrap; gap:5px 8px; margin:7px 0 0; padding:0; list-style:none; }
+.observation-routes-summary li { padding:4px 7px; border:1px solid #dce7e5; border-radius:3px; background:#fff; color:#315d55; font-size:11px; }
+.observation-routes-summary p { margin:5px 0 0; color:#697982; font-size:12px; }
+.observation-result-scores { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.observation-result-scores span { color:#6b6b50; font-size:11px; }
+.network-observations-panel { margin:12px 0; }
+.network-observation-scroll-note { display:none; margin:0; padding:0 10px 8px; color:#65777f; font-size:11px; }
+.network-observation-table-wrap { width:100%; overflow-x:auto; }
+.network-observation-table { width:100%; min-width:1020px; border-collapse:collapse; font-size:12px; }
+.network-observation-table th { padding:9px 10px; border-bottom:1px solid #e4eaec; color:#65777f; font-size:11px; font-weight:600; text-align:left; white-space:nowrap; }
+.network-observation-table td { max-width:285px; padding:9px 10px; border-bottom:1px solid #edf0f2; color:#334c56; vertical-align:top; overflow-wrap:anywhere; }
+.network-observation-table tbody tr:hover { background:#f7faf9; }
+.network-observation-table td:first-child { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.observation-route-count { min-width:28px; padding:3px 6px; border:1px solid #dce7e5; border-radius:3px; background:#f8fbfa; color:#315f55; cursor:pointer; }
+.observation-detail-cell { white-space:nowrap; }
+.observation-modal-backdrop { position:fixed; z-index:1000; inset:0; display:grid; place-items:center; padding:24px; background:rgba(18,34,42,.32); }
+.observation-modal { display:flex; width:min(760px,100%); max-height:min(84vh,900px); flex-direction:column; overflow:hidden; border:1px solid #d5dfe2; border-radius:5px; background:#fff; box-shadow:0 12px 36px rgba(26,47,56,.18); }
+.observation-modal-header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:15px 18px; border-bottom:1px solid #e5eaec; }
+.observation-modal-header h2 { margin:3px 0 0; color:#2b444e; font-size:19px; }
+.observation-modal-body { overflow:auto; padding:16px 18px; }
+.observation-modal-body>section { padding:0 0 14px; margin-bottom:14px; border-bottom:1px solid #edf0f2; }
+.observation-modal-body h3 { margin:0 0 8px; color:#3d5660; font-size:14px; }
+.observation-modal-body p,.observation-modal-body li { color:#526872; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.observation-modal-body ul { display:grid; gap:7px; margin:0; padding-left:18px; }
+.observation-modal-body li { display:flex; justify-content:space-between; gap:14px; }
+.observation-modal-body details { margin-top:8px; color:#566d76; font-size:12px; }
+.observation-modal-body details summary { cursor:pointer; }
+.observation-lineage { padding-top:8px; }
+@media (max-width:1150px) { .network-observation-scroll-note { display:block; } }
+@media (max-width:850px) { .source-canonical-workbench { grid-template-columns:1fr; } .source-canonical-arrow { transform:rotate(90deg); } .observation-fact-list { grid-template-columns:1fr; } .observation-modal-backdrop { padding:10px; } .observation-modal { max-height:92vh; } }

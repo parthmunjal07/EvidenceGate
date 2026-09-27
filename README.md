@@ -14,7 +14,9 @@ default active. The former `ddos` and `recon` provider shells are not default
 runtime targets.
 
 DGA is **DEFAULT ACTIVE M1-R1 LEXICAL MODEL EVIDENCE**. It verifies and reuses
-the exact Drive-owned artifact identified by the repository manifest. There is
+the exact Drive-owned artifact identified by SHA-256. Deployment stores the
+restricted artifact on persistent storage; its Drive locator is never public.
+There is
 no DGA maliciousness threshold and no malware, infection, C2, tunnelling,
 exfiltration, ownership, or intent conclusion. DNS-T1 remains an independent
 structural observation; one clear-DNS observation may produce both immutable
@@ -143,6 +145,32 @@ curl -X POST http://127.0.0.1:8000/replay \
   -H "Content-Type: application/json" \
   -d '{"scenario":"mixed_ddos_recon","speed":0}'
 ```
+
+## Judge demo and Railway deployment
+
+The default Traffic Lab allowlist contains five runtime-owned, deterministic
+demonstrations: DDoS + Recon fan-out, One-way SYN visibility, C2 recurrence,
+DGA + DNS, and recorded classic PCAP. Internal developer fixtures are exposed
+only when `EVIDENCEGATE_DEV_SCENARIOS=1` is explicitly set. The workbench shows
+the safe source-record summary beside its canonical network observation,
+visibility and quality, eligible analytic routes, and linked Results. Trace
+summaries omit raw payloads and private artifact locators; canonicalization and
+analysis continue if a presentation summary fails.
+
+The deployed service uses the root `Dockerfile`, one Railway service process,
+and one persistent `/data` volume. Configure `EVIDENCEGATE_PUBLIC_MODE=1`,
+`EVIDENCEGATE_DB=/data/evidencegate.db`, and
+`EVIDENCEGATE_DGA_MODEL=/data/DGA_M1_R1_SERIALIZED_MODEL.joblib`; keep internal
+scenarios off. The DGA artifact is required for `VERIFIED_READY` and must match
+SHA-256 `39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df`.
+Never commit the artifact, a Railway token, or private Drive locator.
+
+See [`docs/JUDGE_DEMO_RUNBOOK.md`](docs/JUDGE_DEMO_RUNBOOK.md) for the five demo
+talk tracks and [`docs/RAILWAY_DEPLOYMENT_RUNBOOK.md`](docs/RAILWAY_DEPLOYMENT_RUNBOOK.md)
+for volume setup, model upload, backups, restart, rollback, and public-noindex
+verification. Live interface capture, NetFlow/IPFIX/sFlow, raw-PCAP DNS parsing,
+learned correlation, distributed execution, and production throughput sizing
+remain deferred.
 
 Replay a versioned finite bundle through the same streaming runtime:
 

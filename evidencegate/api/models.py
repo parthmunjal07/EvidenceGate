@@ -152,6 +152,34 @@ class RuntimeTraceEventDto(StrictModel):
     reason: str | None = None
     result_id: str | None = None
     source_observation_ids: list[str] = Field(default_factory=list)
+    source_record: "SourceRecordPresentationDto | None" = None
+    canonical_observation: "ObservationPresentationDto | None" = None
+
+
+class SourceRecordPresentationDto(StrictModel):
+    record_number: int | None = None
+    event_time: str | None = None
+    observation_type: str
+    facts: dict[str, Any]
+
+
+class ObservationPresentationDto(StrictModel):
+    observation_id: str
+    observation_type: str
+    event_time: str
+    source_position: str
+    wire_direction: str
+    direction_basis: str
+    finality: str
+    availability_basis: str
+    present_fields: list[str]
+    identity: dict[str, Any]
+    visibility: dict[str, list[str]]
+    quality: dict[str, str]
+    facts: dict[str, Any]
+
+
+RuntimeTraceEventDto.model_rebuild()
 
 
 class RuntimeTraceResponse(StrictModel):

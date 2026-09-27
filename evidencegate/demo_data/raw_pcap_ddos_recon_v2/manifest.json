@@ -1,0 +1,97 @@
+{
+  "capture_end": "2026-09-27T05:30:02Z",
+  "capture_file": "capture.pcap",
+  "capture_start": "2026-09-27T05:30:00Z",
+  "direction_policy": {
+    "a_networks": [
+      "198.51.100.0/24"
+    ],
+    "b_networks": [
+      "192.0.2.0/24"
+    ]
+  },
+  "endpoint_roles": {
+    "192.0.2.10": [
+      "target_id"
+    ],
+    "192.0.2.11": [
+      "target_id"
+    ],
+    "198.51.100.10": [
+      "initiator_id"
+    ],
+    "198.51.100.11": [
+      "initiator_id"
+    ],
+    "198.51.100.12": [
+      "initiator_id"
+    ],
+    "198.51.100.13": [
+      "initiator_id"
+    ],
+    "198.51.100.14": [
+      "initiator_id"
+    ],
+    "198.51.100.15": [
+      "initiator_id"
+    ],
+    "198.51.100.16": [
+      "initiator_id"
+    ],
+    "198.51.100.17": [
+      "initiator_id"
+    ],
+    "198.51.100.18": [
+      "initiator_id"
+    ]
+  },
+  "packet_count": 18,
+  "quality": {
+    "capture_gap": "UNKNOWN",
+    "packet_loss": "UNKNOWN",
+    "parser": "CLEAR",
+    "sampling": "UNKNOWN"
+  },
+  "reflection_facts": {},
+  "schema_version": "evidencegate-pcap-manifest-v1",
+  "services": [
+    {
+      "port": 443,
+      "protocol": 6,
+      "service_id": "service/https",
+      "target_address": "192.0.2.10"
+    },
+    {
+      "port": 22,
+      "protocol": 6,
+      "service_id": "service/ssh",
+      "target_address": "192.0.2.10"
+    },
+    {
+      "port": 80,
+      "protocol": 6,
+      "service_id": "service/http",
+      "target_address": "192.0.2.10"
+    },
+    {
+      "port": 25,
+      "protocol": 6,
+      "service_id": "service/smtp",
+      "target_address": "192.0.2.10"
+    },
+    {
+      "port": 53,
+      "protocol": 17,
+      "service_id": "service/dns-udp",
+      "target_address": "192.0.2.10"
+    },
+    {
+      "port": 123,
+      "protocol": 17,
+      "service_id": "service/ntp-udp",
+      "target_address": "192.0.2.10"
+    }
+  ],
+  "source_id": "judge-controlled-raw-pcap-v2",
+  "visibility": "BOTH"
+}

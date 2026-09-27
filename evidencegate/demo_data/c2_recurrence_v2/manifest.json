@@ -1,0 +1,28 @@
+{
+  "capture_end": "2026-09-27T05:34:11Z",
+  "capture_start": "2026-09-27T05:30:00Z",
+  "direction_basis": "CLIENT_SERVER_ROLE",
+  "event_time_order": "NONDECREASING",
+  "input_observation_contract": "REPLAY_TYPED_V1",
+  "quality": {
+    "capture_gap": "UNKNOWN",
+    "packet_loss": "UNKNOWN",
+    "parser": "CLEAR",
+    "sampling": "UNKNOWN"
+  },
+  "record_count": 7,
+  "schema_version": "evidencegate-replay-manifest-v1",
+  "source_id": "judge-c2-recurrence-v2",
+  "source_kind": "DERIVED",
+  "timestamp_semantics": "FLOW_START",
+  "visibility": {
+    "available": [
+      "FORWARD_FACTS"
+    ],
+    "degraded": [],
+    "unavailable": [
+      "REVERSE_FACTS"
+    ]
+  },
+  "wire_direction": "FORWARD"
+}

@@ -253,7 +253,7 @@ async def test_allowlisted_pcap_api_status_persistence_and_notifications(tmp_pat
             assert status.results_persisted > 0
             notice = await subscription.get()
             assert notice.event == "result"
-            results = (await client.get("/results", params={"source_id": "controlled-raw-pcap-both"})).json()
+            results = (await client.get("/results", params={"source_id": "judge-controlled-raw-pcap-v2"})).json()
             assert results["results"]
             rejected = await client.post("/replay", json={"scenario": str(PCAP / "capture.pcap"), "speed": 0})
             assert rejected.status_code == 422

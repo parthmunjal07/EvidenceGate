@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,27 +62,44 @@ BASE_FAMILY_STATUS = (
 
 
 def default_scenarios(root: Path) -> dict[str, ReplayScenario]:
-    fixtures = root / "tests" / "fixtures" / "replay"
+    demos = root / "evidencegate" / "demo_data"
     definitions = (
-        ("mixed_ddos_recon", "DDoS + Recon TCP", "DDoS / Reconnaissance", "default_activation_tcp"),
-        ("ddos_one_way", "One-way SYN visibility", "DDoS", "ddos_syn_forward_only"),
-        ("ddos_udp", "UDP demand context", "DDoS", "default_activation_udp"),
-        ("c2_recurrence", "C2 recurrence measurement", "C2 / Beaconing", "c2_r1"),
-        ("dga_lexical", "DGA lexical model evidence", "DGA", "dga_lexical"),
-        ("dns_observation", "DNS structural observation", "DNS Tunnelling", "dns_forward"),
-        ("encrypted_session", "TLS handshake evidence", "Encrypted Sessions", "tls_handshake"),
-        ("transfer_magnitude", "Transfer magnitude", "Data Exfiltration", "flow_transfer"),
+        ("mixed_ddos_recon", "DDoS + Recon fan-out", "DDoS / Reconnaissance", "mixed_ddos_recon_v2"),
+        ("ddos_one_way", "One-way SYN visibility", "DDoS", "ddos_one_way_v2"),
+        ("c2_recurrence", "C2 recurrence", "C2 / Beaconing", "c2_recurrence_v2"),
+        ("dga_lexical", "DGA + DNS", "DGA / DNS", "dga_dns_v2"),
     )
     scenarios = {
-        scenario_id: ReplayScenario(scenario_id, label, family, fixtures / bundle)
+        scenario_id: ReplayScenario(scenario_id, label, family, demos / bundle)
         for scenario_id, label, family, bundle in definitions
     }
-    pcap_bundle = root / "tests" / "fixtures" / "pcap" / "raw_ddos_recon"
+    pcap_bundle = demos / "raw_pcap_ddos_recon_v2"
     scenarios["raw_pcap_ddos_recon"] = ReplayScenario(
         "raw_pcap_ddos_recon", "Raw PCAP — DDoS + Recon",
         "DDoS / Reconnaissance", pcap_bundle / "capture.pcap", "PCAP",
         pcap_bundle / "manifest.json",
     )
+    if os.environ.get("EVIDENCEGATE_DEV_SCENARIOS", "").strip().lower() in {"1", "true", "yes"}:
+        fixtures = root / "tests" / "fixtures" / "replay"
+        internal = (
+            ("mixed_ddos_recon_internal", "Internal TCP fan-out fixture", "DDoS / Reconnaissance", "default_activation_tcp"),
+            ("ddos_one_way_internal", "Internal one-way SYN fixture", "DDoS", "ddos_syn_forward_only"),
+            ("ddos_udp", "UDP demand context", "DDoS", "default_activation_udp"),
+            ("c2_recurrence_internal", "Internal C2 fixture", "C2 / Beaconing", "c2_r1"),
+            ("dga_lexical_internal", "Internal DGA fixture", "DGA", "dga_lexical"),
+            ("dns_observation", "DNS structural observation", "DNS Tunnelling", "dns_forward"),
+            ("encrypted_session", "TLS handshake evidence", "Encrypted Sessions", "tls_handshake"),
+            ("transfer_magnitude", "Transfer magnitude", "Data Exfiltration", "flow_transfer"),
+        )
+        scenarios.update({
+            scenario_id: ReplayScenario(scenario_id, label, family, fixtures / bundle)
+            for scenario_id, label, family, bundle in internal
+        })
+        pcap_fixture = root / "tests" / "fixtures" / "pcap" / "raw_ddos_recon"
+        scenarios["raw_pcap_internal"] = ReplayScenario(
+            "raw_pcap_internal", "Internal PCAP fixture", "DDoS / Reconnaissance",
+            pcap_fixture / "capture.pcap", "PCAP", pcap_fixture / "manifest.json",
+        )
     return scenarios
 
 

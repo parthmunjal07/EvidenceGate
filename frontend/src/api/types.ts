@@ -176,6 +176,33 @@ export type RuntimeTraceEvent = {
   reason: string | null;
   result_id: string | null;
   source_observation_ids: string[];
+  source_record?: SourceRecordPresentationDto | null;
+  canonical_observation?: ObservationPresentationDto | null;
+};
+export type SourceRecordPresentationDto = {
+  record_number: number | null;
+  event_time: string | null;
+  observation_type: string;
+  facts: Record<string, unknown>;
+};
+export type ObservationPresentationDto = {
+  observation_id: string;
+  observation_type: string;
+  event_time: string;
+  source_position: string;
+  wire_direction: string;
+  direction_basis: string;
+  finality: string;
+  availability_basis: string;
+  present_fields: string[];
+  identity: {
+    observed_identifiers: string[];
+    identifier_basis: string;
+    role_assignments: { identifier: string; role: string; basis: string }[];
+  };
+  visibility: { available: string[]; unavailable: string[]; degraded: string[] };
+  quality: { packet_loss: string; sampling: string; parser: string; capture_gap: string };
+  facts: Record<string, unknown>;
 };
 export type RuntimeTraceResponse = {
   events: RuntimeTraceEvent[];
