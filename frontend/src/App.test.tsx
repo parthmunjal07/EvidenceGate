@@ -7,7 +7,7 @@ const runtime = {
   state: "ONLINE", default_target_count: 16, active_lane_ids: ["ddos.reflection_victim", "dga.m1"],
   targets: [{ lane_id: "ddos.reflection_victim", mechanism_id: "DDOS-CV-B0", implementation: "ACTIVE_FACTUAL_MECHANISM" }, { lane_id: "dga.m1", mechanism_id: "DGA-A1-M1", implementation: "ACTIVE_LEXICAL_MODEL_LANE" }],
   family_status: [{ family: "ddos", status: "ACTIVE" }], database_status: "connected", durable_result_count: 1, live_subscriber_count: 0, replay,
-  scenarios: [{ id: "mixed_ddos_recon", label: "DDoS and reconnaissance", family: "DDoS", source_type: "NDJSON" }, { id: "raw_pcap_ddos_recon", label: "Recorded DDoS traffic", family: "DDoS", source_type: "PCAP" }],
+  scenarios: [{ id: "mixed_ddos_recon", label: "DDoS and reconnaissance", family: "DDoS", source_type: "NDJSON" }, { id: "raw_pcap_ddos_recon", label: "Recorded DDoS traffic", family: "DDoS", source_type: "PCAP" }, { id: "internal_fixture", label: "Internal fixture", family: "Test", source_type: "NDJSON" }],
   supported_sources: ["TYPED_NDJSON_REPLAY", "PCAP"], dga_model_readiness: "ARTIFACT_MISSING", dga_model_failure_reason: "ARTIFACT_MISSING", alert_projection_available: true, alert_policy_active: true, alert_policy_version: "SIH_ALERT_POLICY_V1",
 };
 const alert = {
@@ -122,13 +122,16 @@ describe("analyst-first console", () => {
   it("keeps Traffic lab factual and moves the trace into an on-demand modal", async () => {
     const fetchMock = mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Traffic Lab" }));
-    expect(screen.getByText(/Watch passive observations route into separate evidence/)).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Demo playback" })).toHaveValue("normal");
-    expect(screen.getAllByRole("button", { name: "Run" })).toHaveLength(2);
+    expect(screen.getByText(/Watch recorded or controlled passive observations become independent evidence/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Choose a demo scenario" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /Demo playback/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Run demo" })).toHaveLength(2);
+    expect(screen.getByText("Recommended demo")).toBeInTheDocument();
+    expect(screen.queryByText("Internal fixture")).not.toBeInTheDocument();
     expect(screen.queryByText("mixed_ddos_recon")).not.toBeInTheDocument();
     expect(screen.queryByText("Visual pace")).not.toBeInTheDocument();
     expect(screen.queryByText("Processing trace")).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "Run" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Run demo" })[0]!);
     await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input) === "/replay")).toBe(true));
     expect(JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input) === "/replay")?.[1]?.body))).toEqual({ scenario: "mixed_ddos_recon", speed: 0 });
   });

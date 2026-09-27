@@ -3,7 +3,7 @@ import { useEvidence } from "../state/EvidenceContext";
 import { EmptyState, PageHeading } from "../components/common/Primitives";
 import { api } from "../api/client";
 import type { FamilyEvidenceViewDto, InvestigationLinkDto, ResultDto, RuntimeTraceEvent } from "../api/types";
-import { contextSummary, formatEvidenceDateTime, formatEvidenceDateTimeCompact, formatEvidenceClockTime, formatTimeZoneLabel, mechanismLabel, normalizeFamilyName, pluralize, readable, summarizeReference } from "../utils/formatting";
+import { contextSummary, formatEvidenceDateTime, formatEvidenceClockTime, formatTimeZoneLabel, mechanismLabel, normalizeFamilyName, pluralize, readable } from "../utils/formatting";
 import { useReplay } from "../hooks/useReplay";
 import { useTimeZone } from "../state/TimeZoneContext";
 import type { PageKey } from "../state/types";
@@ -11,7 +11,8 @@ import type { NavigationContext } from "../state/navigation";
 import { advanceRuntimeTraceCursor, captureRuntimeTraceBaseline, hasRuntimeTraceGap, latestReadinessByObservationLane, mergeRuntimeTraceEvents, observationLaneKey } from "../utils/runtimeTrace";
 import { sourceLinkedReplayResults } from "../utils/replayAttribution";
 import { clearLatestReplayMarker, saveLatestReplayMarker } from "../utils/latestReplayScope";
-import { buildReplayPresentationSteps, groupFamilyEpisodes, groupRelationsByFamilyPair, playerReducer, presentationSchedule, type PresentationMode, type ReplayPresentationStage } from "../utils/replayPresentation";
+import { buildReplayPresentationSteps, groupFamilyEpisodes, groupRelationsByFamilyPair, playerReducer, presentationSchedule, type ReplayPresentationStage } from "../utils/replayPresentation";
+import { JUDGE_DEMOS, judgeDemoScenarios, validateJudgeDemo } from "../utils/judgeDemos";
 
 type Lifecycle = "IDLE" | "STARTING" | "PROCESSING" | "FINALIZING" | "READY" | "FAILED";
 
@@ -32,7 +33,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const { state, dispatch } = useEvidence();
   const { zone } = useTimeZone();
   const { scenarios, replay, error, start, busy } = useReplay();
-  const [presentation, setPresentation] = useState<PresentationMode>(() => prefersReducedMotion() ? "instant" : "normal");
+  const presentation = prefersReducedMotion() ? "instant" as const : "normal" as const;
   const [receivedTrace, setReceivedTrace] = useState<RuntimeTraceEvent[]>([]);
   const [baseline, setBaseline] = useState<Set<string> | null>(null);
   const [runResults, setRunResults] = useState<ResultDto[]>([]);
@@ -41,6 +42,9 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const [derivedUnavailable, setDerivedUnavailable] = useState(false);
   const [traceUnavailable, setTraceUnavailable] = useState(false);
   const [resultSyncUnavailable, setResultSyncUnavailable] = useState(false);
+  const [demoFailure, setDemoFailure] = useState<string[]>([]);
+  const [playbackFailure, setPlaybackFailure] = useState(false);
+  const [startingScenarioId, setStartingScenarioId] = useState<string | null>(null);
   const [lifecycle, setLifecycle] = useState<Lifecycle>("IDLE");
   const [player, dispatchPlayer] = useReducer(playerReducer, { stepIndex: -1, paused: false, followLive: true, selectedObservationId: null });
   const [showPicker, setShowPicker] = useState(true);
@@ -59,7 +63,11 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   }, [receivedTrace, runResults, baseline]);
 
   const selectedScenario = scenarios.find((scenario) => scenario.id === replay?.scenario);
-  const scenarioName = selectedScenario?.label || "Traffic replay";
+  const dgaReady = state.runtime?.dga_model_readiness === "VERIFIED_READY";
+  const availableScenarios = useMemo(() => judgeDemoScenarios(scenarios, dgaReady, import.meta.env.VITE_EVIDENCEGATE_DEV_SCENARIOS === "true"), [scenarios, dgaReady]);
+  const scenarioInfo = availableScenarios.find((scenario) => scenario.id === replay?.scenario);
+  const demoContract = scenarioInfo?.demo;
+  const scenarioName = scenarioInfo?.demo?.title || selectedScenario?.label || "Traffic replay";
   const sourceType = replay?.source_type || selectedScenario?.source_type || "Controlled observations";
   const sourceLabel = (value: string) => /pcap/i.test(value) ? "Recorded PCAP replay" : /ndjson|typed/i.test(value) ? "Controlled NDJSON replay" : value;
   const running = lifecycle === "STARTING" || lifecycle === "PROCESSING" || lifecycle === "FINALIZING";
@@ -90,12 +98,15 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   }, [tracePolling]);
 
   const runScenario = async (id: string) => {
+    setStartingScenarioId(id);
     setLifecycle("STARTING");
     clearLatestReplayMarker();
     replayTraceStartSequence.current = null;
     setTraceUnavailable(false);
     traceIssueRef.current = false;
     setResultSyncUnavailable(false);
+    setDemoFailure([]);
+    setPlaybackFailure(false);
     try {
       traceCursor.current = await captureRuntimeTraceBaseline((after, limit) => api.runtimeTrace(after, undefined, limit));
       replayTraceStartSequence.current = traceCursor.current;
@@ -121,7 +132,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       const started = await start(id, 0);
       if (!started) throw new Error("Replay could not be started");
       activeReplayStartedAt.current = started.started_at;
-      if (replayTraceStartSequence.current === null) throw new Error("Runtime trace baseline is unavailable");
+      setStartingScenarioId(null);
       setLifecycle("PROCESSING");
     } catch (cause) {
       setLifecycle("FAILED");
@@ -187,6 +198,19 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
         const views = derived.family_views.filter((view) => view.source_result_ids.some((resultId) => runIds.has(resultId)));
         const viewIds = new Set(views.map((view) => view.family_view_id));
         const links = derived.links.filter((link) => viewIds.has(link.left_family_view_id) && viewIds.has(link.right_family_view_id));
+        const acceptanceContract = JUDGE_DEMOS.find((demo) => demo.id === replay.scenario);
+        if (acceptanceContract) {
+          const validation = validateJudgeDemo(acceptanceContract, {
+            observations: replay.observations_emitted,
+            results: runResultsSorted,
+            familyViews: views,
+            links,
+            trace: mergeRuntimeTraceEvents(receivedRef.current, drainedTrace),
+            traceAvailable: !traceIssueRef.current,
+            runtimeCompleted: replay.state === "COMPLETED",
+          });
+          if (!validation.ok) setDemoFailure(validation.reasons);
+        }
         if (!controller.signal.aborted) { setFamilyViews(views); setInvestigationLinks(links); }
       } catch { if (!controller.signal.aborted) setDerivedUnavailable(true); }
 
@@ -197,7 +221,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       }
     })();
     return () => controller.abort();
-  }, [replay?.state, replay?.started_at, replay?.finished_at, replay?.results_persisted, replay?.scenario, replay?.source_type, baseline, dispatch]);
+  }, [replay?.state, replay?.started_at, replay?.finished_at, replay?.results_persisted, replay?.scenario, replay?.source_type, replay?.observations_emitted, baseline, dispatch]);
 
   const presentationSteps = useMemo(() => buildReplayPresentationSteps(receivedTrace, runResults, familyViews, investigationLinks), [receivedTrace, runResults, familyViews, investigationLinks]);
   const observationEvents = useMemo(() => receivedTrace.filter((event) => event.kind === "OBSERVATION_CREATED" && event.observation_id), [receivedTrace]);
@@ -206,13 +230,13 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const currentStep = presentationSteps[effectiveStepIndex] ?? null;
 
   useEffect(() => {
-    if (lifecycle !== "READY" || !presentationSteps.length) return;
+    if (lifecycle !== "READY" || !presentationSteps.length || demoFailure.length || playbackFailure) return;
     if (presentation === "instant" || prefersReducedMotion()) return;
     if (player.paused || player.stepIndex >= presentationSteps.length - 1) return;
     const nextIndex = player.stepIndex + 1;
     const timer = setTimeout(() => dispatchPlayer({ type: "ADVANCE", stepCount: presentationSteps.length }), player.stepIndex < 0 ? 0 : schedule[nextIndex] ?? 300);
     return () => clearTimeout(timer);
-  }, [lifecycle, presentation, player.paused, player.stepIndex, presentationSteps, schedule]);
+  }, [lifecycle, presentation, player.paused, player.stepIndex, presentationSteps, schedule, demoFailure.length, playbackFailure]);
 
   const revealedSteps = presentationSteps.slice(0, effectiveStepIndex + 1);
   const revealedSequences = new Set(revealedSteps.flatMap((step) => step.eventSequences));
@@ -242,8 +266,9 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
     }
     return map;
   }, [presentedTrace]);
-  const liveObservationId = currentStep?.observationId ?? observations.at(-1)?.observation_id ?? null;
-  const selectedObservation = observations.find((event) => event.observation_id === (player.followLive ? liveObservationId : player.selectedObservationId)) ?? null;
+  const multiSourceResult = currentStep?.stage === "RESULT" && currentStep.sourceObservationIds.length > 1;
+  const liveObservationId = currentStep?.focusObservationId ?? (currentStep?.stage === "RESULT" ? null : observations.at(-1)?.observation_id ?? null);
+  const selectedObservation = multiSourceResult ? null : observations.find((event) => event.observation_id === (player.followLive ? liveObservationId : player.selectedObservationId)) ?? null;
   const analytics = useMemo(() => {
     const selectedId = selectedObservation?.observation_id;
     if (!selectedId) return [];
@@ -253,7 +278,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       const results = visibleRunResults.filter((item) => item.lane_id === route.lane_id && item.source_observation_ids.includes(selectedId));
       const latestEvent = latest.get(observationLaneKey(selectedId, route.lane_id || ""));
       const laterResult = results.find((item) => item.source_observation_ids.length > 1);
-      const status = laterResult ? `Contributes to later Result · ${laterResult.source_observation_ids.length} source observations`
+      const status = laterResult ? `Contributes to later Result Â· ${laterResult.source_observation_ids.length} source observations`
         : results.some((item) => item.result_type === "ANALYTIC_UNAVAILABLE") ? "Unavailable"
         : results.some((item) => item.result_type === "INSUFFICIENT_EVIDENCE" || item.missing_prerequisites.length) ? "Insufficient evidence"
           : results.length ? "Evidence produced" : readinessLabel(latestEvent);
@@ -268,6 +293,13 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const stageIndex: Record<ReplayPresentationStage, number> = { SOURCE: 0, OBSERVATION: 1, VISIBILITY: 1, ROUTING: 2, EVALUATION: 3, RESULT: 4, FAMILY: 5, RELATION: 6 };
   const activeStage = currentStep ? stageIndex[currentStep.stage] : lifecycle === "READY" && player.stepIndex >= presentationSteps.length - 1 ? 7 : 0;
   const stageAvailable = [receivedTrace.some((event) => event.kind === "SOURCE_RECORD_ACCEPTED"), observations.length > 0, receivedTrace.some((event) => event.kind === "ROUTED"), receivedTrace.some((event) => event.kind.startsWith("ANALYTIC_") || event.kind === "ADMISSION_REJECTED"), runResults.length > 0, familyViews.length > 0, investigationLinks.length > 0];
+  const routingCompletedObservationIds = new Set([
+    ...presentedTrace.filter((event) => event.kind === "ROUTED" && event.observation_id).map((event) => event.observation_id!),
+    ...revealedSteps.filter((step) => step.stage === "ROUTING" && step.observationId).map((step) => step.observationId!),
+  ]);
+  const explainedObservationIds = new Set(revealedSteps
+    .filter((step) => step.stage === "ROUTING" || step.stage === "EVALUATION" || step.stage === "RESULT")
+    .flatMap((step) => step.sourceObservationIds.length ? step.sourceObservationIds : step.observationId ? [step.observationId] : []));
   const relateNotApplicable = lifecycle === "READY" && familiesPresented && !derivedUnavailable && investigationLinks.length === 0;
   const sourceRecords = sourceType.toLowerCase().includes("pcap") ? "Packets" : "Records";
   const sourceCount = receivedTrace.filter((event) => event.kind === "SOURCE_RECORD_ACCEPTED").length || replay?.records_read || 0;
@@ -276,19 +308,31 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const selectedResults = selectedObservation ? visibleRunResults.filter((item) => item.source_observation_ids.includes(selectedObservation.observation_id || "")) : [];
   const contextItems = selectedObservation ? [...new Set(visibleRunResults.filter((result) => result.source_observation_ids.includes(selectedObservation.observation_id || "")).map(contextSummary))].filter((item) => item && item !== "Observed network context").slice(0, 2) : [];
   const selectedVisibilityEvents = selectedObservation ? presentedTrace.filter((event) => event.observation_id === selectedObservation.observation_id && event.kind === "VISIBILITY_EVALUATED") : [];
-  const currentStageLabel = currentStep ? presentationStageLabel(currentStep.stage) : lifecycle === "READY" ? "Demo ready" : "Waiting for replay";
   const observationIndex = selectedObservation ? observations.findIndex((event) => event.observation_id === selectedObservation.observation_id) : -1;
   const familyResultCounts = new Map<string, number>();
   for (const result of visibleRunResults) familyResultCounts.set(result.taxonomy[1], (familyResultCounts.get(result.taxonomy[1]) ?? 0) + 1);
-  const resultTimeHeading = `Evidence time · ${formatTimeZoneLabel(zone)}`;
-  const playbackDone = lifecycle === "READY" && effectiveStepIndex >= presentationSteps.length - 1;
+  const resultTimeHeading = `Evidence time Â· ${formatTimeZoneLabel(zone)}`;
+  const playbackDone = lifecycle === "READY" && !demoFailure.length && !playbackFailure && effectiveStepIndex >= presentationSteps.length - 1;
+  const currentStageLabel = playbackDone ? "COMPLETE" : playbackFailure ? "Playback unavailable" : demoFailure.length ? "Demo unavailable" : currentStep ? presentationStageLabel(currentStep.stage) : lifecycle === "READY" ? "Preparing playback" : "Runtime processing";
   const diagnostic = lifecycle === "READY" && runResults.length === 0 && !resultSyncUnavailable ? traceUnavailable ? "Runtime trace unavailable; source-lineage Result attribution could not be established." : (replay?.results_persisted ?? 0) > 0 ? "The runtime reported persisted Results, but no durable Result could be linked to the current replay observations." : "Replay completed, but no mechanism Result was produced." : null;
 
-  const hasRun = lifecycle !== "IDLE" && Boolean(replay?.scenario);
+  useEffect(() => {
+    if (lifecycle !== "READY" || demoFailure.length || playbackFailure || playbackDone || player.paused) return;
+    if (!presentationSteps.length) {
+      const timer = setTimeout(() => setPlaybackFailure(true), 0);
+      return () => clearTimeout(timer);
+    }
+    const longestStep = Math.max(0, ...schedule);
+    const noProgressDeadline = Math.max(12000, longestStep * 3 + 5000);
+    const timer = setTimeout(() => setPlaybackFailure(true), noProgressDeadline);
+    return () => clearTimeout(timer);
+  }, [lifecycle, demoFailure.length, playbackFailure, playbackDone, player.paused, player.stepIndex, presentationSteps.length, schedule]);
+
+  const hasRun = lifecycle !== "IDLE" && lifecycle !== "STARTING" && Boolean(replay?.scenario);
   const visibleObservationIds = new Set(presentedTrace.filter((event) => event.kind === "OBSERVATION_CREATED").map((event) => event.observation_id).filter((id): id is string => Boolean(id)));
   const selectableObservations = playbackDone ? observations : observations.filter((event) => Boolean(event.observation_id && visibleObservationIds.has(event.observation_id)));
   const stages = ["Input", "Observe", "Route", "Evaluate", "Evidence", "Compose", "Relate"];
-  const stageTimeTitle = `Runtime trace · local wall clock · ${formatTimeZoneLabel("local")}`;
+  const stageTimeTitle = `Runtime trace Â· local wall clock Â· ${formatTimeZoneLabel("local")}`;
   const qualityLabels: Record<string, string> = { packet_loss: "Packet loss", sampling: "Sampling", parser: "Parser", capture_gap: "Capture gaps" };
   const selectedVisibility = selectedResults.flatMap((result) => [
     ...result.visibility_snapshot.available.map((item) => ({ label: visibilityLabel(item), status: "Available" })),
@@ -297,64 +341,73 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   ]).filter((item, index, items) => items.findIndex((value) => value.label === item.label && value.status === item.status) === index);
   const selectedQuality = selectedResults.length ? Object.entries(selectedResults[0]!.quality_snapshot).map(([key, value]) => ({ label: qualityLabels[key] ?? readable(key), status: value === "CLEAR" ? "Clear" : value === "DEGRADED" ? "Degraded" : "Not reported" })) : [];
   const recentResults = visibleRunResults.slice(-4);
-  const visibleNewRows = visibleRunResults.filter((result) => !(baseline?.has(result.result_id) ?? false)).length;
   const runtimeCaption = replay?.state === "COMPLETED" ? `Runtime completed in ${replay.elapsed_wall_seconds.toFixed(2)} s` : running ? "Runtime processing is separate from presentation playback" : "Runtime processing time not available";
-  const setPlaybackMode = (mode: PresentationMode) => { setPresentation(mode); if (mode === "instant") dispatchPlayer({ type: "SHOW_FINAL", stepCount: presentationSteps.length }); };
+  const resetPlayback = () => { setPlaybackFailure(false); dispatchPlayer({ type: "RESET" }); };
 
   return <section className="page active-page traffic-lab-page" aria-labelledby="replay-title">
-    <PageHeading titleId="replay-title" title="Traffic Lab" deck="Watch passive observations route into separate evidence, family views and shared-context relationships." />
-    {state.runtime?.dga_model_readiness && state.runtime.dga_model_readiness !== "VERIFIED_READY" && <div className="stream-notice" role="status">DGA lexical model is unavailable. DGA scores will not be produced.</div>}
+    <PageHeading titleId="replay-title" title="Traffic Lab" deck="Watch recorded or controlled passive observations become independent evidence." />
+    {state.runtime?.dga_model_readiness && !dgaReady && <div className="stream-notice" role="status">DGA model unavailable in this deployment. The DGA + DNS demo is disabled.</div>}
 
-    {(showPicker || !hasRun) && <section className="panel scenario-picker-panel demo-scenario-panel">
-      <div className="panel-head compact"><div><span className="eyebrow">Controlled passive inputs</span><h2>Choose an evidence episode</h2><p>Replay uses recorded or controlled observations. It does not capture or generate network traffic.</p></div><label className="demo-mode-control">Demo playback<select aria-label="Demo playback" value={presentation} onChange={(event) => setPlaybackMode(event.target.value as PresentationMode)}><option value="normal">Normal</option><option value="fast">Fast</option><option value="instant">Show instantly</option></select></label></div>
-      <div className="scenario-list">{scenarios.map((scenario) => <div className="scenario-row" key={scenario.id}><div><strong>{scenario.label}</strong><span>{sourceLabel(scenario.source_type)} · {normalizeFamilyName(scenario.family)}</span></div><button className="primary-button" disabled={running || busy} onClick={() => void runScenario(scenario.id)}>{lifecycle === "STARTING" && replay?.scenario === scenario.id ? "Starting…" : "Run"}</button></div>)}</div>
-      {!scenarios.length && <EmptyState>No scenarios are available from the runtime.</EmptyState>}
-      <p className="presentation-note">Normal and Fast pace only the on-screen explanation. Runtime processing, source event times, Result persistence and scientific output are unchanged.</p>
+    {(lifecycle === "IDLE" && (showPicker || !hasRun)) && <section className="panel scenario-picker-panel demo-scenario-panel">
+      <div className="panel-head compact"><div><span className="eyebrow">Passive traffic demonstrations</span><h2>Choose a demo scenario</h2><p>Each demo highlights one EvidenceGate capability using recorded or controlled passive input.</p></div></div>
+      <div className="scenario-list">{availableScenarios.map((scenario) => <div className={"scenario-row" + (scenario.recommended ? " recommended" : "")} key={scenario.id}>
+        <div><strong>{scenario.demo?.title || scenario.label}{scenario.recommended && <span className="recommended-tag">Recommended demo</span>}</strong><span>{scenario.demo?.purpose || normalizeFamilyName(scenario.family) + " evidence"}</span><small>{scenario.demo?.sourceLabel || sourceLabel(scenario.source_type)}{scenario.unavailableReason ? " · " + scenario.unavailableReason : ""}</small></div>
+        <button className="primary-button" disabled={running || busy || Boolean(scenario.unavailableReason)} onClick={() => void runScenario(scenario.id)}>{scenario.unavailableReason ? "Unavailable" : "Run demo"}</button>
+      </div>)}</div>
+      {!availableScenarios.length && <EmptyState>No judge demo scenarios are available from the runtime.</EmptyState>}
     </section>}
+    {lifecycle === "STARTING" && <div className="panel replay-diagnostic" role="status">Starting {availableScenarios.find((scenario) => scenario.id === startingScenarioId)?.demo?.title || "demo scenario"}…</div>}
 
     {hasRun && replay && <>
       <section className="panel player-run-header">
-        <div className="run-title-row"><div><span className="eyebrow">{sourceLabel(sourceType)}</span><h2>{scenarioName}</h2><p>{lifecycle === "STARTING" ? "Preparing replay…" : lifecycle === "PROCESSING" ? "Runtime processing in progress." : lifecycle === "FINALIZING" ? "Synchronizing observed trace and durable evidence…" : lifecycle === "READY" ? runtimeCaption : lifecycle === "FAILED" ? "Replay processing failed." : "Controlled replay"}{lifecycle === "READY" && <span className="presentation-honesty"> · Presentation playback is paced for demonstration only</span>}</p></div><div className="run-header-actions"><span className={`status-chip${running ? " running" : lifecycle === "FAILED" ? " warning" : " neutral"}`}>{lifecycle === "FINALIZING" ? "Preparing episode" : lifecycle === "READY" ? "Runtime complete" : running ? "Running" : lifecycle === "FAILED" ? "Failed" : replay.state}</span><button className="secondary-button" onClick={() => setShowPicker((value) => !value)}>{showPicker ? "Hide scenarios" : "Run another"}</button></div></div>
-        <div className="run-hero-metrics"><div><span>Input</span><strong>{sourceCount} {sourceRecords.toLowerCase()}</strong></div><div><span>Observations</span><strong>{replay.observations_emitted || observations.length}</strong></div><div><span>Evidence presented</span><strong>{visibleRunResults.length} Results</strong></div><div><span>Families</span><strong>{familyGroups.length ? familyGroups.map((group) => normalizeFamilyName(group.family)).join(" + ") : derivedUnavailable ? "Unavailable" : familiesPresented ? "None composed" : "Waiting for evidence"}</strong></div><div><span>Related context</span><strong>{linksPresented ? derivedUnavailable ? "Unavailable" : `${runLinks.length} factual ${runLinks.length === 1 ? "link" : "links"}` : familyStepIndex >= 0 && effectiveStepIndex < familyStepIndex ? "Waiting for family evidence" : "Waiting for related context"}</strong></div></div>
-        <div className="demo-player-controls"><div><strong>Demo playback</strong><span>{presentation === "normal" ? "Normal" : presentation === "fast" ? "Fast" : "Show instantly"}{prefersReducedMotion() ? " · reduced motion" : ""}</span></div><div className="player-actions"><button className="secondary-button" disabled={lifecycle !== "READY" || playbackDone || presentation === "instant"} onClick={() => dispatchPlayer({ type: player.paused ? "RESUME" : "PAUSE" })}>{player.paused ? "Resume" : "Pause"}</button><label className="demo-mode-control"><span className="sr-only">Demo playback speed</span><select aria-label="Demo playback speed" value={presentation} onChange={(event) => setPlaybackMode(event.target.value as PresentationMode)}><option value="normal">Normal</option><option value="fast">Fast</option><option value="instant">Show instantly</option></select></label><button className="text-button" disabled={!presentationSteps.length || playbackDone} onClick={() => setPlaybackMode("instant")}>Show final state</button></div></div>
-        <ol className="episode-stage-rail" aria-label="Replay evidence stages">{stages.map((label, index) => { const notApplicable = index === 6 && relateNotApplicable; const complete = !notApplicable && stageAvailable[index] && (playbackDone || index < activeStage); const active = !notApplicable && !complete && index === activeStage; return <li key={label} className={`${complete ? "complete" : ""}${active ? " active" : ""}${notApplicable ? " not-applicable" : ""}`} title={notApplicable ? "No cross-family relation for this replay" : undefined} aria-current={active ? "step" : undefined}><span>{notApplicable ? "—" : complete ? "✓" : active ? "●" : "○"}</span>{label}</li>; })}</ol>
+        <div className="run-title-row"><div><span className="eyebrow">{scenarioInfo?.demo?.sourceLabel || sourceLabel(sourceType)}</span><h2>{scenarioName}</h2><p>{lifecycle === "PROCESSING" ? "Runtime processing in progress." : lifecycle === "FINALIZING" ? "Synchronizing runtime outcome and evidence…" : lifecycle === "READY" ? runtimeCaption + ". Playback below is paced for explanation." : lifecycle === "FAILED" ? "Replay failed." : "Controlled replay"}</p></div><div className="run-header-actions"><span className={"status-chip" + (running ? " running" : lifecycle === "FAILED" || demoFailure.length ? " warning" : " neutral")}>{playbackDone ? "COMPLETE" : demoFailure.length ? "Demo unavailable" : playbackFailure ? "Playback could not complete" : lifecycle === "FINALIZING" ? "Finalizing" : lifecycle === "READY" ? "Runtime complete" : running ? "Running" : lifecycle === "FAILED" ? "Replay failed" : replay.state}</span>{(playbackDone || lifecycle === "FAILED" || demoFailure.length > 0 || playbackFailure) && <button className="secondary-button" onClick={() => { setShowPicker(true); setLifecycle("IDLE"); }}>← Choose another scenario</button>}</div></div>
+        <div className="run-hero-metrics">
+          <div><span>Input</span><strong>{lifecycle === "READY" ? sourceCount + " " + sourceRecords.toLowerCase() : running ? "Processing" : sourceCount + " " + sourceRecords.toLowerCase()}</strong></div>
+          <div><span>Observations</span><strong>{lifecycle === "READY" ? replay.observations_emitted : running ? "Processing" : replay.observations_emitted}</strong></div>
+          <div><span>Evidence</span><strong>{lifecycle === "READY" ? traceUnavailable ? replay.results_persisted + " Results · playback unavailable" : runResults.length + " Results" : running ? "Processing" : replay.results_persisted + " Results"}</strong></div>
+          <div><span>Families</span><strong>{lifecycle !== "READY" ? "Processing" : derivedUnavailable ? "Unavailable" : familyGroups.length ? familyGroups.map((group) => normalizeFamilyName(group.family)).join(" + ") : "No family evidence"}</strong></div>
+          <div><span>Related context</span><strong>{lifecycle !== "READY" ? "Processing" : derivedUnavailable ? "Unavailable" : investigationLinks.length ? investigationLinks.length + " factual " + (investigationLinks.length === 1 ? "relationship" : "relationships") : "No cross-family relationship in this scenario"}</strong></div>
+        </div>
+        {lifecycle === "READY" && <div className="playback-progress" aria-label="Playback progress"><strong>PLAYBACK PROGRESS</strong><span>Evidence shown {visibleRunResults.length} / {runResults.length}</span><span>Family stage {familiesPresented ? familyGroups.length + " composed" : "Not shown yet"}</span><span>Related context {linksPresented ? investigationLinks.length ? investigationLinks.length + " shown" : "No cross-family relationship in this scenario" : "Shown after family composition"}</span></div>}
+        <div className="demo-player-controls"><span>{player.paused ? "Playback paused" : playbackDone ? "Playback complete" : "Playback is paced for explanation"}{prefersReducedMotion() ? " · reduced motion" : ""}</span><div className="player-actions">
+          {!playbackDone && <button className="secondary-button" disabled={lifecycle !== "READY" || Boolean(demoFailure.length) || playbackFailure} onClick={() => dispatchPlayer({ type: player.paused ? "RESUME" : "PAUSE" })}>{player.paused ? "Resume" : "Pause"}</button>}
+          {(playbackDone || playbackFailure) && <button className="secondary-button" onClick={resetPlayback}>Replay animation</button>}
+          {demoFailure.length > 0 && <button className="secondary-button" onClick={() => void runScenario(replay.scenario!)}>Try again</button>}
+        </div></div>
+        <ol className="episode-stage-rail" aria-label="Replay evidence stages">{stages.map((label, index) => { const notApplicable = index === 6 && relateNotApplicable; const complete = !notApplicable && (playbackDone || stageAvailable[index] && index < activeStage); const active = !notApplicable && !complete && index === activeStage && lifecycle === "READY" && !demoFailure.length && !playbackFailure; return <li key={label} className={(complete ? "complete" : "") + (active ? " active" : "") + (notApplicable ? " not-applicable" : "")} title={notApplicable ? "No cross-family relation is expected for this scenario" : undefined} aria-current={active ? "step" : undefined}><span>{notApplicable ? "—" : complete ? "✓" : active ? "●" : "○"}</span>{label}</li>; })}</ol>
       </section>
 
+      {demoFailure.length > 0 && <div className="replay-diagnostic demo-unavailable" role="alert"><strong>Demo unavailable</strong><p>The runtime completed, but this scenario did not produce the expected demonstration evidence.</p><details><summary>Technical details</summary><ul>{demoFailure.map((reason) => <li key={reason}>{reason}</li>)}</ul></details></div>}
+      {playbackFailure && <div className="replay-diagnostic" role="alert"><strong>Playback could not complete</strong><p>Runtime evidence remains available below.</p><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>}
+      {lifecycle === "FAILED" && <div className="replay-diagnostic" role="alert"><strong>Replay failed</strong><p>{error || replay.error || "Runtime replay could not be completed."}</p><button className="secondary-button" onClick={() => void runScenario(replay.scenario!)}>Try again</button></div>}
+      {traceUnavailable && replay.results_persisted > 0 && <div className="replay-diagnostic" role="status"><strong>Detailed playback unavailable</strong><p>The runtime reports {replay.results_persisted} persisted Results. The presentation trace could not be verified, so this timeline was not animated.</p><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>}
+
       <section className="episode-player-grid" aria-label="Evidence episode player">
-        <aside className="panel observation-sequence-panel"><div className="player-panel-head"><div><span className="eyebrow">Observation sequence</span><strong>{selectedObservation ? `${sourceType.toLowerCase().includes("pcap") ? "Packet" : "Observation"} ${observationIndex + 1} of ${totalObservationCount}` : playbackDone ? `${totalObservationCount} observations` : `${visibleObservationIds.size} of ${totalObservationCount} observed`}</strong></div>{!player.followLive && <button className="text-button" onClick={() => dispatchPlayer({ type: "FOLLOW_LIVE" })}>Resume live focus</button>}</div>
-          <div className="observation-sequence-list">{selectableObservations.map((event) => { const index = observations.findIndex((item) => item.observation_id === event.observation_id); const current = selectedObservation?.observation_id === event.observation_id; return <button type="button" className={`observation-sequence-item${current ? " selected" : ""}`} key={event.observation_id} aria-label={`${sourceType.toLowerCase().includes("pcap") ? "Packet" : "Observation"} ${index + 1} of ${totalObservationCount}: ${observationLabel(event.observation_type)}`} aria-pressed={current} onClick={() => dispatchPlayer({ type: "SELECT_OBSERVATION", observationId: event.observation_id! })}><span>{index + 1}</span></button>; })}{!selectableObservations.length && <p className="player-waiting">{running ? "Waiting for the first observation…" : lifecycle === "READY" ? "No canonical observation was emitted." : "Waiting for runtime processing…"}</p>}</div><p className="sequence-caption">{selectedObservation ? observationLabel(selectedObservation.observation_type) : "Packets become selectable as observations are presented."}</p>
+        <aside className="panel observation-sequence-panel"><div className="player-panel-head"><div><span className="eyebrow">Observation sequence</span><strong>{multiSourceResult ? currentStep!.sourceObservationIds.length + " observations contributed" : selectedObservation ? (sourceType.toLowerCase().includes("pcap") ? "Packet " : "Observation ") + (observationIndex + 1) + " of " + totalObservationCount : totalObservationCount + " observations"}</strong></div>{!player.followLive && <button className="text-button" onClick={() => dispatchPlayer({ type: "FOLLOW_LIVE" })}>Resume live focus</button>}</div>
+          <div className="observation-sequence-list">{selectableObservations.map((event) => { const index = observations.findIndex((item) => item.observation_id === event.observation_id); const current = selectedObservation?.observation_id === event.observation_id; const routeCount = observationRoutes.get(event.observation_id || "")?.length ?? 0; const explained = explainedObservationIds.has(event.observation_id || "") && !current; const noRoute = routeCount === 0 && routingCompletedObservationIds.has(event.observation_id || ""); return <button type="button" className={"observation-sequence-item" + (current ? " selected" : "") + (noRoute ? " no-route" : "") + (explained ? " explained" : "")} key={event.observation_id} title={noRoute ? "No eligible analytics" : undefined} aria-label={(sourceType.toLowerCase().includes("pcap") ? "Packet " : "Observation ") + (index + 1) + " of " + totalObservationCount + (noRoute ? ": no eligible analytics" : "")} aria-pressed={current} onClick={() => dispatchPlayer({ type: "SELECT_OBSERVATION", observationId: event.observation_id! })}><span>{explained ? "✓" : current ? "●" : noRoute ? "·" : "○"}</span></button>; })}{!selectableObservations.length && <p className="player-waiting">{lifecycle === "READY" ? "No canonical observation was emitted." : "Preparing the first observation…"}</p>}</div><p className="sequence-caption">{multiSourceResult ? "Evidence from " + currentStep!.sourceObservationIds.length + " observations" : selectedObservation ? observationLabel(selectedObservation.observation_type) : playbackDone ? "All observations presented" : "Observations become selectable as the timeline advances."}</p>
         </aside>
-
         <article className="panel current-observation-panel" aria-live="polite">
-          <div className="player-panel-head"><div><span className="eyebrow">Current observation</span><strong>{selectedObservation ? `${sourceType.toLowerCase().includes("pcap") ? "Packet" : "Observation"} ${observationIndex + 1} of ${totalObservationCount}` : "Preparing observation"}</strong></div><span className="stage-state-pill">{currentStageLabel}</span></div>
-          {selectedObservation ? <>
-            <div className="observation-hero"><h2>{observationLabel(selectedObservation.observation_type)}</h2><p>{contextItems.length ? contextItems.join(" · ") : "Network context appears with its source-linked evidence Results."}</p>{selectedVisibility.some((item) => item.status === "Unavailable") && analytics.some((item) => item.status === "Insufficient evidence") && <p className="evidence-limitation-note">Evidence limitation preserved · unavailable facts remain unavailable</p>}<div className="observation-facts"><span>{selectedObservation.observation_type ? readable(selectedObservation.observation_type) : "Passive observation"}</span><span>Canonical observation</span></div></div>
-            <div className="visibility-card"><div className="visibility-title"><strong>Visibility</strong><span>{selectedVisibility.length ? "Evidence scope" : selectedVisibilityEvents.length ? "Observed" : "Awaiting visibility"}</span></div>{selectedVisibility.length ? <ul>{selectedVisibility.slice(0, 4).map((item) => <li key={`${item.label}-${item.status}`}><span className={`fact-mark ${item.status.toLowerCase()}`}>{item.status === "Available" ? "✓" : item.status === "Degraded" ? "△" : "○"}</span>{item.label}<strong>{item.status}</strong></li>)}</ul> : selectedVisibilityEvents.length ? <p>{selectedVisibilityEvents[0]!.reason ? friendlyVisibilityReason(selectedVisibilityEvents[0]!.reason!) : "Visibility was evaluated from the observed packet facts."}</p> : <p>{currentStep?.stage === "OBSERVATION" ? "Waiting for visibility assessment…" : "No visibility event has been presented for this observation yet."}</p>}
-              <div className="quality-inline"><strong>Quality</strong>{selectedQuality.length ? selectedQuality.slice(0, 3).map((item) => <span key={item.label}>{item.label} · {item.status}</span>) : <span>Packet-loss and sampling telemetry appear with evidence Results.</span>}</div>
-            </div>
-          </> : <div className="observation-empty">{lifecycle === "READY" ? diagnostic ?? "No observation is available for this replay." : "The episode player will focus the first observation when it is received."}</div>}
-          {selectableObservations.length > 1 && <div className="observation-pager"><button className="text-button" disabled={!selectedObservation || observationIndex <= 0} onClick={() => { const previous = selectableObservations[observationIndex - 1]; if (previous?.observation_id) dispatchPlayer({ type: "SELECT_OBSERVATION", observationId: previous.observation_id }); }}>← Previous</button><span>{selectedObservation ? `${observationIndex + 1} / ${totalObservationCount}` : "—"}</span><button className="text-button" disabled={!selectedObservation || observationIndex >= selectableObservations.length - 1} onClick={() => { const next = selectableObservations[observationIndex + 1]; if (next?.observation_id) dispatchPlayer({ type: "SELECT_OBSERVATION", observationId: next.observation_id }); }}>Next →</button></div>}
+          <div className="player-panel-head"><div><span className="eyebrow">{multiSourceResult ? "Evidence source context" : "Current observation"}</span><strong>{multiSourceResult ? currentStep!.sourceObservationIds.length + " observations contributed" : selectedObservation ? (sourceType.toLowerCase().includes("pcap") ? "Packet " : "Observation ") + (observationIndex + 1) + " of " + totalObservationCount : playbackDone ? "Complete" : "Preparing observation"}</strong></div><span className="stage-state-pill">{currentStageLabel}</span></div>
+          {multiSourceResult ? <div className="observation-hero"><h2>Evidence from {currentStep!.sourceObservationIds.length} observations</h2><p>This Result retains its full contributing observation set. No single packet is presented as its owner.</p><div className="observation-facts">{currentStep!.sourceObservationIds.map((id) => <span key={id}>{observations.findIndex((event) => event.observation_id === id) + 1}. {sourceType.toLowerCase().includes("pcap") ? "Packet" : "Observation"}</span>)}</div></div> : selectedObservation ? <><div className="observation-hero"><h2>{observationLabel(selectedObservation.observation_type)}</h2><p>{contextItems.length ? contextItems.join(" · ") : "Network context appears with its source-linked evidence Results."}</p>{selectedVisibility.some((item) => item.status === "Unavailable") && analytics.some((item) => item.status === "Insufficient evidence") && <p className="evidence-limitation-note">Evidence limitation preserved · unavailable facts remain unavailable</p>}<div className="observation-facts"><span>{readable(selectedObservation.observation_type || "Passive observation")}</span><span>Canonical observation</span></div></div>
+            <div className="visibility-card"><div className="visibility-title"><strong>Visibility</strong><span>{selectedVisibility.length ? "Evidence scope" : selectedVisibilityEvents.length ? "Observed" : playbackDone ? "Complete" : "Not shown yet"}</span></div>{selectedVisibility.length ? <ul>{selectedVisibility.slice(0, 4).map((item) => <li key={item.label + item.status}><span className={"fact-mark " + item.status.toLowerCase()}>{item.status === "Available" ? "✓" : item.status === "Degraded" ? "△" : "○"}</span>{item.label}<strong>{item.status}</strong></li>)}</ul> : selectedVisibilityEvents.length ? <p>{selectedVisibilityEvents[0]!.reason ? friendlyVisibilityReason(selectedVisibilityEvents[0]!.reason!) : "Visibility was evaluated from the observed packet facts."}</p> : <p>{playbackDone ? "Visibility evaluation complete." : "Visibility stage not shown yet."}</p>}<div className="quality-inline"><strong>Quality</strong>{selectedQuality.length ? selectedQuality.slice(0, 3).map((item) => <span key={item.label}>{item.label} · {item.status}</span>) : <span>Quality appears with source-linked evidence Results.</span>}</div></div>
+          </> : <div className="observation-empty">{traceUnavailable && runResults.length ? "Detailed playback unavailable; durable evidence remains available." : diagnostic || (playbackDone ? "Complete" : "Playback will focus the relevant source observation.")}</div>}
+          {selectableObservations.length > 1 && !multiSourceResult && <div className="observation-pager"><button className="text-button" disabled={!selectedObservation || observationIndex <= 0} onClick={() => { const previous = selectableObservations[observationIndex - 1]; if (previous?.observation_id) dispatchPlayer({ type: "SELECT_OBSERVATION", observationId: previous.observation_id }); }}>← Previous</button><span>{selectedObservation ? observationIndex + 1 + " / " + totalObservationCount : "—"}</span><button className="text-button" disabled={!selectedObservation || observationIndex >= selectableObservations.length - 1} onClick={() => { const next = selectableObservations[observationIndex + 1]; if (next?.observation_id) dispatchPlayer({ type: "SELECT_OBSERVATION", observationId: next.observation_id }); }}>Next →</button></div>}
         </article>
-
-        <section className="panel fanout-panel"><div className="player-panel-head"><div><span className="eyebrow">Zero-to-many routing</span><strong>{selectedObservation ? `${presentedRouteCount} analytics` : "Analytics"}</strong></div><span className="stage-state-pill">{activeStage < 2 ? "Waiting" : currentStep?.stage === "ROUTING" ? "Routing" : "Independent"}</span></div>
-          {selectedObservation && analytics.length ? <div className="fanout-list">{analytics.map((item, index) => <article className="fanout-analytic" key={`${item.observation_id}-${item.lane_id}`} style={{ "--route-delay": `${Math.min(index, 8) * 150}ms` } as CSSProperties}><span className="fanout-connector" aria-hidden="true" /><div><strong>{mechanismLabel(item.mechanism || item.lane_id || "Analytic")}</strong><small>{item.status === "Routed" && currentStep?.stage === "ROUTING" ? "Routed" : item.status}</small></div>{item.status === "Evidence produced" ? <span className="fanout-result-mark">✓</span> : null}</article>)}</div> : <div className="fanout-empty">{activeStage < 2 ? "Waiting for routing…" : lifecycle === "READY" && currentStep?.stage === "RELATION" ? "No analytic route was recorded for this observation." : "This observation has no route visible at this point in the presentation."}</div>}
+        <section className="panel fanout-panel"><div className="player-panel-head"><div><span className="eyebrow">Zero-to-many routing</span><strong>{selectedObservation ? routingCompletedObservationIds.has(selectedObservation.observation_id || "") && !presentedRouteCount ? "No eligible analytics" : presentedRouteCount + " analytics" : multiSourceResult ? "Source-linked evidence" : "Analytics"}</strong></div><span className="stage-state-pill">{selectedObservation && routingCompletedObservationIds.has(selectedObservation.observation_id || "") ? "Routing complete" : lifecycle === "READY" ? "In playback" : "Processing"}</span></div>
+          {selectedObservation && analytics.length ? <div className="fanout-list">{analytics.map((item, index) => <article className="fanout-analytic" key={(item.observation_id || "") + (item.lane_id || "")} style={{ "--route-delay": Math.min(index, 8) * 150 + "ms" } as CSSProperties}><span className="fanout-connector" aria-hidden="true" /><div><strong>{mechanismLabel(item.mechanism || item.lane_id || "Analytic")}</strong><small>{item.status}</small></div>{item.status === "Evidence produced" ? <span className="fanout-result-mark">✓</span> : null}</article>)}</div> : selectedObservation && routingCompletedObservationIds.has(selectedObservation.observation_id || "") && !presentedRouteCount ? <div className="fanout-empty"><strong>No eligible analytics</strong><p>This observation was retained, but no active analytic declared it eligible.</p></div> : <div className="fanout-empty">{playbackDone ? "No eligible analytics for the selected observation." : "Routing stage not shown yet."}</div>}
         </section>
       </section>
 
-      <section className="panel evidence-outcome-panel"><div className="outcome-heading"><div><span className="eyebrow">Evidence outcome</span><h2>{visibleRunResults.length} / {runResults.length} mechanism Results presented</h2></div><span>{presentedReviewCount} review · {presentedLimitationCount} evidence limitations presented</span></div>
-        <div className="outcome-track"><div><strong>Mechanism evidence</strong><span>{visibleRunResults.length} source-linked Results</span>{familyResultCounts.size > 0 && <div className="result-family-counts">{[...familyResultCounts].map(([family, count]) => <div key={family}><span>{normalizeFamilyName(family)}</span><strong>{count}</strong></div>)}</div>}</div><span className="outcome-chevron">↓</span><div><strong>Family evidence</strong><span>{derivedUnavailable && familiesPresented ? "Family composition unavailable" : familiesPresented ? `${familyGroups.length} families composed` : runResults.length ? "Waiting for source Results…" : lifecycle === "READY" ? "No source-linked Results" : "Waiting for runtime evidence…"}</span>{familyGroups.length > 0 && <div className="family-outcome-groups">{familyGroups.map((group) => <details className="family-outcome-group" key={group.family}><summary><strong>{normalizeFamilyName(group.family)}</strong><span>{group.views.length} episode{group.views.length === 1 ? "" : "s"} · {group.views.reduce((sum, view) => sum + view.findings.length, 0)} independent findings · {group.views.filter((view) => view.limitations.length || view.missing_evidence.length).length} with limits</span></summary><div className="family-episode-list">{group.views.map((view) => { const sourceRows = view.source_result_ids.map((id) => runResults.find((result) => result.result_id === id)).filter((item): item is ResultDto => Boolean(item)); const context = [...new Set(sourceRows.map(contextSummary))].slice(0, 1)[0] ?? "Observed context unavailable"; const limits = new Set([...view.limitations, ...view.missing_evidence]).size; return <div key={view.family_view_id}><time title={formatEvidenceDateTime(view.time_start, zone)}>{formatEvidenceClockTime(view.time_start, zone)}</time><span>{context} · {pluralize(view.findings.length, "finding")} · {limits} limits</span><button className="text-button" onClick={() => navigate("alerts", { familyViewId: view.family_view_id })}>Review →</button></div>; })}</div></details>)}</div>}</div><span className="outcome-chevron">↓</span><div><strong>Related context</strong><span>{!linksPresented ? familyGroups.length ? "Waiting for family evidence…" : "Joint review only · relations follow family composition" : derivedUnavailable ? "Related context unavailable" : relationGroups.length ? "Shared source context; no causal inference" : "No cross-family relation for this replay"}</span>{relationGroups.map((group) => <article className="relation-outcome" key={`${group.leftFamily}:${group.rightFamily}`}><div><strong>{normalizeFamilyName(group.leftFamily)} ↔ {normalizeFamilyName(group.rightFamily)}</strong><span>{pluralize(group.links.length, "factual relationship")} · {new Set(group.sharedObservationIds).size} shared source observations</span></div><small>Joint review only · no causality or common attacker inferred</small><details><summary>View exact relationships</summary>{group.links.map((link) => <div className="exact-relation-row" key={link.link_id}><span>{link.shared_source_observation_ids.length} shared source observations</span><button className="text-button" onClick={() => navigate("investigations", { linkId: link.link_id })}>Open investigation →</button></div>)}</details><button className="text-button" onClick={() => navigate("investigations", { linkId: group.links[0]!.link_id })}>Open investigation →</button></article>)}</div></div>
+      <section className="panel evidence-outcome-panel"><div className="outcome-heading"><div><span className="eyebrow">Playback evidence</span><h2>{visibleRunResults.length} / {runResults.length} Results shown</h2></div><span>{presentedReviewCount} review · {presentedLimitationCount} evidence limitations shown</span></div>
+        <div className="outcome-track"><div><strong>Mechanism evidence</strong><span>{visibleRunResults.length} of {runResults.length} source-linked Results shown</span>{familyResultCounts.size > 0 && <div className="result-family-counts">{[...familyResultCounts].map(([family, count]) => <div key={family}><span>{normalizeFamilyName(family)}</span><strong>{count}</strong></div>)}</div>}</div><span className="outcome-chevron">↓</span><div><strong>Family evidence</strong><span>{derivedUnavailable ? "Family composition unavailable" : familiesPresented ? familyGroups.length + " families composed" : lifecycle === "READY" ? "Family stage not shown yet" : "Runtime processing"}</span>{familyGroups.length > 0 && <div className="family-outcome-groups">{familyGroups.map((group) => <details className="family-outcome-group" key={group.family}><summary><strong>{normalizeFamilyName(group.family)}</strong><span>{group.views.length} episode{group.views.length === 1 ? "" : "s"} · {group.views.reduce((sum, view) => sum + view.findings.length, 0)} independent findings · {group.views.filter((view) => view.limitations.length || view.missing_evidence.length).length} with limits</span></summary><div className="family-episode-list">{group.views.map((view) => <div key={view.family_view_id}><time title={formatEvidenceDateTime(view.time_start, zone)}>{formatEvidenceClockTime(view.time_start, zone)}</time><span>{pluralize(view.findings.length, "finding")} · {view.limitations.length + view.missing_evidence.length} limits</span><button className="text-button" onClick={() => navigate("alerts", { familyViewId: view.family_view_id })}>Review →</button></div>)}</div></details>)}</div>}</div><span className="outcome-chevron">↓</span><div><strong>Related context</strong><span>{derivedUnavailable ? "Related context unavailable" : investigationLinks.length === 0 ? "No cross-family relationship in this scenario" : linksPresented ? "Shared source context; no causal inference" : "Relation stage not shown yet"}</span>{relationGroups.map((group) => <article className="relation-outcome" key={group.leftFamily + ":" + group.rightFamily}><div><strong>{normalizeFamilyName(group.leftFamily)} ↔ {normalizeFamilyName(group.rightFamily)}</strong><span>{pluralize(group.links.length, "factual relationship")} · {new Set(group.sharedObservationIds).size} shared source observations</span></div><small>Joint review only · no causality or common attacker inferred</small></article>)}</div></div>
       </section>
-
-      <section className="panel recent-evidence-panel"><div className="player-panel-head"><div><span className="eyebrow">{resultTimeHeading}</span><strong>Recent evidence</strong></div><button className="text-button" onClick={() => navigate("results")}>View evidence ({visibleRunResults.length}) →</button></div>{recentResults.length ? <div className="recent-result-list">{recentResults.map((result) => <article key={result.result_id}><time title={formatEvidenceDateTime(result.created_time, zone)}>{formatEvidenceClockTime(result.created_time, zone)}</time><div><strong>{mechanismLabel(result.mechanism_id || result.lane_id)}</strong><small>{readable(result.result_type)} · {pluralize(result.source_observation_ids.length, "source observation")}</small><span>{contextSummary(result)}</span></div><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Review →</button></article>)}</div> : <p className="player-waiting">{resultSyncUnavailable ? "Durable Results could not be synchronized." : lifecycle === "READY" && !runResults.length ? diagnostic : "Results appear after their observation is evaluated."}</p>}</section>
-
-      {diagnostic && traceUnavailable && <p className="replay-diagnostic" role="status">{diagnostic}</p>}
+      <section className="panel recent-evidence-panel"><div className="player-panel-head"><div><span className="eyebrow">{resultTimeHeading}</span><strong>Recent evidence</strong></div><button className="text-button" onClick={() => navigate("results")}>View all evidence ({runResults.length}) →</button></div>{recentResults.length ? <div className="recent-result-list">{recentResults.map((result) => <article key={result.result_id}><time title={formatEvidenceDateTime(result.created_time, zone)}>{formatEvidenceClockTime(result.created_time, zone)}</time><div><strong>{mechanismLabel(result.mechanism_id || result.lane_id)}</strong><small>{readable(result.result_type)} · {pluralize(result.source_observation_ids.length, "source observation")}</small><span>{contextSummary(result)}</span></div><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Review →</button></article>)}</div> : <p className="player-waiting">{resultSyncUnavailable ? "Durable Results could not be synchronized." : lifecycle === "READY" && !runResults.length ? diagnostic || "No mechanism Result was produced." : "Results will appear after runtime finalization."}</p>}</section>
       {error && <div className="stream-notice" role="status">{error}</div>}
-      <details className="technical-details-panel"><summary>Run details</summary><div className="technical-details-grid"><div><span>Scenario</span><strong>{scenarioName}</strong></div><div><span>Input type</span><strong>{sourceType}</strong></div><div><span>Runtime elapsed</span><strong>{replay.elapsed_wall_seconds.toFixed(2)} s</strong></div><div><span>Source-linked immutable Results presented</span><strong>{visibleRunResults.length}</strong></div><div><span>New database rows presented</span><strong>{visibleNewRows}</strong></div><div><span>Existing deterministic Results presented</span><strong>{Math.max(0, visibleRunResults.length - visibleNewRows)}</strong></div><div><span>Trace events presented</span><strong>{presentedTrace.length}{traceUnavailable ? " · partial/unavailable" : ""}</strong></div><div><span>Presentation mode</span><strong>{presentation === "normal" ? "Normal" : presentation === "fast" ? "Fast" : "Show instantly"}</strong></div></div>{visibleRunResults.length > 0 && <p>{visibleRunResults.length} source-linked immutable Results presented · technical details follow the playback sequence.</p>}</details>
-      <details className="technical-details-panel"><summary>View presented evidence Results ({visibleRunResults.length})</summary><p className="technical-time-heading">Result time · {formatTimeZoneLabel(zone)}</p>{visibleRunResults.map((result) => <div className="technical-result-row" key={result.result_id}><time title={formatEvidenceDateTime(result.created_time, zone)}>{formatEvidenceDateTimeCompact(result.created_time, zone)}</time><strong>{normalizeFamilyName(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)} · {summarizeReference(result.entity_reference, result.mechanism_id)}</span><code>{result.result_id}</code><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Open →</button></div>)}</details>
-      <details className="technical-details-panel raw-trace-details"><summary>View presented runtime trace ({presentedTrace.length} events)</summary><p className="technical-time-heading">{stageTimeTitle} · not observed network event time</p>{presentedTrace.map((event) => <div className="technical-result-row trace-detail-row" key={event.sequence}><time title={`Runtime trace · ${formatEvidenceDateTime(event.occurred_at, "local")}`}>{formatEvidenceClockTime(event.occurred_at, "local")}</time><strong>{readable(event.kind)}</strong><span>{event.mechanism || event.reason || event.readiness || "Runtime telemetry"}</span><code>#{event.sequence}</code></div>)}</details>
+      <details className="technical-details-panel"><summary>Run details</summary><div className="technical-details-grid"><div><span>Scenario</span><strong>{scenarioName}</strong></div><div><span>Input type</span><strong>{sourceType}</strong></div><div><span>Runtime elapsed</span><strong>{replay.elapsed_wall_seconds.toFixed(2)} s</strong></div><div><span>Durable source-linked Results</span><strong>{runResults.length}</strong></div><div><span>Results shown</span><strong>{visibleRunResults.length}</strong></div><div><span>Trace events presented</span><strong>{presentedTrace.length}{traceUnavailable ? " · partial/unavailable" : ""}</strong></div><div><span>Demo contract</span><strong>{demoContract ? demoFailure.length ? "Failed" : playbackDone ? "Passed" : "Pending" : "Internal scenario"}</strong></div></div></details>
+      <details className="technical-details-panel"><summary>View evidence Results ({visibleRunResults.length} shown / {runResults.length} total)</summary>{visibleRunResults.map((result) => <div className="technical-result-row" key={result.result_id}><strong>{normalizeFamilyName(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)}</span><code>{result.result_id}</code><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Open →</button></div>)}</details>
+      <details className="technical-details-panel raw-trace-details"><summary>View presented runtime trace ({presentedTrace.length} events)</summary><p className="technical-time-heading">{stageTimeTitle} · not observed network event time</p>{presentedTrace.map((event) => <div className="technical-result-row trace-detail-row" key={event.sequence}><time title={"Runtime trace · " + formatEvidenceDateTime(event.occurred_at, "local")}>{formatEvidenceClockTime(event.occurred_at, "local")}</time><strong>{readable(event.kind)}</strong><span>{event.mechanism || event.reason || event.readiness || "Runtime telemetry"}</span><code>#{event.sequence}</code></div>)}</details>
     </>}
-  </section>;
-}
+  </section>;}
 
 function presentationStageLabel(stage: ReplayPresentationStage) {
   const names: Record<ReplayPresentationStage, string> = { SOURCE: "Passive input", OBSERVATION: "Observation", VISIBILITY: "Visibility", ROUTING: "Zero-to-many routing", EVALUATION: "Analytic evaluation", RESULT: "Mechanism evidence", FAMILY: "Family composition", RELATION: "Related context" };

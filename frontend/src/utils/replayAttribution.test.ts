@@ -34,4 +34,12 @@ describe("replay source lineage attribution", () => {
     expect(newPersistedReplayRows(linked, new Set(["fixture-result"]))).toBe(0);
     expect(newPersistedReplayRows(linked, new Set())).toBe(1);
   });
+
+  it("recovers already-durable rows only when their complete source set belongs to this replay", () => {
+    const linked = sourceLinkedReplayResults(
+      [result("already-durable", ["observation-a"]), result("partial-overlap", ["observation-a", "observation-old"]), result("unrelated", ["observation-old"])],
+      [event("OBSERVATION_CREATED", "observation-a"), event("ANALYTIC_EVALUATED", "observation-a", 2)],
+    );
+    expect(linked.map((item) => item.result_id)).toEqual(["already-durable"]);
+  });
 });

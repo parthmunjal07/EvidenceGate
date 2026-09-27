@@ -5,6 +5,8 @@ export type ReplayPresentationStep = {
   key: string;
   stage: ReplayPresentationStage;
   observationId: string | null;
+  focusObservationId: string | null;
+  sourceObservationIds: string[];
   eventSequences: number[];
   resultIds: string[];
   familyViewIds: string[];
@@ -13,6 +15,18 @@ export type ReplayPresentationStep = {
 export type PresentationMode = "normal" | "fast" | "instant";
 export type PlayerState = { stepIndex: number; paused: boolean; followLive: boolean; selectedObservationId: string | null };
 export type PlayerAction = { type: "RESET" } | { type: "ADVANCE"; stepCount: number } | { type: "PAUSE" } | { type: "RESUME" } | { type: "SHOW_FINAL"; stepCount: number } | { type: "SELECT_OBSERVATION"; observationId: string } | { type: "FOLLOW_LIVE" };
+
+function appendPresentationStep(steps: ReplayPresentationStep[], step: ReplayPresentationStep) {
+  const previous = steps.at(-1);
+  const canCombine = previous && previous.stage === step.stage
+    && (step.stage === "ROUTING" || step.stage === "EVALUATION" || step.stage === "RESULT")
+    && previous.observationId === step.observationId
+    && previous.focusObservationId === step.focusObservationId
+    && previous.sourceObservationIds.join("\u0000") === step.sourceObservationIds.join("\u0000");
+  if (!previous || !canCombine) { steps.push(step); return; }
+  previous.eventSequences.push(...step.eventSequences);
+  previous.resultIds.push(...step.resultIds);
+}
 
 /** Build a judge-facing sequence exclusively from observed trace and durable evidence. */
 export function buildReplayPresentationSteps(
@@ -23,7 +37,22 @@ export function buildReplayPresentationSteps(
 ): ReplayPresentationStep[] {
   const steps: ReplayPresentationStep[] = [];
   const resultIds = new Set(results.map((result) => result.result_id));
+  const resultById = new Map(results.map((result) => [result.result_id, result]));
   const orderedEvents = [...events].sort((left, right) => left.sequence - right.sequence);
+  const routedObservationIds = new Set(orderedEvents.filter((event) => event.kind === "ROUTED" && event.observation_id).map((event) => event.observation_id));
+  const persistedResultIds = new Set(orderedEvents.filter((event) => event.kind === "RESULT_PERSISTED" && event.result_id).map((event) => event.result_id));
+  const replayObservationIds = new Set(orderedEvents.filter((event) => event.kind === "OBSERVATION_CREATED" && event.observation_id).map((event) => event.observation_id));
+  const fallbackResultsAfterSequence = new Map<number, ResultDto[]>();
+  const allSourceRecordsAccepted = orderedEvents.filter((event) => event.kind === "SOURCE_RECORD_ACCEPTED").length >= replayObservationIds.size;
+  for (const result of allSourceRecordsAccepted ? results : []) {
+    if (persistedResultIds.has(result.result_id) || !result.source_observation_ids.length
+      || !result.source_observation_ids.every((sourceId) => replayObservationIds.has(sourceId))) continue;
+    const sourceEvents = orderedEvents.filter((event) => result.source_observation_ids.includes(event.observation_id || ""));
+    const afterSequence = Math.max(0, ...sourceEvents.filter((event) => ["ANALYTIC_EVALUATING", "ANALYTIC_READINESS", "ANALYTIC_EVALUATED", "ADMISSION_REJECTED"].includes(event.kind)).map((event) => event.sequence));
+    const rows = fallbackResultsAfterSequence.get(afterSequence) ?? [];
+    rows.push(result);
+    fallbackResultsAfterSequence.set(afterSequence, rows);
+  }
   for (const event of orderedEvents) {
     let stage: Exclude<ReplayPresentationStage, "FAMILY" | "RELATION"> | null = null;
     if (event.kind === "SOURCE_RECORD_ACCEPTED") stage = "SOURCE";
@@ -33,19 +62,42 @@ export function buildReplayPresentationSteps(
     else if (["ANALYTIC_EVALUATING", "ANALYTIC_READINESS", "ANALYTIC_EVALUATED", "ADMISSION_REJECTED"].includes(event.kind)) stage = "EVALUATION";
     else if (event.kind === "RESULT_PERSISTED" && event.result_id && resultIds.has(event.result_id)) stage = "RESULT";
     if (!stage) continue;
-    steps.push({
+    const result = stage === "RESULT" && event.result_id ? resultById.get(event.result_id) : undefined;
+    const sourceObservationIds = result?.source_observation_ids ?? event.source_observation_ids ?? [];
+    const focusObservationId = stage === "RESULT"
+      ? sourceObservationIds.length === 1 ? sourceObservationIds[0]! : null
+      : event.observation_id;
+    appendPresentationStep(steps, {
       key: `${event.sequence}:${stage}`,
       stage,
-      observationId: event.observation_id,
+      observationId: focusObservationId,
+      focusObservationId,
+      sourceObservationIds: [...sourceObservationIds],
       eventSequences: [event.sequence],
       resultIds: stage === "RESULT" && event.result_id ? [event.result_id] : [],
       familyViewIds: [],
       linkIds: [],
     });
+    // A completed trace with no ROUTED event for an observation means its
+    // zero-route outcome is known. Keep it visible as a brief terminal route step.
+    if (event.kind === "VISIBILITY_EVALUATED" && event.observation_id && !routedObservationIds.has(event.observation_id)) {
+      appendPresentationStep(steps, { key: `${event.sequence}:NO_ROUTE`, stage: "ROUTING", observationId: event.observation_id, focusObservationId: event.observation_id, sourceObservationIds: [event.observation_id], eventSequences: [], resultIds: [], familyViewIds: [], linkIds: [] });
+    }
+    for (const result of fallbackResultsAfterSequence.get(event.sequence) ?? []) {
+      const sourceObservationIds = [...result.source_observation_ids];
+      const focusObservationId = sourceObservationIds.length === 1 ? sourceObservationIds[0]! : null;
+      appendPresentationStep(steps, { key: `durable:${result.result_id}`, stage: "RESULT", observationId: focusObservationId, focusObservationId, sourceObservationIds, eventSequences: [], resultIds: [result.result_id], familyViewIds: [], linkIds: [] });
+    }
   }
 
-  if (familyViews.length) steps.push({ key: "family", stage: "FAMILY", observationId: null, eventSequences: [], resultIds: [], familyViewIds: familyViews.map((view) => view.family_view_id), linkIds: [] });
-  if (links.length) steps.push({ key: "relation", stage: "RELATION", observationId: null, eventSequences: [], resultIds: [], familyViewIds: [], linkIds: links.map((link) => link.link_id) });
+  for (const result of fallbackResultsAfterSequence.get(0) ?? []) {
+    const sourceObservationIds = [...result.source_observation_ids];
+    const focusObservationId = sourceObservationIds.length === 1 ? sourceObservationIds[0]! : null;
+    appendPresentationStep(steps, { key: `durable:${result.result_id}`, stage: "RESULT", observationId: focusObservationId, focusObservationId, sourceObservationIds, eventSequences: [], resultIds: [result.result_id], familyViewIds: [], linkIds: [] });
+  }
+
+  if (familyViews.length) steps.push({ key: "family", stage: "FAMILY", observationId: null, focusObservationId: null, sourceObservationIds: [...new Set(familyViews.flatMap((view) => view.source_observation_ids))], eventSequences: [], resultIds: [], familyViewIds: familyViews.map((view) => view.family_view_id), linkIds: [] });
+  if (links.length) steps.push({ key: "relation", stage: "RELATION", observationId: null, focusObservationId: null, sourceObservationIds: [...new Set(links.flatMap((link) => link.shared_source_observation_ids))], eventSequences: [], resultIds: [], familyViewIds: [], linkIds: links.map((link) => link.link_id) });
   return steps;
 }
 

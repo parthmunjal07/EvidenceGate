@@ -905,6 +905,35 @@ body.inspector-open .inspector.inspector-modal { transform: translate(-50%, -50%
 /* Traffic Lab: paced evidence episode player */
 .traffic-lab-page { width:100%; max-width:none; }
 .demo-scenario-panel { margin-bottom:14px; }
+.demo-scenario-panel .panel-head { padding:14px 16px 10px; }
+.demo-scenario-panel .panel-head h2 { margin:3px 0 4px; font-size:18px; }
+.demo-scenario-panel .panel-head p { margin:0; color:#61737b; font-size:13px; }
+.scenario-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 18px; }
+.scenario-row { align-items:center; min-height:76px; padding:10px 2px; }
+.scenario-row>div { gap:4px; min-width:0; }
+.scenario-row>div>span { color:#536770; line-height:1.35; }
+.scenario-row small { color:#728087; font-size:11px; }
+.scenario-row.recommended { position:relative; }
+.scenario-row .primary-button { min-width:92px; white-space:nowrap; }
+.recommended-tag { display:inline-flex; margin-left:8px; padding:2px 6px; border-radius:999px; background:#edf5f1; color:#36685d; font-size:10px; font-weight:600; vertical-align:middle; }
+.playback-progress { display:flex; flex-wrap:wrap; align-items:center; gap:7px 18px; padding:8px 14px; border-top:1px solid #e9eef0; background:#f8faf9; }
+.playback-progress strong { color:#4e6863; font-size:10px; letter-spacing:.04em; }
+.playback-progress span { color:#53666f; font-size:12px; }
+.playback-progress span:first-of-type { color:#2f4b53; font-weight:600; }
+.demo-player-controls { min-height:40px; }
+.demo-player-controls>span { color:#647780; font-size:12px; }
+.observation-sequence-item.no-route { border-style:dashed; color:#87949a; background:#fafbfb; }
+.observation-sequence-item.explained { border-color:#c4d7d0; background:#f1f7f4; color:#4e7469; }
+.replay-diagnostic.demo-unavailable { border-left-color:#b77939; background:#fffaf2; }
+.replay-diagnostic p { margin:4px 0; }
+.replay-diagnostic ul { margin:8px 0; }
+@media (max-width: 1000px) {
+  .scenario-list { grid-template-columns:1fr; }
+  .scenario-row { min-height:66px; }
+  .run-hero-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .run-hero-metrics>div:nth-child(3) { border-right:0; }
+  .run-hero-metrics>div:nth-child(n+4) { border-top:1px solid #edf0f2; }
+}
 .demo-mode-control { display:grid; gap:5px; color:#52666f; font-size:12px; }
 .demo-mode-control select { min-height:36px; min-width:154px; padding:0 10px; border:1px solid #c5d0d5; border-radius:4px; background:#fff; color:#344b55; }
 .player-run-header { margin-bottom:12px; overflow:hidden; }

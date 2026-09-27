@@ -54,7 +54,7 @@ describe("semantic replay presentation", () => {
     expect(buildReplayPresentationSteps(history.slice(0, 6), [recurrence], [], []).flatMap((step) => step.resultIds)).toEqual([]);
     const complete = buildReplayPresentationSteps([...history, persisted], [recurrence], [], []);
     const reveal = complete.find((step) => step.stage === "RESULT");
-    expect(reveal).toMatchObject({ observationId: null, eventSequences: [10], resultIds: ["result-c2"] });
+    expect(reveal).toMatchObject({ observationId: null, focusObservationId: null, sourceObservationIds: ["obs-1", "obs-2", "obs-3"], eventSequences: [10], resultIds: ["result-c2"] });
     expect(complete.at(-1)?.eventSequences).toEqual([10]);
     expect(recurrence.source_observation_ids).toEqual(["obs-1", "obs-2", "obs-3"]);
   });
@@ -77,8 +77,35 @@ describe("semantic replay presentation", () => {
     const dga = result("result-dga", "obs-dga");
     expect(buildReplayPresentationSteps([observation], [dga], [], []).flatMap((step) => step.resultIds)).toEqual([]);
     const steps = buildReplayPresentationSteps([observation, traceEvent(2, "ROUTED", "obs-dga"), traceEvent(3, "ANALYTIC_EVALUATED", "obs-dga"), persisted], [dga], [], []);
-    expect(steps.at(-1)).toMatchObject({ stage: "RESULT", observationId: null, eventSequences: [4], resultIds: ["result-dga"] });
+    expect(steps.at(-1)).toMatchObject({ stage: "RESULT", observationId: "obs-dga", focusObservationId: "obs-dga", sourceObservationIds: ["obs-dga"], eventSequences: [4], resultIds: ["result-dga"] });
     expect(dga.source_observation_ids).toEqual(["obs-dga"]);
+  });
+
+  it("keeps a null-observation persistence step focused on its durable source observation", () => {
+    const source = result("null-observation-result", "obs-3");
+    const trace = [traceEvent(1, "OBSERVATION_CREATED", "obs-3"), { ...traceEvent(2, "RESULT_PERSISTED"), result_id: source.result_id, source_observation_ids: ["obs-3"] }];
+    expect(buildReplayPresentationSteps(trace, [source], [], []).at(-1)).toMatchObject({ observationId: "obs-3", focusObservationId: "obs-3", sourceObservationIds: ["obs-3"] });
+  });
+
+  it("presents an existing durable Result after source evaluation when rerun persistence is a no-op", () => {
+    const source = result("already-durable-result", "obs-repeat");
+    const events = [traceEvent(1, "SOURCE_RECORD_ACCEPTED"), traceEvent(2, "OBSERVATION_CREATED", "obs-repeat"), traceEvent(3, "ROUTED", "obs-repeat"), traceEvent(4, "ANALYTIC_EVALUATED", "obs-repeat")];
+    const steps = buildReplayPresentationSteps(events, [source], [], []);
+    expect(steps.at(-1)).toMatchObject({ stage: "RESULT", eventSequences: [], resultIds: ["already-durable-result"], sourceObservationIds: ["obs-repeat"], focusObservationId: "obs-repeat" });
+  });
+
+  it("groups adjacent same-observation fan-out steps while retaining every route", () => {
+    const events = [traceEvent(1, "OBSERVATION_CREATED", "obs-fan"), traceEvent(2, "ROUTED", "obs-fan"), traceEvent(3, "ROUTED", "obs-fan")];
+    const steps = buildReplayPresentationSteps(events, [], [], []);
+    const routing = steps.filter((step) => step.stage === "ROUTING");
+    expect(routing).toHaveLength(1);
+    expect(routing[0]?.eventSequences).toEqual([2, 3]);
+  });
+
+  it("inserts a terminal routing step for a completed zero-route observation", () => {
+    const trace = [traceEvent(1, "OBSERVATION_CREATED", "obs-zero"), traceEvent(2, "VISIBILITY_EVALUATED", "obs-zero"), traceEvent(3, "OBSERVATION_CREATED", "obs-next")];
+    const steps = buildReplayPresentationSteps(trace, [], [], []);
+    expect(steps.map((step) => [step.stage, step.observationId])).toEqual([["OBSERVATION", "obs-zero"], ["VISIBILITY", "obs-zero"], ["ROUTING", "obs-zero"], ["OBSERVATION", "obs-next"]]);
   });
 
   it("does not invent composition or relation steps without derived records", () => {
