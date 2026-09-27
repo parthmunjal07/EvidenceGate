@@ -222,7 +222,10 @@ class FamilyStatusDto(StrictModel):
 
 
 class RuntimeStatusResponse(StrictModel):
+    release_id: str
+    source_sha: str
     build_sha: str
+    api_contract_version: str = "1"
     state: Literal["ONLINE", "REPLAYING"]
     default_target_count: int
     active_lane_ids: list[str]

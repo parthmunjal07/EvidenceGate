@@ -33,14 +33,15 @@ export function useReplay() {
       clearTimeout(timer);
     };
   }, [state.replay?.state, dispatch]);
-  async function start(scenario: string, speed: number) {
+  async function start(scenario: string, speed: number, signal?: AbortSignal) {
     setBusy(true);
     setError(null);
     try {
       const replay: ReplayStatusResponse = await api.replay({
         scenario,
         speed,
-      });
+      }, signal);
+      if (signal?.aborted) return null;
       dispatch({ type: "replay", value: replay });
       return replay;
     } catch (e) {

@@ -4,7 +4,7 @@ import App from "./App";
 
 const replay = { state: "IDLE", scenario: null, source_type: null, records_read: 0, observations_emitted: 0, results_persisted: 0, elapsed_wall_seconds: 0, started_at: null, finished_at: null, error: null };
 const runtime = {
-  build_sha: "dev",
+  release_id: "dev", source_sha: "dev", build_sha: "dev",
   state: "ONLINE", default_target_count: 16, active_lane_ids: ["ddos.reflection_victim", "dga.m1"],
   targets: [{ lane_id: "ddos.reflection_victim", mechanism_id: "DDOS-CV-B0", implementation: "ACTIVE_FACTUAL_MECHANISM" }, { lane_id: "dga.m1", mechanism_id: "DGA-A1-M1", implementation: "ACTIVE_LEXICAL_MODEL_LANE" }],
   family_status: [{ family: "ddos", status: "ACTIVE" }], database_status: "connected", durable_result_count: 1, live_subscriber_count: 0, replay,
@@ -36,7 +36,7 @@ function mockBackend(runtimeResponse = runtime) {
   });
   vi.stubGlobal("fetch", fetchMock); vi.stubGlobal("scrollTo", vi.fn()); return fetchMock;
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); MockEventSource.current = null; window.history.replaceState(null, "", "/"); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); localStorage.clear(); MockEventSource.current = null; window.history.replaceState(null, "", "/"); });
 
 describe("analyst-first console", () => {
   it("uses the final primary navigation and hides the system status page", async () => {
@@ -81,6 +81,7 @@ describe("analyst-first console", () => {
     expect(screen.getByText("Benchmark measurements").closest("details")).not.toHaveAttribute("open");
   });
   it("shows runtime status without a global capability issue badge and exposes diagnostics on demand", async () => {
+    vi.stubEnv("VITE_EVIDENCEGATE_DEV_UI", "true");
     mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Online" }));
     expect(screen.getByRole("dialog", { name: "System health" })).toBeInTheDocument();
@@ -91,6 +92,16 @@ describe("analyst-first console", () => {
     expect(screen.getByText(/DDOS-CV-B0/)).toBeInTheDocument();
     expect(screen.getByText("SIH_ALERT_POLICY_V1")).toBeInTheDocument();
   });
+  it("coalesces SSE Result bursts into one paged REST sync instead of one detail request per Result", async () => {
+    const fetchMock = mockBackend(); render(<App />);
+    expect(await screen.findByRole("button", { name: "Overview" })).toBeInTheDocument();
+    const resultCallCount = () => fetchMock.mock.calls.filter(([input]) => new URL(String(input), window.location.href).pathname === "/results").length;
+    await waitFor(() => expect(resultCallCount()).toBeGreaterThan(0));
+    const beforeResults = resultCallCount();
+    for (let index = 0; index < 20; index += 1) MockEventSource.current?.emit("result", JSON.stringify({ result_id: `result-${index}`, cursor: `cursor-${index}` }));
+    await waitFor(() => expect(resultCallCount()).toBe(beforeResults + 1));
+    expect(fetchMock.mock.calls.some(([input]) => /\/results\//.test(new URL(String(input), window.location.href).pathname))).toBe(false);
+  });
   it("shows family evidence and an analyst-first card without technical details or IDs", async () => {
     mockBackend(); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: /Analyst queue/i }));
@@ -98,20 +109,24 @@ describe("analyst-first console", () => {
     expect(screen.getByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
     expect((await screen.findAllByText("DDoS evidence")).length).toBeGreaterThan(0);
     expect(screen.getByText("2 independent findings")).toBeInTheDocument();
-    expect(screen.getByText("2 source Results")).toBeInTheDocument();
+    expect(screen.getByText("1 source Result retained")).toBeInTheDocument();
     expect(screen.getAllByText("Reflection-shaped traffic")[0]?.closest("details")).not.toHaveAttribute("open");
     fireEvent.click(screen.getAllByText("Reflection-shaped traffic")[0]!);
-    expect(screen.getAllByRole("button", { name: /View source Result/ })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /Review/ })).toHaveLength(2);
     expect(screen.queryByText(/state:provider/)).not.toBeInTheDocument();
     expect(screen.queryByText("Target Target 192.0.2.10")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Evidence gaps" })).toBeInTheDocument();
     expect(screen.getByText("Reverse TCP state was not visible.")).toBeInTheDocument();
     expect(screen.getByText("This evidence does not confirm an attack.")).toBeInTheDocument();
     expect(screen.getByText("Visibility and quality").closest("details")).not.toHaveAttribute("open");
-    expect(screen.getByText("Show source lineage").closest("details")).not.toHaveAttribute("open");
+    expect(screen.queryByText("Developer source lineage")).not.toBeInTheDocument();
     expect(screen.queryByText("result-1")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Open source Results/ }));
-    expect(await screen.findByRole("heading", { name: "Evidence" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Review/ })[0]!);
+    expect(await screen.findByRole("button", { name: /Back to family evidence/ })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Back to family evidence/ }));
+    expect(screen.queryByRole("button", { name: /Back to family evidence/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
   });
   it("opens the dedicated factual investigation experience", async () => {
     const fetchMock = mockBackend(); render(<App />);
@@ -136,11 +151,21 @@ describe("analyst-first console", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input) === "/replay")).toBe(true));
     expect(JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input) === "/replay")?.[1]?.body))).toEqual({ scenario: "mixed_ddos_recon", speed: 0 });
   });
-  it("blocks Traffic Lab with a clear message when frontend and backend builds differ", async () => {
-    mockBackend({ ...runtime, build_sha: "stale-backend-build" }); render(<App />);
+  it("opens family evidence from a Result and returns to that Result without losing selection", async () => {
+    mockBackend(); render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Evidence" }));
+    fireEvent.click((await screen.findByText("Reflection-shaped traffic")).closest("tr")!);
+    fireEvent.click(screen.getByRole("button", { name: /open ddos family evidence/i }));
+    expect(await screen.findByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /back to source result/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /back to source result/i }));
+    expect(await screen.findByRole("heading", { name: "Evidence" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Evidence record" })).toBeInTheDocument();
+  });
+  it("does not block Traffic Lab when source revisions differ but releases match", async () => {
+    mockBackend({ ...runtime, source_sha: "stale-backend-source", build_sha: "stale-backend-source" }); render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Traffic Lab" }));
-    expect(await screen.findByRole("heading", { name: "Application update mismatch" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Choose a demo scenario" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Choose a demo scenario" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /update incomplete/i })).not.toBeInTheDocument();
   });
 });

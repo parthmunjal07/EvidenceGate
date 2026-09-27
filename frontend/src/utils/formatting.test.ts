@@ -187,7 +187,11 @@ describe("scientific display helpers", () => {
     expect(summarizeAnalystContext("DNS Tunnelling", "dns_tunnelling.t1", "dns:opaque", { qname_canonical: "query.test" })).toBe("query.test");
     expect(summarizeAnalystContext("C2", "c2.r1", "opaque", { entity: { client_ref: "10.0.0.1", peer_ref: "198.51.100.2", service_ref: "service/https" } })).toBe("10.0.0.1 → 198.51.100.2:https");
     expect(summarizeAnalystContext("DDoS", "ddos.syn_state", "[\"203.0.113.4\",\"service/https\"]", {})).toBe("203.0.113.4 · HTTPS");
+    expect(summarizeAnalystContext("DDoS", "ddos.syn_state", '["192.0.2.10","service/tcp-8443"]', {})).toBe("192.0.2.10");
     expect(summarizeAnalystContext("Encrypted sessions", "encrypted_session.enc_a", "flow:opaque", {})).toBe("Encrypted session");
+    expect(summarizeAnalystContext("Reconnaissance", "recon.2d", '["198.51.100.14","TCP"]', { measurements: { distinct_hosts: 3, distinct_ports: 4, distinct_host_port_pairs: 7 } })).toContain("3 hosts");
+    expect(summarizeAnalystContext("Reconnaissance", "recon.2d", '["198.51.100.14","TCP"]', { measurements: { distinct_hosts: 3, distinct_ports: 4, distinct_host_port_pairs: 7 } })).not.toBe("Observed scan scope");
+    expect(summarizeAnalystContext("Reconnaissance", "recon.tcp", '["198.51.100.14","192.0.2.10",50122,8443,"TCP"]', {})).toContain("192.0.2.10:8443");
     expect(summarizeAnalystContext("Data transfer", "unusual_transfer.m1", "flow:opaque", { direction_scope: "CLIENT_TO_SERVER_ONLY" })).toBe("Client → server");
     expect(contextSummary({ family: "Reconnaissance", mechanism_id: "recon.h", lane_id: "recon.h", entity_reference: "flow:opaque", evidence: { target_scope: "10.1.0.0/24" } })).toBe("Target scope · 10.1.0.0/24");
   });

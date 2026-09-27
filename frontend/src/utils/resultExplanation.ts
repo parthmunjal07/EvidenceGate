@@ -1,5 +1,5 @@
 import type { ObservationPresentationDto, ResultDto, RuntimeTraceEvent } from "../api/types";
-import { humanEvidenceRows, whySurfaced } from "./formatting";
+import { claimSemantics, humanEvidenceRows, prerequisiteLabel, whySurfaced } from "./formatting";
 
 export type ResultExplanation = {
   title: string; family: string; mechanism: string; resultState: string;
@@ -13,10 +13,12 @@ const mechanismCopy: Record<string, { eligible: string; emitted: string }> = {
   "ddos.syn_state": { eligible:"TCP initiating packet facts and available target/service identity made this analytic eligible.", emitted:"TCP initiation/state evidence was available for the scoped observation." },
   "ddos.udp_demand": { eligible:"A UDP packet observation with target/service context made this analytic eligible.", emitted:"UDP demand measurement became available from the observed packet facts." },
   "ddos.source_diversity": { eligible:"Source and target identity facts made apparent-source distribution measurable.", emitted:"Apparent source distribution was measured from the scoped observations." },
+  "ddos.reflection_victim": { eligible:"Response-shaped packet facts and target/service context made this observation eligible for review.", emitted:"Response-shaped traffic was measured from the captured packet facts." },
+  "ddos.connection_churn": { eligible:"TCP initiating-attempt facts with target/service context made connection activity measurable.", emitted:"TCP initiating attempts were measured within the available observation window." },
   "recon.host_discovery": { eligible:"Source and target identity facts made host-probing geometry measurable.", emitted:"Observed host breadth became measurable from accumulated probing facts." },
   "recon.h": { eligible:"Source and target identity facts made host-probing geometry measurable.", emitted:"Observed host breadth became measurable from accumulated probing facts." },
   "recon.service_discovery": { eligible:"Source, target and service/port facts made service-probing geometry measurable.", emitted:"Observed service breadth became measurable from accumulated probing facts." },
-  "recon.v": { eligible:"Source and target identity facts made host-probing geometry measurable.", emitted:"Observed host breadth became measurable from accumulated probing facts." },
+  "recon.v": { eligible:"Source, target and destination-port facts made port-probing geometry measurable.", emitted:"Destination-port breadth became measurable from accumulated probing facts." },
   "recon.2d": { eligible:"Source, target and service/port facts made probing geometry measurable.", emitted:"Observed host and service breadth became measurable from accumulated probing facts." },
   "recon.tcp": { eligible:"TCP source, target and service/port facts made probing geometry measurable.", emitted:"Observed TCP probing breadth became measurable from accumulated probing facts." },
   "c2.r1": { eligible:"A flow-start observation with client, peer and service identity entered bounded history evaluation.", emitted:"The Result records the recurrence state and evidence present in this flow history." },
@@ -30,26 +32,39 @@ export function projectResultExplanation(result: ResultDto, trace: RuntimeTraceE
   const mechanism = result.lane_id;
   const contract = mechanismCopy[mechanism];
   const laneEvents = trace.filter(e => result.source_observation_ids.includes(e.observation_id ?? "") && (e.lane_id === result.lane_id || e.mechanism === result.lane_id || e.mechanism === result.mechanism_id));
-  const observedFacts = observedFromResult(result);
-  const readiness = laneEvents.find(e => e.readiness && e.readiness !== "READY");
-  const ceilingParts = result.claim_ceiling.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
-  const supportTokens = ceilingParts.filter(x=>!/^NO_|^NOT_|^PROHIBITS|_PROHIBITED/i.test(x));
-  const limitTokens = ceilingParts.filter(x=>/^NO_|^NOT_|^PROHIBITS|_PROHIBITED/i.test(x));
+  const encryptedSession = result.lane_id === "encrypted_session.enc_a";
+  const observedFacts = encryptedSession ? encryptedHandshakeFacts(result) : observedFromResult(result);
+  const readiness = laneEvents.find(e => e.readiness);
+  const claim = claimSemantics(result.claim_ceiling);
   if ((result.mechanism_id === "DGA-A1-M1" || result.lane_id === "dga.m1") && typeof result.evidence.dga_labelled_lexical_resemblance_score === "number") observedFacts.unshift(`DGA-labelled lexical resemblance score: ${result.evidence.dga_labelled_lexical_resemblance_score}`);
   return {
     title: mechanism, family: result.family, mechanism, resultState: result.status_snapshot.readiness,
     eligibilityReasons: eligibilityFromFacts(result, contract, laneEvents, observation),
-    observedFacts, readinessReason: readiness ? `Readiness recorded by runtime: ${words(readiness.readiness ?? "unknown")}.` : `Readiness recorded on Result: ${words(result.status_snapshot.readiness)}.`,
+    observedFacts, readinessReason: readinessReason(result, readiness?.readiness ?? undefined),
     resultReason: contract?.emitted ?? `The immutable Result records ${words(result.result_type)} with its attached evidence and claim ceiling.`,
-    supports: supportTokens.length ? supportTokens.map(words) : [words(result.claim_ceiling)],
-    limitations: limitTokens.map(words), missingEvidence: result.missing_prerequisites.map(words), sourceObservationIds: result.source_observation_ids,
+    supports: encryptedSession ? ["Visible TLS ClientHello handshake metadata is available as outer-session context."] : claim.supports.length ? claim.supports : ["Observed network evidence is available for review."],
+    limitations: encryptedSession ? [...claim.limitations, "Application payload content remained encrypted and was not decrypted."] : claim.limitations,
+    missingEvidence: [...result.missing_prerequisites.map(prerequisiteLabel), ...(encryptedSession ? ["Application payload content is unavailable because it remained encrypted and was not decrypted."] : [])],
+    sourceObservationIds: result.source_observation_ids,
   };
+}
+
+function encryptedHandshakeFacts(result: ResultDto): string[] {
+  const metadata = result.evidence.parsed_handshake_metadata;
+  const handshake = typeof metadata === "object" && metadata !== null && !Array.isArray(metadata)
+    ? metadata as Record<string, unknown>
+    : {};
+  const facts = [`Protocol: ${String(result.evidence.protocol ?? "TLS").toUpperCase()}`];
+  if (typeof handshake.message_type === "string") facts.push(`Handshake message: ${handshake.message_type}`);
+  if (typeof handshake.sni === "string" && handshake.sni.trim()) facts.push(`Server Name Indication (SNI): ${handshake.sni}`);
+  else facts.push("Server Name Indication (SNI): not present in the visible handshake metadata");
+  return facts;
 }
 
 function eligibilityFromFacts(result:ResultDto, contract:{eligible:string;emitted:string}|undefined, events:RuntimeTraceEvent[], observation?:ObservationPresentationDto|null) {
   const routed=events.some(event=>event.kind==="ROUTED");
-  if(!routed)return ["The runtime routing trace does not confirm eligibility for this source observation."];
-  if(!observation)return contract?[contract.eligible]:["The runtime routing trace records this analytic as eligible for the source observation."];
+  if(!routed && !observation) return contract ? ["The canonical observation satisfied the analytic's declared input requirements."] : [];
+  if(!observation) return contract?[contract.eligible]:[];
   const facts=observation.facts;
   const roles=observation.identity.role_assignments;
   const role=(name:string)=>roles.some(item=>item.role===name);
@@ -61,6 +76,23 @@ function eligibilityFromFacts(result:ResultDto, contract:{eligible:string;emitte
   if(result.lane_id==="dns_tunnelling.t1")return [typeof facts.qname_rendered==="string"||typeof facts.qname_canonical==="string"?"Clear DNS query-name fields available for structural measurement.":contract?.eligible??"DNS query-name availability is not present in this observation."];
   if(result.lane_id==="c2.r1")return [`Flow-start observation · ${role("client_id")?"client":"endpoint"} · ${role("peer_id")?"peer":"peer context"} · bounded history evaluation.`];
   return contract?[contract.eligible]:["The runtime routing trace records this analytic as eligible for the source observation."];
+}
+
+function readinessReason(result: ResultDto, traceReadiness?: string): string {
+  const readiness = traceReadiness ?? result.status_snapshot.readiness;
+  if (readiness !== "READY") return `The analytic reported ${words(readiness)}; the missing evidence below explains the limit.`;
+  const readyCopy: Record<string, string> = {
+    "recon.h": "Bounded host measurement state was available for this source and configured horizon.",
+    "recon.v": "Bounded port measurement state was available for this source and configured horizon.",
+    "recon.2d": "Bounded host-by-port measurement state was available for this source and configured horizon.",
+    "recon.tcp": "The captured TCP attempt or response facts required by this measurement were available.",
+    "c2.r1": "Bounded flow-start history contained enough events to evaluate recurrence.",
+    "dga.m1": "The verified lexical model and required domain representation were available.",
+    "dns_tunnelling.t1": "Clear query-name fields required for structural measurement were available.",
+    "encrypted_session.enc_a": "The visible handshake metadata required by this analytic was available.",
+    "unusual_transfer.m1": "Directional byte counters and duration required for transfer measurement were available.",
+  };
+  return readyCopy[result.lane_id] ?? "The mechanism-specific evidence needed for this measurement was available.";
 }
 
 function observedFromResult(result: ResultDto): string[] {

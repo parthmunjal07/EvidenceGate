@@ -107,15 +107,20 @@ export function Header({
   title,
   subtitle,
   onClose,
+  onBack,
+  backLabel = "Back to family evidence",
 }: {
   kicker: string;
   title: string;
   subtitle: string;
   onClose: () => void;
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   return (
     <div className="inspector-head">
       <div>
+        {onBack && <button type="button" className="inspector-back-link" onClick={onBack}>← {backLabel}</button>}
         <p className="eyebrow">{kicker}</p>
         <h2>{title}</h2>
         <p className="inspector-subtitle">{subtitle}</p>

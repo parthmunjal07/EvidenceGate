@@ -365,7 +365,7 @@ const claimMeanings: Record<string, string> = {
   NO_DNS_TUNNEL_INFERENCE: "DNS tunnelling is not inferred.", NO_EXFILTRATION_INFERENCE: "Data exfiltration is not inferred.",
   NO_DOMAIN_OWNERSHIP_OR_INTENT: "Domain ownership or intent is not established.", OBSERVED_SCAN_ACTIVITY_EVIDENCE_ONLY: "Observed scan activity is available as evidence.",
   NO_AUTHORIZATION_INFERENCE: "Authorization is not inferred.", NO_COMPROMISE: "Compromise is not established.",
-  VISIBLE_CLIENTHELLO_FINGERPRINT_CONTEXT_ONLY: "Visible ClientHello fingerprint context is available.",
+  VISIBLE_CLIENTHELLO_FINGERPRINT_CONTEXT_ONLY: "Visible ClientHello handshake metadata is available as outer-session context.",
   "PROHIBITS MALWARE_CONFIRMED, COMPROMISE, C2, EXFILTRATION, DECRYPTED_CONTENT": "The evidence does not establish malware, compromise, command-and-control, data exfiltration, or decrypted content.",
   TRANSFER_MAGNITUDE_ONLY: "Transfer magnitude is measured.", NO_UNUSUALNESS: "Unusualness is not established.",
   NO_DATA_SENSITIVITY: "Data sensitivity is not established.", NO_EXFILTRATION_CONFIRMED: "Exfiltration is not confirmed.", NO_THEFT: "Theft is not established.",
@@ -551,7 +551,30 @@ export function summarizeAnalystContext(family: string, mechanism: string, entit
     if (scanner && target) return `${scanner} → ${target}`;
     if (scanner) return `Scanner · ${scanner}`;
     if (target) return `Target scope · ${target}`;
-    return "Observed scan scope";
+    const tuple = parsedArray(entityReference);
+    const transport = tuple?.length ? transportSummary(tuple[tuple.length - 1]) : null;
+    const measurements = objectValue(evidence.measurements);
+    const hosts = finiteNumber(measurements?.distinct_hosts);
+    const ports = finiteNumber(measurements?.distinct_ports);
+    const pairs = finiteNumber(measurements?.distinct_host_port_pairs);
+    const breadth = [
+      hosts === null ? null : `${hosts} host${hosts === 1 ? "" : "s"}`,
+      ports === null ? null : `${ports} port${ports === 1 ? "" : "s"}`,
+      pairs === null ? null : `${pairs} host × port pair${pairs === 1 ? "" : "s"}`,
+    ].filter((value): value is string => Boolean(value));
+    if (tuple?.length && id.includes("recon.tcp") && tuple.length >= 5) {
+      return `${tuple[0]}:${tuple[2]} → ${tuple[1]}:${tuple[3]} · ${transport ?? "Transport not reported"}`;
+    }
+    if (tuple?.length && id.includes("recon.v") && tuple.length >= 3) {
+      return `${tuple[0]} → ${tuple[1]} · ${transport ?? "Transport not reported"}${breadth.length ? ` · ${breadth.join(" · ")}` : ""}`;
+    }
+    if (tuple?.length && id.includes("recon.h") && tuple.length >= 3) {
+      return `Initiator ${tuple[0]} · port ${tuple[1]} · ${transport ?? "Transport not reported"}${breadth.length ? ` · ${breadth.join(" · ")}` : ""}`;
+    }
+    if (tuple?.length && typeof tuple[0] === "string") {
+      return `Scanner ${tuple[0]} · ${transport ?? "Transport not reported"}${breadth.length ? ` · ${breadth.join(" · ")}` : ""}`;
+    }
+    return breadth.length ? `Scan breadth · ${breadth.join(" · ")}` : "Reconnaissance evidence";
   }
   if (id.includes("encrypted")) {
     const handshake = objectValue(evidence.parsed_handshake_metadata);
@@ -581,6 +604,15 @@ function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function transportSummary(value: unknown): string | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const normalized = String(value).trim();
+  if (normalized === "6") return "TCP";
+  if (normalized === "17") return "UDP";
+  if (normalized === "1") return "ICMP";
+  return /^(tcp|udp|icmp)$/i.test(normalized) ? normalized.toUpperCase() : null;
+}
+
 function parsedArray(value: string): unknown[] | null {
   try {
     const parsed: unknown = JSON.parse(value);
@@ -592,7 +624,9 @@ function parsedArray(value: string): unknown[] | null {
 
 function serviceLabel(value: string | null): string | null {
   if (!value) return null;
-  return value.replace(/^service\//i, "").replaceAll("_", " ").toUpperCase();
+  const normalized = value.replace(/^service\//i, "").replaceAll("_", " ").trim();
+  if (/^(tcp|udp|icmp)[-_]?\d+$/i.test(normalized)) return null;
+  return normalized.toUpperCase();
 }
 
 export function pluralize(count: number, singular: string, plural = `${singular}s`) {

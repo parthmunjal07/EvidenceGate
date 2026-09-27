@@ -3,6 +3,7 @@ import type { PageKey } from "../../state/types";
 import { useEvidence } from "../../state/EvidenceContext";
 import { useTimeZone } from "../../state/TimeZoneContext";
 import { formatTimeZoneLabel } from "../../utils/formatting";
+import { checkReleaseCompatibility, RELEASE_RECOVERY_KEY } from "../../utils/releaseCompatibility";
 
 const links: Array<[PageKey, string]> = [
   ["overview", "Overview"], ["replay", "Traffic Lab"], ["alerts", "Analyst Queue"],
@@ -14,6 +15,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
   const { zone, setZone } = useTimeZone();
   const [healthOpen, setHealthOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const developerUi = import.meta.env.VITE_EVIDENCEGATE_DEV_UI === "true";
   const healthButton = useRef<HTMLButtonElement>(null);
   const diagnosticClose = useRef<HTMLButtonElement>(null);
   const runtime = state.runtime;
@@ -31,6 +33,25 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
 
   const dgaRefs = [...state.results.values()].filter((result) => result.lane_id === "dga.m1").flatMap((result) => result.model_refs ?? []);
   const modelSha = dgaRefs.find((ref) => typeof ref === "string" && ref.startsWith("sha256:")) ?? "Unavailable from runtime status";
+  const releaseCheck = runtime ? checkReleaseCompatibility(
+    __EVIDENCEGATE_RELEASE_ID__, runtime.release_id, runtime.api_contract_version,
+    window.sessionStorage.getItem(RELEASE_RECOVERY_KEY) === "true", window.location.href,
+  ) : null;
+  const releaseState = releaseCheck?.state;
+  const releaseReloadUrl = releaseCheck?.state === "reload" ? releaseCheck.url : null;
+  useEffect(() => {
+    if (releaseReloadUrl) {
+      window.sessionStorage.setItem(RELEASE_RECOVERY_KEY, "true");
+      window.location.replace(releaseReloadUrl);
+    } else if (releaseState === "compatible") {
+      window.sessionStorage.removeItem(RELEASE_RECOVERY_KEY);
+    }
+  }, [releaseReloadUrl, releaseState]);
+  const refreshApplication = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("eg_refresh", String(Date.now()));
+    window.location.assign(url.toString());
+  };
   return <div className="app-shell">
     <aside className="sidebar" aria-label="Primary navigation">
       <a className="brand" href="#/overview" onClick={(event) => { event.preventDefault(); onNavigate("overview"); }}>
@@ -56,9 +77,9 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
           <div><dt>Evidence store</dt><dd>{runtime?.database_status === "connected" ? "Available" : "Checking"}</dd></div>
           <div><dt>Input</dt><dd>{state.replay?.state === "RUNNING" ? state.replay.source_type ?? "Replay" : "Controlled replay"}</dd></div>
         </dl>
-        <button className="text-button" onClick={() => { setHealthOpen(false); setDiagnosticsOpen(true); }}>Technical details →</button>
+        {developerUi && <button className="text-button" onClick={() => { setHealthOpen(false); setDiagnosticsOpen(true); }}>Technical details →</button>}
       </div>}</header>
-      <main id="main-content">{(state.pageError || state.streamState === "reconnecting") && <div className="connection-notice" role="status"><strong>{state.pageError ? "Unable to reach EvidenceGate" : "Reconnecting to the service"}</strong><span>Previously captured evidence remains available if already loaded. Check backend connectivity if this persists.</span></div>}{children}</main>
+      <main id="main-content">{(state.pageError || state.streamState === "reconnecting") && <div className="connection-notice" role="status"><strong>{state.pageError ? "Unable to reach EvidenceGate" : "Reconnecting to the service"}</strong><span>Previously captured evidence remains available if already loaded. Check backend connectivity if this persists.</span></div>}{releaseCheck?.state === "warning" && <div className="release-warning" role="status"><span><strong>EvidenceGate is updating.</strong> The application files are temporarily on different releases.</span><button type="button" className="text-button" onClick={refreshApplication}>Reload</button></div>}{children}</main>
     </div>
     {diagnosticsOpen && <>
       <button className="drawer-backdrop" aria-label="Close system diagnostics" onClick={() => setDiagnosticsOpen(false)} />

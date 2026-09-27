@@ -109,7 +109,6 @@ export function InvestigationsPage({ navigate, initialLinkId, initialFamily }: {
               const time = link.source_result_ids.map((id) => resultsById.get(id)?.created_time).filter((value): value is string => Boolean(value)).sort(compareTimeAsc)[0]
                 ?? viewsById.get(link.left_family_view_id)?.time_start ?? "";
               return <article key={link.link_id}><div><strong>{time ? formatTimestamp(time) : "Time unavailable"} · {pluralize(link.shared_source_observation_ids.length, "shared observation")}</strong><span>{familyName(viewsById.get(link.left_family_view_id)?.family ?? "Family evidence")} + {familyName(viewsById.get(link.right_family_view_id)?.family ?? "Family evidence")}</span></div>
-                <details><summary>Show technical lineage</summary><dl><div><dt>Link ID</dt><dd>{link.link_id}</dd></div><div><dt>Observation IDs</dt><dd>{link.shared_source_observation_ids.join(" · ") || "None"}</dd></div><div><dt>Source Result IDs</dt><dd>{link.source_result_ids.join(" · ") || "None"}</dd></div></dl></details>
               </article>;
             })}</div>
           </details>

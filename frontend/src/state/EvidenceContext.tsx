@@ -4,10 +4,10 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type ReactNode,
 } from "react";
 import { api } from "../api/client";
-import type { ResultNotification } from "../api/types";
 import { evidenceReducer, initialEvidenceState } from "./evidenceReducer";
 import type { EvidenceAction, EvidenceState } from "./types";
 
@@ -21,10 +21,24 @@ const EvidenceContext = createContext<EvidenceValue | null>(null);
 
 export function EvidenceProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(evidenceReducer, initialEvidenceState);
+  const currentState = useRef(state);
+  currentState.current = state;
+  const resyncRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const deferredResults = useRef(false);
+  const previousReplayState = useRef(state.replay?.state);
+  useEffect(() => {
+    const previous = previousReplayState.current;
+    previousReplayState.current = state.replay?.state;
+    if (previous === "RUNNING" && state.replay?.state !== "RUNNING" && deferredResults.current) {
+      deferredResults.current = false;
+      void resyncRef.current();
+    }
+  }, [state.replay?.state]);
   useEffect(() => {
     const controller = new AbortController();
     let source: EventSource | null = null;
     let eventQueue = Promise.resolve();
+    let resultRefreshTimer: ReturnType<typeof setTimeout> | undefined;
     let alertsAvailable = false;
     let syncCursor: string | null = null;
     const loadAlerts = async () => {
@@ -64,6 +78,10 @@ export function EvidenceProvider({ children }: { children: ReactNode }) {
       }
       await loadAlerts();
     };
+    resyncRef.current = resync;
+    const enqueueResync = () => {
+      eventQueue = eventQueue.then(resync).catch(showError);
+    };
     void (async () => {
       try {
         const [health, runtime] = await Promise.all([
@@ -78,33 +96,23 @@ export function EvidenceProvider({ children }: { children: ReactNode }) {
         source = new EventSource("/events");
         source.addEventListener("ready", () => {
           dispatch({ type: "stream", value: "connected" });
-          eventQueue = eventQueue.then(resync).catch(showError);
+          enqueueResync();
         });
-        source.addEventListener("result", (event) => {
-          eventQueue = eventQueue
-            .then(async () => {
-              const message = JSON.parse(
-                (event as MessageEvent<string>).data,
-              ) as ResultNotification;
-              // SSE is only a persisted-result hint. Fetch the durable scientific record from REST.
-              const result = await api.result(
-                message.result_id,
-                controller.signal,
-              );
-              syncCursor = message.cursor;
-              dispatch({
-                type: "results",
-                value: [result],
-                syncCursor: message.cursor,
-                animate: true,
-              });
-              await loadAlerts();
-            })
-            .catch(showError);
+        source.addEventListener("result", () => {
+          if (currentState.current.replay?.state === "RUNNING") {
+            deferredResults.current = true;
+            return;
+          }
+          // SSE carries only a result hint. Coalesce bursts, then page authoritative records from REST.
+          if (resultRefreshTimer) clearTimeout(resultRefreshTimer);
+          resultRefreshTimer = setTimeout(() => {
+            enqueueResync();
+          }, 80);
         });
         source.addEventListener("stream_gap", () => {
           dispatch({ type: "stream", value: "reconnecting" });
-          eventQueue = eventQueue.then(resync).catch(showError);
+          if (currentState.current.replay?.state === "RUNNING") deferredResults.current = true;
+          else enqueueResync();
         });
         source.onerror = () =>
           dispatch({ type: "stream", value: "reconnecting" });
@@ -121,6 +129,7 @@ export function EvidenceProvider({ children }: { children: ReactNode }) {
     }
     return () => {
       controller.abort();
+      if (resultRefreshTimer) clearTimeout(resultRefreshTimer);
       source?.close();
     };
     // Initial bootstrap owns the stream lifecycle; later state changes do not reopen EventSource.

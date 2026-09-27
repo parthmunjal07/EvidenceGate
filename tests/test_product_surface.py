@@ -174,9 +174,22 @@ async def test_results_serialization_pagination_filters_and_sync_cursor(tmp_path
         assert (await client.get(f"/results/{values[0].result_id}")).json()["result_id"] == values[0].result_id
 
         newer = make_result("four", at=BASE + timedelta(seconds=3))
+        middle = make_result("five", at=BASE + timedelta(seconds=4))
+        newest = make_result("six", at=BASE + timedelta(seconds=5))
         await service.persist_and_publish(newer)
-        continuation = (await client.get("/results", params={"cursor": first["sync_cursor"]})).json()
-        assert [item["result_id"] for item in continuation["results"]] == [newer.result_id]
+        await service.persist_and_publish(middle)
+        await service.persist_and_publish(newest)
+        continuation = (await client.get("/results", params={
+            "cursor": first["sync_cursor"], "limit": 2,
+        })).json()
+        assert [item["result_id"] for item in continuation["results"]] == [newer.result_id, middle.result_id]
+        assert continuation["next_cursor"] is not None
+        final_page = (await client.get("/results", params={
+            "cursor": continuation["next_cursor"], "limit": 2,
+        })).json()
+        assert [item["result_id"] for item in final_page["results"]] == [newest.result_id]
+        assert final_page["next_cursor"] is None
+        assert final_page["sync_cursor"].startswith("after.")
 
 
 @pytest.mark.asyncio

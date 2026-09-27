@@ -5,6 +5,7 @@ import type { DisplayTimeZone } from "../../utils/formatting";
 import type { NavigationContext } from "../../state/navigation";
 import type { PageKey } from "../../state/types";
 import { projectResultExplanation } from "../../utils/resultExplanation";
+import { formatEndpointPair, presentService, transportLabel } from "../../utils/networkContext";
 
 type Row = { observation: ObservationPresentationDto; source: RuntimeTraceEvent["source_record"] };
 
@@ -100,7 +101,7 @@ export function NetworkObservationsSection({
               <td>{formatEvidenceClockTime(observation.event_time, zone)}</td>
               <td>{readable(observation.observation_type)}</td>
               <td>{networkContext(fact)}</td>
-              <td>{protocolAndService(observation, fact)}</td>
+              <td title={serviceExplanation(observation, fact)}>{protocolAndService(observation, fact)}</td>
               <td>{observedFact(observation, fact)}</td>
               <td>{readable(observation.wire_direction)}</td>
               <td><button className="observation-route-count" onClick={() => setSelectedId(observation.observation_id)} aria-label={`${routes.length} analytic routes; view observation`}>{routes.length}</button></td>
@@ -120,7 +121,7 @@ export function NetworkObservationsSection({
   </>;
 }
 
-function ObservationDetail({ row, routes, results, close, navigate }: {
+export function ObservationDetail({ row, routes, results, close, navigate }: {
   row: Row; routes: RuntimeTraceEvent[]; results: ResultDto[]; close: () => void;
   navigate: (page: PageKey, context?: NavigationContext) => void;
 }) {
@@ -130,37 +131,44 @@ function ObservationDetail({ row, routes, results, close, navigate }: {
     <section className="observation-modal" role="dialog" aria-modal="true" aria-labelledby="observation-detail-title">
       <header className="observation-modal-header"><div><span className="eyebrow">Traffic Lab</span><h2 id="observation-detail-title">Canonical network observation</h2></div><button className="secondary-button" onClick={close} autoFocus>Close</button></header>
       <div className="observation-modal-body">
-        <section><h3>Observed traffic</h3><FactList facts={source?.facts ?? observation.facts} empty="Source summary is unavailable." /></section>
-        <section><h3>Normalized observation</h3><p>{readable(observation.observation_type)} · {readable(observation.wire_direction)} · {new Date(observation.event_time).toLocaleString()}</p><FactList facts={observation.facts} empty="No additional type-specific facts were reported." />
-          <p className="observation-identity-line">Identity basis: {readable(observation.identity.identifier_basis)}{observation.identity.role_assignments.length ? " · " + observation.identity.role_assignments.map((role) => formatRole(role)).join(" · ") : " · No explicit role assignments"}</p>
-          <details><summary>View normalized fields</summary><p>Present fields: {observation.present_fields.map(readable).join(" · ") || "Not reported"}</p><p>Availability basis: {readable(observation.availability_basis)} · Finality: {readable(observation.finality)} · Source position: {observation.source_position}</p><p>Observed identifiers: {observation.identity.observed_identifiers.join(" · ") || "Not reported"}</p></details>
+        <section><h3>Observed network facts</h3><FactList facts={source?.facts ?? observation.facts} empty="Source summary is unavailable." /></section>
+        <section><h3>Normalized / assigned context</h3><p>{readable(observation.observation_type)} · {readable(observation.wire_direction)} · {new Date(observation.event_time).toLocaleString()}</p><FactList facts={observation.facts} empty="No additional type-specific facts were reported." />
+          <dl className="observation-normalized-context"><div><dt>Direction</dt><dd>{readable(observation.wire_direction)} · {readable(observation.direction_basis)}</dd></div>
+            {observation.identity.role_assignments.filter((role) => role.role !== "service_id").map((role) => <div key={`${role.role}:${role.identifier}`}><dt>{role.role === "target_id" ? "Destination role" : role.role === "initiator_id" ? "Source role" : readable(role.role)}</dt><dd>{role.identifier} · {readable(role.basis)}</dd></div>)}
+            {(() => { const role = observation.identity.role_assignments.find((item) => item.role === "service_id"); const service = presentService(role, observation.facts.destination_port); return <div><dt>Service</dt><dd>{service.label}</dd><dt>Service basis</dt><dd>{service.basis}</dd></div>; })()}
+          </dl>
         </section>
         <section><h3>Visibility and quality</h3><p>Available: {formatStates(observation.visibility.available)} · Unavailable: {formatStates(observation.visibility.unavailable)} · Degraded: {formatStates(observation.visibility.degraded)}</p><FactList facts={observation.quality} empty="Quality not reported." /></section>
         <section><h3>Analytics routed</h3>{routes.length ? <ul>{routes.map((route) => <li key={route.sequence}>{mechanismLabel(route.mechanism || route.lane_id || "Analytic")}</li>)}</ul> : <p>No eligible analytics. This observation was retained, but no active analytic declared it eligible.</p>}</section>
         <section><h3>Evidence produced</h3>{results.length ? <ul>{results.map((result) => { const explanation = projectResultExplanation(result, routes, observation); const open = expandedResultId === result.result_id; return <li key={result.result_id} className="observation-produced-result"><span><strong>{mechanismLabel(result.mechanism_id || result.lane_id)}</strong> · {readable(result.result_type)} · {explanation.resultReason}</span><div><button className="text-button" aria-expanded={open} onClick={() => setExpandedResultId(open ? null : result.result_id)}>{open ? "Hide explanation" : "Why this result?"}</button> <button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Open Result</button></div>{open && <div className="inline-result-explanation"><strong>Why this analytic ran</strong><p>{explanation.eligibilityReasons.join(" ")}</p><strong>Observed</strong><ul>{(explanation.observedFacts.length ? explanation.observedFacts : ["No scalar evidence items were reported."]).map(fact => <li key={fact}>{fact}</li>)}</ul><strong>Why the Result was emitted</strong><p>{explanation.resultReason}</p><strong>Supports</strong><ul>{explanation.supports.map(fact=><li key={fact}>{fact}</li>)}</ul><strong>Does not establish</strong><ul>{explanation.limitations.map(fact=><li key={fact}>{fact}</li>)}</ul>{explanation.missingEvidence.length>0 && <><strong>Missing evidence</strong><ul>{explanation.missingEvidence.map(fact=><li key={fact}>{fact}</li>)}</ul></>}<strong>Source lineage</strong><span>{explanation.sourceObservationIds.length} source observation{explanation.sourceObservationIds.length === 1 ? "" : "s"}</span></div>}</li>; })}</ul> : <p>No source-linked Result is available for this observation.</p>}</section>
-        <details className="observation-lineage"><summary>Source lineage / audit detail</summary><p>Source record {source?.record_number ?? observation.source_position} · Observation {observation.observation_id}</p></details>
+        <p className="observation-lineage">One source network record was normalized into this canonical observation.</p>
       </div>
     </section>
   </div>;
 }
 
 function FactList({ facts, empty }: { facts: Record<string, unknown>; empty: string }) {
-  const entries = Object.entries(facts).filter(([, value]) => value !== null && value !== undefined);
+  const entries = Object.entries(facts).filter(([key, value]) => key !== "flow_reference" && key !== "parser_version" && value !== null && value !== undefined);
   if (!entries.length) return <p>{empty}</p>;
-  return <dl className="observation-fact-list">{entries.map(([key, value]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{typeof value === "object" ? Object.entries(value as Record<string, unknown>).map(([child, item]) => `${fieldLabel(child)}: ${item === "UNKNOWN" ? "Not reported" : String(item)}`).join(" · ") : value === "UNKNOWN" ? "Not reported" : key.endsWith("_time") ? formatEvidenceClockTime(String(value)) : readable(String(value))}</dd></div>)}</dl>;
+  return <dl className="observation-fact-list">{entries.map(([key, value]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{key === "protocol_number" ? transportLabel(value) : typeof value === "object" ? Object.entries(value as Record<string, unknown>).map(([child, item]) => `${fieldLabel(child)}: ${item === "UNKNOWN" ? "Not reported" : String(item)}`).join(" · ") : value === "UNKNOWN" ? "Not reported" : key.endsWith("_time") ? formatEvidenceClockTime(String(value)) : readable(String(value))}</dd></div>)}</dl>;
 }
 
 function networkContext(facts: Record<string, unknown>) {
-  if (facts.source_address || facts.destination_address) return `${endpoint(facts.source_address, facts.source_port)} → ${endpoint(facts.destination_address, facts.destination_port)}`;
-  if (facts.endpoint_a || facts.endpoint_b) return `${String(facts.endpoint_a ?? "Endpoint A")} ↔ ${String(facts.endpoint_b ?? "Endpoint B")}`;
+  const endpoints = formatEndpointPair(facts);
+  if (endpoints) return endpoints;
   return String(facts.qname_rendered ?? facts.qname_canonical ?? "Network context unavailable");
 }
 
-function endpoint(address: unknown, port: unknown) { return `${String(address ?? "Unknown")}${port === null || port === undefined ? "" : `:${String(port)}`}`; }
 function protocolAndService(observation: ObservationPresentationDto, facts: Record<string, unknown>) {
-  const protocol = facts.protocol_number === 6 ? "TCP" : facts.protocol_number === 17 ? "UDP" : facts.protocol_number === 1 ? "ICMP" : facts.protocol_number ? `IP ${String(facts.protocol_number)}` : facts.transport ?? "Not reported";
+  const protocol = transportLabel(facts.protocol_number ?? facts.transport);
   const role = observation.identity.role_assignments.find((item) => item.role === "service_id");
-  return `${String(protocol)}${role ? ` · ${role.identifier.replace("service/", "").toUpperCase()}` : facts.qtype ? ` · ${String(facts.qtype)}` : ""}`;
+  const service = presentService(role, facts.destination_port);
+  return `${protocol}${facts.qtype ? ` · ${String(facts.qtype)}` : facts.destination_port !== undefined ? ` · Service ${service.label}` : ""}`;
+}
+function serviceExplanation(observation: ObservationPresentationDto, facts: Record<string, unknown>) {
+  const role = observation.identity.role_assignments.find((item) => item.role === "service_id");
+  const service = presentService(role, facts.destination_port);
+  return service.label === "Not identified" ? service.basis : `${service.label}: ${service.basis}`;
 }
 function observedFact(observation: ObservationPresentationDto, facts: Record<string, unknown>) {
   if (Array.isArray(facts.flags)) return `${facts.flags.join(" / ") || "Flags not reported"}${facts.ip_length ? ` · ${String(facts.ip_length)} B` : ""}`;
@@ -171,8 +179,11 @@ function observedFact(observation: ObservationPresentationDto, facts: Record<str
 function formatStates(values: string[]) { return values.length ? values.map(readable).join(", ") : "None reported"; }
 function qualityText(value: string) { return value === "UNKNOWN" ? "Not reported" : readable(value); }
 function formatRole(role: ObservationPresentationDto["identity"]["role_assignments"][number]) {
-  const labels: Record<string, string> = { initiator_id: "Initiator", target_id: "Target", service_id: "Service", client_id: "Client", peer_id: "Peer", peer_port: "Peer port" };
-  const identifier = role.role === "service_id" ? role.identifier.replace("service/", "").toUpperCase() : role.identifier;
-  return `${labels[role.role] ?? readable(role.role)} ${identifier}`;
+  if (role.role === "service_id") {
+    const service = presentService(role);
+    return `Service ${service.label} · ${service.basis}`;
+  }
+  const labels: Record<string, string> = { initiator_id: "Source", target_id: "Destination", client_id: "Client", peer_id: "Peer", peer_port: "Peer port" };
+  return `${labels[role.role] ?? readable(role.role)} ${role.identifier} · ${readable(role.basis)}`;
 }
-function fieldLabel(value: string) { return ({ source_address: "Source", source_port: "Source port", destination_address: "Destination", destination_port: "Destination port", protocol_number: "IP protocol", ip_length: "IP length", packet_length: "Packet length", qname_rendered: "Rendered query name", qname_canonical: "Canonical query name", message_length: "Message length", directional_counters: "Directional counters", flow_reference: "Flow reference", start_time: "Flow start", end_time: "Flow end", export_time: "Export time", documented_end_state: "Documented end state", reassembly_state: "Reassembly state", parser_version: "Parser version", fragmentation: "Fragmentation" } as Record<string, string>)[value] ?? readable(value); }
+function fieldLabel(value: string) { return ({ source_address: "Source address", source_port: "Source port", destination_address: "Destination address", destination_port: "Destination port", protocol_number: "Transport", ip_length: "IP length", packet_length: "Packet length", qname_rendered: "Rendered query name", qname_canonical: "Canonical query name", message_length: "Message length", directional_counters: "Directional counters", flow_reference: "Flow reference", start_time: "Flow start", end_time: "Flow end", export_time: "Export time", documented_end_state: "Documented end state", reassembly_state: "Reassembly state", parser_version: "Parser version", fragmentation: "Fragmentation" } as Record<string, string>)[value] ?? readable(value); }

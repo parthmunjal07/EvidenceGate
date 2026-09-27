@@ -38,6 +38,27 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = PACKAGE_ROOT.parent
 SCHEMA_PATH = PACKAGE_ROOT / "persistence" / "schema.sql"
 STATIC_ROOT = Path(__file__).with_name("static")
+API_CONTRACT_VERSION = "1"
+
+
+def release_metadata() -> dict[str, str]:
+    manifest_path = STATIC_ROOT / "release-manifest.json"
+    try:
+        metadata = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        metadata = {}
+    source_sha = str(
+        metadata.get("source_sha")
+        or os.environ.get("EVIDENCEGATE_SOURCE_SHA")
+        or os.environ.get("EVIDENCEGATE_BUILD_SHA")
+        or os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+        or "unknown"
+    )
+    return {
+        "release_id": str(metadata.get("release_id") or os.environ.get("EVIDENCEGATE_RELEASE_ID") or "dev"),
+        "source_sha": source_sha,
+        "api_contract_version": API_CONTRACT_VERSION,
+    }
 
 
 def family_for(result: Result) -> str:
@@ -160,6 +181,10 @@ def create_app(
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
+        if request.url.path == "/" or request.url.path == "/release-manifest.json":
+            response.headers["Cache-Control"] = "no-store"
+        elif request.url.path.startswith("/assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
     application.mount(
         "/assets", StaticFiles(directory=STATIC_ROOT / "assets"), name="assets",
@@ -168,7 +193,11 @@ def create_app(
 
     @application.get("/", include_in_schema=False)
     async def dashboard() -> FileResponse:
-        return FileResponse(STATIC_ROOT / "index.html")
+        return FileResponse(STATIC_ROOT / "index.html", headers={"Cache-Control": "no-store"})
+
+    @application.get("/release-manifest.json", include_in_schema=False)
+    async def release_manifest() -> dict[str, str]:
+        return release_metadata()
 
     @application.get("/robots.txt", include_in_schema=False)
     async def robots_txt() -> PlainTextResponse:
@@ -218,9 +247,12 @@ def create_app(
         if direction == "after":
             next_cursor = (
                 _after_cursor(service.writer.cursor_for(visible[-1]))
+                if len(page) > limit and visible else None
+            )
+            sync_cursor = (
+                _after_cursor(service.writer.cursor_for(visible[-1]))
                 if visible else cursor
             )
-            sync_cursor = next_cursor
         else:
             next_cursor = (
                 service.writer.cursor_for(visible[-1]) if len(page) > limit else None
@@ -377,8 +409,11 @@ def create_app(
     async def runtime_status() -> RuntimeStatusResponse:
         replay_value = service.replay_status()
         targets = service.targets()
+        release = release_metadata()
         return RuntimeStatusResponse(
-            build_sha=os.environ.get("EVIDENCEGATE_BUILD_SHA") or os.environ.get("RAILWAY_GIT_COMMIT_SHA") or "unknown",
+            release_id=release["release_id"], source_sha=release["source_sha"],
+            build_sha=release["source_sha"],
+            api_contract_version=API_CONTRACT_VERSION,
             state="REPLAYING" if replay_value.state == "RUNNING" else "ONLINE",
             default_target_count=len(targets),
             active_lane_ids=[item.lane_id for item in targets],

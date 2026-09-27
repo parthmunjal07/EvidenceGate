@@ -18,13 +18,16 @@ def test_runtime_default_scenarios_are_only_curated_and_internal_is_opt_in(monke
     scenarios = default_scenarios(Path.cwd())
     assert set(scenarios) == {
         "mixed_ddos_recon", "ddos_one_way", "c2_recurrence", "dga_lexical",
-        "raw_pcap_ddos_recon",
+        "encrypted_tls_session", "raw_pcap_ddos_recon",
     }
     assert all("tests" not in str(item.bundle).lower() for item in scenarios.values())
     mixed = scenarios["mixed_ddos_recon"]
     assert mixed.bundle == Path.cwd() / "evidencegate" / "demo_data" / "mixed_ddos_recon_v2"
     assert mixed.demo_contract and mixed.demo_contract["asset_version"] == "mixed_ddos_recon_v2"
     assert mixed.demo_contract["expected_records"] == 12
+    encrypted = scenarios["encrypted_tls_session"]
+    assert encrypted.demo_contract["asset_version"] == "encrypted_tls_session_v1"
+    assert encrypted.demo_contract["expected_results"] == 1
     monkeypatch.setenv("EVIDENCEGATE_DEV_SCENARIOS", "1")
     internal = default_scenarios(Path.cwd())
     assert "encrypted_session" in internal and "mixed_ddos_recon_internal" in internal
@@ -45,7 +48,7 @@ async def test_trace_source_and_canonical_summaries_are_safe_and_complete(tmp_pa
         runtime = (await client.get("/runtime")).json()
         assert {item["id"] for item in runtime["scenarios"]} == {
             "mixed_ddos_recon", "ddos_one_way", "c2_recurrence", "dga_lexical",
-            "raw_pcap_ddos_recon",
+            "encrypted_tls_session", "raw_pcap_ddos_recon",
         }
         assert (await client.post("/replay", json={"scenario": "mixed_ddos_recon", "speed": 0})).status_code == 202
         status = await service.wait_for_replay()
@@ -112,6 +115,12 @@ async def test_public_mode_disables_schema_adds_noindex_headers_and_robots(tmp_p
             assert response.headers["x-robots-tag"] == "noindex, nofollow, noarchive, nosnippet"
             assert response.headers["x-content-type-options"] == "nosniff"
         assert "noindex, nofollow" in (await client.get("/")).text
+        assert (await client.get("/")).headers["cache-control"] == "no-store"
+        manifest = await client.get("/release-manifest.json")
+        assert manifest.headers["cache-control"] == "no-store"
+        runtime = (await client.get("/runtime")).json()
+        assert runtime["release_id"] == manifest.json()["release_id"]
+        assert "source_sha" in runtime
         assert (await client.get("/robots.txt")).text == "User-agent: *\nDisallow: /\n"
         for path in ("/docs", "/redoc", "/openapi.json"):
             assert (await client.get(path)).status_code == 404

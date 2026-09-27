@@ -13,13 +13,19 @@ import { useEffect } from "react";
 import { api } from "../api/client";
 import { useTimeZone } from "../state/TimeZoneContext";
 import { compareTimeAsc, compareTimeDesc, formatEvidenceRange, formatTimeZoneLabel } from "../utils/formatting";
+import { cachedObservationIds, readCachedObservation, readCachedObservations } from "../utils/replayEvidenceCache";
+import { ObservationDetail } from "../components/replay/NetworkObservationsSection";
+import type { PageKey } from "../state/types";
+import type { NavigationContext } from "../state/navigation";
 
 export function ResultsPage({
   initialResultId = null,
   sourceResultIds = [],
+  navigate,
 }: {
   initialResultId?: string | null;
   sourceResultIds?: string[];
+  navigate?: (page: PageKey, context?: NavigationContext) => void;
 }) {
   const { state, loadOlder, dispatch } = useEvidence();
   const { zone } = useTimeZone();
@@ -27,13 +33,14 @@ export function ResultsPage({
   const [family, setFamily] = useState("");
   const [resultType, setResultType] = useState("");
   const [selectedId, setSelectedId] = useState(initialResultId);
+  const [sourceObservationId, setSourceObservationId] = useState<string | null>(null);
   const sourceIdKey = sourceResultIds.join("\u0000");
   const stableSourceIds = useMemo(() => sourceIdKey ? sourceIdKey.split("\u0000") : [], [sourceIdKey]);
   const missingSourceIds = useMemo(() => stableSourceIds.filter((id) => !state.results.has(id)), [stableSourceIds, state.results]);
   useEffect(() => {
     if (!missingSourceIds.length) return;
     const controller = new AbortController();
-    void Promise.all(missingSourceIds.map((id) => api.result(id, controller.signal)))
+    void api.allResults(controller.signal)
       .then((results) => { if (!controller.signal.aborted) dispatch({ type: "results", value: results }); })
       .catch(() => undefined);
     return () => controller.abort();
@@ -48,6 +55,11 @@ export function ResultsPage({
   );
   const families = [...new Set(all.map((item) => item.family))].sort();
   const selected = selectedId ? (state.results.get(selectedId) ?? null) : null;
+  const cachedSourceIds = selected ? cachedObservationIds(selected.source_observation_ids) : [];
+  const cachedSources = selected ? readCachedObservations(selected.source_observation_ids) : [];
+  const cachedSource = sourceObservationId ? readCachedObservation(sourceObservationId) : null;
+  const openFamily = selected && navigate ? () => navigate("alerts", { family: normalizeFamilyName(selected.family), returnResultId: selected.result_id }) : undefined;
+  const openInvestigation = selected && navigate ? () => navigate("investigations", { family: normalizeFamilyName(selected.family) }) : undefined;
   return (
     <section className="page active-page" aria-labelledby="results-title">
       <PageHeading
@@ -133,7 +145,8 @@ export function ResultsPage({
           )}
         </section>
       </div>
-      <ResultInspector result={selected} onClose={() => setSelectedId(null)} />
+      <ResultInspector result={selected} onClose={() => setSelectedId(null)} availableSourceCount={cachedSourceIds.length} sourceObservations={cachedSources} onOpenSource={(index) => setSourceObservationId(cachedSourceIds[index] ?? null)} {...(openFamily ? { onOpenFamily: openFamily } : {})} {...(openInvestigation ? { onOpenInvestigation: openInvestigation } : {})} />
+      {cachedSource && <ObservationDetail row={{ observation: cachedSource.observation, source: cachedSource.source }} routes={cachedSource.routes} results={cachedSource.results} close={() => setSourceObservationId(null)} navigate={(_page, context) => { if (context?.resultId) { setSourceObservationId(null); setSelectedId(context.resultId); } }} />}
     </section>
   );
 }

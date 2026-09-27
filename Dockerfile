@@ -1,23 +1,23 @@
-FROM node:22-alpine AS frontend-build
+FROM node:24-alpine AS frontend-build
 WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend ./
-ARG EVIDENCEGATE_BUILD_SHA=unknown
-ENV VITE_EVIDENCEGATE_BUILD_SHA=${EVIDENCEGATE_BUILD_SHA}
-RUN npm run build
+COPY tools/generate_release_manifest.mjs tools/build_release.mjs /tools/
+ARG EVIDENCEGATE_RELEASE_ID
+ARG EVIDENCEGATE_BUILD_SHA
+ARG RAILWAY_GIT_COMMIT_SHA
+RUN EVIDENCEGATE_BUILD_SHA=${EVIDENCEGATE_BUILD_SHA:-${RAILWAY_GIT_COMMIT_SHA:-unknown}} EVIDENCEGATE_RELEASE_ID=${EVIDENCEGATE_RELEASE_ID} npm run build
 
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
-ARG EVIDENCEGATE_BUILD_SHA=unknown
-ENV EVIDENCEGATE_BUILD_SHA=${EVIDENCEGATE_BUILD_SHA}
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY evidencegate ./evidencegate
-COPY --from=frontend-build /ui/dist ./evidencegate/api/static
+COPY --from=frontend-build /evidencegate/api/static ./evidencegate/api/static
 COPY tools ./tools
 RUN python -m pip install --no-cache-dir ".[dga-m1]"
 

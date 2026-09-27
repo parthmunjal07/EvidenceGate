@@ -59,6 +59,24 @@ describe("semantic replay presentation", () => {
     expect(recurrence.source_observation_ids).toEqual(["obs-1", "obs-2", "obs-3"]);
   });
 
+  it("keeps a deterministic C2 recurrence rerun after the final readiness event", () => {
+    const history = [
+      traceEvent(1, "SOURCE_RECORD_ACCEPTED"), traceEvent(2, "OBSERVATION_CREATED", "obs-1"), traceEvent(3, "ANALYTIC_READINESS", "obs-1"),
+      traceEvent(4, "SOURCE_RECORD_ACCEPTED"), traceEvent(5, "OBSERVATION_CREATED", "obs-2"), traceEvent(6, "ANALYTIC_READINESS", "obs-2"),
+      traceEvent(7, "SOURCE_RECORD_ACCEPTED"), traceEvent(8, "OBSERVATION_CREATED", "obs-3"), traceEvent(9, "ANALYTIC_READINESS", "obs-3"),
+      traceEvent(10, "ANALYTIC_EVALUATED", "obs-3"),
+    ];
+    const recurrence = result("durable-c2", ["obs-1", "obs-2", "obs-3"]);
+    const results = sourceLinkedReplayResults([recurrence], history);
+
+    expect(results.map((item) => item.result_id)).toEqual(["durable-c2"]);
+    expect(buildReplayPresentationSteps(history.slice(0, 6), results, [], []).flatMap((step) => step.resultIds)).toEqual([]);
+    expect(buildReplayPresentationSteps(history, results, [], []).at(-1)).toMatchObject({
+      stage: "RESULT", observationId: null, eventSequences: [], resultIds: ["durable-c2"],
+      sourceObservationIds: ["obs-1", "obs-2", "obs-3"],
+    });
+  });
+
   it("attributes only persisted Results and keeps their trace order and full lineage", () => {
     const first = result("first", ["obs-1", "obs-2"]);
     const second = result("second", ["obs-2", "obs-3"]);

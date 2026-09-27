@@ -58,36 +58,42 @@
     {
       "port": 443,
       "protocol": 6,
+      "basis": "POLICY_DECLARED_ROLE",
       "service_id": "service/https",
       "target_address": "192.0.2.10"
     },
     {
       "port": 22,
       "protocol": 6,
+      "basis": "POLICY_DECLARED_ROLE",
       "service_id": "service/ssh",
       "target_address": "192.0.2.10"
     },
     {
       "port": 80,
       "protocol": 6,
+      "basis": "POLICY_DECLARED_ROLE",
       "service_id": "service/http",
       "target_address": "192.0.2.10"
     },
     {
       "port": 25,
       "protocol": 6,
+      "basis": "POLICY_DECLARED_ROLE",
       "service_id": "service/smtp",
       "target_address": "192.0.2.10"
     },
     {
       "port": 53,
       "protocol": 17,
+      "basis": "POLICY_DECLARED_ROLE",
       "service_id": "service/dns-udp",
       "target_address": "192.0.2.10"
     },
     {
       "port": 123,
       "protocol": 17,
+      "basis": "POLICY_DECLARED_ROLE",
       "service_id": "service/ntp-udp",
       "target_address": "192.0.2.10"
     }

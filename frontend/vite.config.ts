@@ -6,6 +6,10 @@ export default defineConfig(({ mode }) => {
   const apiTarget = loadEnv(mode, '.', 'VITE_').VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:8000';
   return {
   plugins: [react()],
+  define: {
+    __EVIDENCEGATE_RELEASE_ID__: JSON.stringify(loadEnv(mode, '.', 'VITE_').VITE_EVIDENCEGATE_RELEASE_ID ?? 'dev'),
+    __EVIDENCEGATE_SOURCE_SHA__: JSON.stringify(loadEnv(mode, '.', 'VITE_').VITE_EVIDENCEGATE_SOURCE_SHA ?? 'unknown'),
+  },
   build: {
     outDir: '../evidencegate/api/static',
     emptyOutDir: true,

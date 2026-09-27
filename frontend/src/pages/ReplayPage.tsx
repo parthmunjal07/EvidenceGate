@@ -15,6 +15,10 @@ import { buildReplayPresentationSteps, groupFamilyEpisodes, groupRelationsByFami
 import { judgeDemoScenarios, validateJudgeDemo, validateScopedEvidence } from "../utils/judgeDemos";
 import { NetworkObservationsSection, ObservationWorkbench } from "../components/replay/NetworkObservationsSection";
 import { projectResultExplanation } from "../utils/resultExplanation";
+import { checkReleaseCompatibility, RELEASE_RECOVERY_KEY } from "../utils/releaseCompatibility";
+import { cacheReplayEvidence, clearReplayEvidenceCache } from "../utils/replayEvidenceCache";
+import { replayFinalizationReady } from "../utils/replayFinalization";
+import { ReplayRunGeneration } from "../utils/replayRunGeneration";
 
 type Lifecycle = "IDLE" | "STARTING" | "PROCESSING" | "FINALIZING" | "READY" | "FAILED";
 
@@ -29,7 +33,6 @@ const readinessLabel = (event: RuntimeTraceEvent | undefined) => {
   if (event.readiness === "STATE_EVICTED") return "Insufficient evidence";
   return event.readiness ? readable(event.readiness) : "Evaluating";
 };
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: NavigationContext) => void }) {
   const { state, dispatch } = useEvidence();
@@ -59,6 +62,12 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const activeReplayStartedAt = useRef<string | null>(null);
   const replayTraceStartSequence = useRef<number | null>(null);
   const finalizingStartedAt = useRef<string | null>(null);
+  const runGeneration = useRef(new ReplayRunGeneration());
+  const runController = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    runController.current?.abort();
+    runGeneration.current.begin();
+  }, []);
   useEffect(() => {
     receivedRef.current = receivedTrace;
     runResultsRef.current = runResults;
@@ -72,20 +81,27 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const demoContract = scenarioInfo?.demo;
   const scenarioName = scenarioInfo?.demo?.title || selectedScenario?.label || "Traffic replay";
   const sourceType = replay?.source_type || selectedScenario?.source_type || "Controlled observations";
-  const frontendBuildSha = import.meta.env.VITE_EVIDENCEGATE_BUILD_SHA || (import.meta.env.PROD ? "unknown" : "dev");
-  const runtimeBuildMismatch = Boolean(state.runtime && (frontendBuildSha === "unknown" || state.runtime.build_sha === "unknown" || frontendBuildSha !== state.runtime.build_sha));
+  const releaseCheck = state.runtime ? checkReleaseCompatibility(
+    __EVIDENCEGATE_RELEASE_ID__, state.runtime.release_id, state.runtime.api_contract_version,
+    window.sessionStorage.getItem(RELEASE_RECOVERY_KEY) === "true", window.location.href,
+  ) : null;
+  const apiIncompatible = releaseCheck?.state === "incompatible";
+  const developerUi = import.meta.env.VITE_EVIDENCEGATE_DEV_UI === "true";
   const demoAssetMismatch = Boolean(scenarioInfo?.demo && scenarioInfo.asset_version !== scenarioInfo.demo.assetVersion);
   const sourceLabel = (value: string) => /pcap/i.test(value) ? "Recorded PCAP replay" : /ndjson|typed/i.test(value) ? "Controlled NDJSON replay" : value;
   const running = lifecycle === "STARTING" || lifecycle === "PROCESSING" || lifecycle === "FINALIZING";
-  const tracePolling = lifecycle === "PROCESSING" || lifecycle === "FINALIZING";
+  // Once runtime completion is observed, the finalizer becomes the only trace reader.
+  const tracePolling = lifecycle === "PROCESSING" && replay?.state !== "COMPLETED";
 
   useEffect(() => {
     if (!tracePolling) return;
     const controller = new AbortController();
+    const generation = runGeneration.current.current();
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
         const update = await api.runtimeTrace(traceCursor.current, controller.signal);
+        if (controller.signal.aborted || !runGeneration.current.isCurrent(generation)) return;
         if (update.events.length) {
           if (hasRuntimeTraceGap(traceCursor.current, update.events)) {
             traceIssueRef.current = true;
@@ -96,27 +112,37 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
           setReceivedTrace(merged);
           traceCursor.current = advanceRuntimeTraceCursor(traceCursor.current, update.events);
         }
-      } catch { if (!controller.signal.aborted) { traceIssueRef.current = true; setTraceUnavailable(true); } }
-      if (!controller.signal.aborted) timer = setTimeout(poll, 300);
+      } catch { if (!controller.signal.aborted && runGeneration.current.isCurrent(generation)) { traceIssueRef.current = true; setTraceUnavailable(true); } }
+      if (!controller.signal.aborted && runGeneration.current.isCurrent(generation)) timer = setTimeout(poll, 300);
     };
     void poll();
     return () => { controller.abort(); clearTimeout(timer); };
   }, [tracePolling]);
 
   const runScenario = async (id: string) => {
+    runController.current?.abort();
+    const controller = new AbortController();
+    runController.current = controller;
+    const generation = runGeneration.current.begin();
+    const isCurrent = () => runGeneration.current.isCurrent(generation) && !controller.signal.aborted;
+    clearReplayEvidenceCache();
     setStartingScenarioId(id);
     setLifecycle("STARTING");
     clearLatestReplayMarker();
     replayTraceStartSequence.current = null;
+    activeReplayStartedAt.current = null;
+    finalizingStartedAt.current = null;
     setTraceUnavailable(false);
     traceIssueRef.current = false;
     setResultSyncUnavailable(false);
     setDemoFailure([]);
     setPlaybackFailure(false);
     try {
-      traceCursor.current = await captureRuntimeTraceBaseline((after, limit) => api.runtimeTrace(after, undefined, limit));
+      traceCursor.current = await captureRuntimeTraceBaseline((after, limit) => api.runtimeTrace(after, controller.signal, limit));
+      if (!isCurrent()) return;
       replayTraceStartSequence.current = traceCursor.current;
     } catch {
+      if (!isCurrent()) return;
       traceCursor.current = 0;
       traceIssueRef.current = true;
       setTraceUnavailable(true);
@@ -131,16 +157,19 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
     dispatchPlayer({ type: "RESET" });
     setShowPicker(false);
     try {
-      const before = await api.allResults();
+      const before = await api.allResults(controller.signal);
+      if (!isCurrent()) return;
       const ids = new Set(before.map((result) => result.result_id));
       baselineRef.current = ids;
       setBaseline(ids);
-      const started = await start(id, 0);
+      const started = await start(id, 0, controller.signal);
+      if (!isCurrent()) return;
       if (!started) throw new Error("Replay could not be started");
       activeReplayStartedAt.current = started.started_at;
       setStartingScenarioId(null);
       setLifecycle("PROCESSING");
     } catch (cause) {
+      if (!isCurrent()) return;
       setLifecycle("FAILED");
       baselineRef.current = null;
       setBaseline(null);
@@ -153,16 +182,18 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
     if (finalizingStartedAt.current === replay.started_at) return;
     finalizingStartedAt.current = replay.started_at;
     const controller = new AbortController();
+    const generation = runGeneration.current.current();
+    const isCurrent = () => runGeneration.current.isCurrent(generation) && !controller.signal.aborted;
     setLifecycle("FINALIZING");
     void (async () => {
-      // Trace is explanatory only. Drain until the sequence is stable; durable Results remain authoritative.
-      let stable = 0;
-      let lastSequence = traceCursor.current;
-      let drainedTraceHead = lastSequence;
+      // Runtime completion closes the event stream. Read pages until the first empty page at the head.
+      let drainedTraceHead = traceCursor.current;
       let drainedTrace: RuntimeTraceEvent[] = [];
-      while (stable < 2) {
+      let traceDrained = false;
+      while (isCurrent()) {
         try {
           const update = await api.runtimeTrace(traceCursor.current, controller.signal);
+          if (!isCurrent()) return;
           drainedTraceHead = update.latest_sequence;
           if (update.events.length) {
             if (hasRuntimeTraceGap(traceCursor.current, update.events)) {
@@ -174,43 +205,61 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
             receivedRef.current = merged;
             setReceivedTrace(merged);
             traceCursor.current = advanceRuntimeTraceCursor(traceCursor.current, update.events);
+            continue;
           }
-          stable = update.latest_sequence === lastSequence && update.events.length === 0 ? stable + 1 : 0;
-          lastSequence = update.latest_sequence;
-        } catch { if (!controller.signal.aborted) { traceIssueRef.current = true; setTraceUnavailable(true); } stable = 2; }
-        if (stable < 2) await sleep(120);
+          traceDrained = traceCursor.current === update.latest_sequence;
+          if (!traceDrained) {
+            traceIssueRef.current = true;
+            setTraceUnavailable(true);
+          }
+          break;
+        } catch {
+          if (isCurrent()) {
+            traceIssueRef.current = true;
+            setTraceUnavailable(true);
+          }
+          break;
+        }
       }
+      if (!isCurrent()) return;
 
       let durableSnapshot: ResultDto[] | null = null;
       const known = baselineRef.current ?? baseline;
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        try {
-          durableSnapshot = await api.allResults(controller.signal);
-          const newlyPersistedCount = durableSnapshot.filter((result) => !known.has(result.result_id)).length;
-          if (newlyPersistedCount >= replay.results_persisted || attempt >= 2) break;
-        } catch { if (attempt >= 2) { setResultSyncUnavailable(true); break; } }
-        await sleep(120);
-      }
+      try { durableSnapshot = await api.allResults(controller.signal); }
+      catch { if (isCurrent()) setResultSyncUnavailable(true); }
+      if (!isCurrent()) return;
       const durable = durableSnapshot ?? [];
-      if (durableSnapshot === null) setResultSyncUnavailable(true);
       const finalTrace = mergeRuntimeTraceEvents(receivedRef.current, drainedTrace);
       const startSequence = replayTraceStartSequence.current;
-      const rangeComplete = startSequence !== null && traceCursor.current === drainedTraceHead && hasCompleteRuntimeTraceRange(finalTrace, startSequence, drainedTraceHead);
+      const rangeComplete = traceDrained && startSequence !== null && traceCursor.current === drainedTraceHead && hasCompleteRuntimeTraceRange(finalTrace, startSequence, drainedTraceHead);
       if (rangeComplete) { traceIssueRef.current = false; setTraceUnavailable(false); }
       else { traceIssueRef.current = true; setTraceUnavailable(true); }
       const sourceLinkedResults = traceIssueRef.current ? [] : sourceLinkedReplayResults(durable, finalTrace);
       const runResultsSorted = sourceLinkedResults;
-      if (controller.signal.aborted) return;
+      const newlyPersistedCount = durable.filter((result) => !known.has(result.result_id)).length;
+      const resultSyncComplete = durableSnapshot !== null && newlyPersistedCount >= replay.results_persisted;
+      if (!resultSyncComplete) setResultSyncUnavailable(true);
+      if (!isCurrent()) return;
+      cacheReplayEvidence(finalTrace, runResultsSorted);
       runResultsRef.current = runResultsSorted;
       setRunResults(runResultsSorted);
       dispatch({ type: "results", value: runResultsSorted, animate: true });
 
+      let familyRequestComplete = false;
+      let investigationRequestComplete = false;
+      let evidenceConsistent = false;
+      let contractValidated = !scenarioInfo?.demo;
+      let validationReasons: string[] = [];
       try {
         const runIds = [...new Set(runResultsSorted.map((result) => result.result_id))];
         const derived = await api.investigations(controller.signal, runIds);
+        if (!isCurrent()) return;
         const views = derived.family_views;
         const links = derived.links;
-        if (!validateScopedEvidence(views, links)) setDerivedUnavailable(true);
+        familyRequestComplete = true;
+        investigationRequestComplete = true;
+        evidenceConsistent = validateScopedEvidence(views, links);
+        if (!evidenceConsistent) setDerivedUnavailable(true);
         const acceptanceContract = scenarioInfo?.demo;
         if (acceptanceContract) {
           const validation = validateJudgeDemo(acceptanceContract, {
@@ -223,14 +272,35 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
             traceAvailable: !traceIssueRef.current,
             runtimeCompleted: replay.state === "COMPLETED",
           });
-          if (!validation.ok) setDemoFailure(validation.reasons);
+          contractValidated = validation.ok;
+          validationReasons = validation.reasons;
         }
-        if (!controller.signal.aborted) { setFamilyViews(views); setInvestigationLinks(links); }
-      } catch { if (!controller.signal.aborted) setDerivedUnavailable(true); }
+        setFamilyViews(views);
+        setInvestigationLinks(links);
+      } catch {
+        if (isCurrent()) setDerivedUnavailable(true);
+      }
 
-      if (controller.signal.aborted) return;
-      if (!controller.signal.aborted) setLifecycle("READY");
-      if (!controller.signal.aborted && !traceIssueRef.current && replayTraceStartSequence.current !== null && replay.started_at && replay.finished_at && replay.scenario && replay.source_type) {
+      if (!isCurrent()) return;
+      const traceComplete = rangeComplete && !traceIssueRef.current;
+      const barrierReady = replayFinalizationReady({
+        runtimeCompleted: replay.state === "COMPLETED",
+        traceDrained: traceComplete,
+        resultAttributionComplete: resultSyncComplete && traceComplete,
+        familyRequestComplete,
+        investigationRequestComplete,
+        demoContractValidated: contractValidated,
+        scopedEvidenceConsistent: evidenceConsistent,
+      });
+      if (!barrierReady) {
+        setDemoFailure(validationReasons.length ? validationReasons : [
+          !traceComplete ? "Presentation trace could not be drained without gaps" : "Replay evidence synchronization did not complete",
+        ]);
+        setLifecycle("FAILED");
+        return;
+      }
+      setLifecycle("READY");
+      if (!traceIssueRef.current && replayTraceStartSequence.current !== null && replay.started_at && replay.finished_at && replay.scenario && replay.source_type) {
         saveLatestReplayMarker({ scenario: replay.scenario, sourceType: replay.source_type, startedAt: replay.started_at, finishedAt: replay.finished_at, startSequence: replayTraceStartSequence.current, endSequence: traceCursor.current });
       }
     })();
@@ -296,7 +366,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       const results = visibleRunResults.filter((item) => item.lane_id === route.lane_id && item.source_observation_ids.includes(selectedId));
       const latestEvent = latest.get(observationLaneKey(selectedId, route.lane_id || ""));
       const laterResult = results.find((item) => item.source_observation_ids.length > 1);
-      const status = laterResult ? `Contributes to later Result Â· ${laterResult.source_observation_ids.length} source observations`
+      const status = laterResult ? `Contributes to later Result · ${laterResult.source_observation_ids.length} source observations`
         : results.some((item) => item.result_type === "ANALYTIC_UNAVAILABLE") ? "Unavailable"
         : results.some((item) => item.result_type === "INSUFFICIENT_EVIDENCE" || item.missing_prerequisites.length) ? "Insufficient evidence"
           : results.length ? "Evidence produced" : readinessLabel(latestEvent);
@@ -326,9 +396,16 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const observationIndex = selectedObservation ? observations.findIndex((event) => event.observation_id === selectedObservation.observation_id) : -1;
   const familyResultCounts = new Map<string, number>();
   for (const result of visibleRunResults) familyResultCounts.set(result.taxonomy[1], (familyResultCounts.get(result.taxonomy[1]) ?? 0) + 1);
-  const resultTimeHeading = `Evidence time Â· ${formatTimeZoneLabel(zone)}`;
-  const playbackDone = lifecycle === "READY" && !demoFailure.length && !playbackFailure && effectiveStepIndex >= presentationSteps.length - 1;
-  const currentStageLabel = playbackDone ? "COMPLETE" : playbackFailure ? "Playback unavailable" : demoFailure.length ? "Demo unavailable" : currentStep ? presentationStageLabel(currentStep.stage) : lifecycle === "READY" ? "Preparing playback" : "Runtime processing";
+  const resultTimeHeading = `Evidence time · ${formatTimeZoneLabel(zone)}`;
+  const playbackDone = lifecycle === "READY" && presentationSteps.length > 0 && !demoFailure.length && !playbackFailure && effectiveStepIndex >= presentationSteps.length - 1;
+  const currentStageLabel = playbackDone ? "COMPLETE" : playbackFailure ? "Playback unavailable" : demoFailure.length ? "Replay incomplete" : currentStep ? presentationStageLabel(currentStep.stage) : lifecycle === "READY" ? "Preparing playback" : "Runtime processing";
+  const failureTitle = replay?.state !== "COMPLETED" ? "Runtime replay failed"
+    : demoFailure.some((reason) => reason.toLowerCase().includes("inconsistent")) ? "Derived evidence inconsistency"
+      : demoFailure.some((reason) => reason.startsWith("Expected") || reason.startsWith("Trace has") || reason.startsWith("A source-linked")) ? "Demo contract mismatch"
+      : traceUnavailable ? "Presentation trace gap"
+        : resultSyncUnavailable ? "Result synchronization incomplete"
+          : derivedUnavailable ? "Derived evidence unavailable"
+            : "Replay finalization incomplete";
   const diagnostic = lifecycle === "READY" && runResults.length === 0 && !resultSyncUnavailable ? traceUnavailable ? "Runtime trace unavailable; source-lineage Result attribution could not be established." : (replay?.results_persisted ?? 0) > 0 ? "The runtime reported persisted Results, but no durable Result could be linked to the current replay observations." : "Replay completed, but no mechanism Result was produced." : null;
 
   useEffect(() => {
@@ -347,12 +424,12 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
   const visibleObservationIds = new Set(presentedTrace.filter((event) => event.kind === "OBSERVATION_CREATED").map((event) => event.observation_id).filter((id): id is string => Boolean(id)));
   const selectableObservations = playbackDone ? observations : observations.filter((event) => Boolean(event.observation_id && visibleObservationIds.has(event.observation_id)));
   const stages = ["Input", "Observe", "Route", "Evaluate", "Evidence", "Compose", "Relate"];
-  const stageTimeTitle = `Runtime trace Â· local wall clock Â· ${formatTimeZoneLabel("local")}`;
+  const stageTimeTitle = `Runtime trace · local wall clock · ${formatTimeZoneLabel("local")}`;
   const recentResults = visibleRunResults.slice(-4);
   const runtimeCaption = replay?.state === "COMPLETED" ? `Runtime completed in ${replay.elapsed_wall_seconds.toFixed(2)} s` : running ? "Runtime processing is separate from presentation playback" : "Runtime processing time not available";
   const resetPlayback = () => { setPlaybackFailure(false); dispatchPlayer({ type: "RESET" }); };
 
-  if (runtimeBuildMismatch) return <section className="page active-page traffic-lab-page"><PageHeading title="Application update mismatch" deck="The browser and runtime are on different EvidenceGate versions. Refresh after deployment completes." /><button className="secondary-button" onClick={() => window.location.reload()}>Refresh</button></section>;
+  if (apiIncompatible) return <section className="page active-page traffic-lab-page" aria-labelledby="replay-title"><PageHeading titleId="replay-title" title="Traffic Lab" deck="Watch recorded or controlled passive observations become independent evidence." /><div className="stream-notice" role="alert">This Traffic Lab interface requires a newer runtime.</div></section>;
   if (demoAssetMismatch) return <section className="page active-page traffic-lab-page"><PageHeading title="Demo version mismatch" deck="The runtime completed, but the loaded demo asset does not match this interface version. Refresh or restart the application." /></section>;
   return <section className="page active-page traffic-lab-page" aria-labelledby="replay-title">
     <PageHeading titleId="replay-title" title="Traffic Lab" deck="Watch recorded or controlled passive observations become independent evidence." />
@@ -387,7 +464,7 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
         <ol className="episode-stage-rail" aria-label="Replay evidence stages">{stages.map((label, index) => { const notApplicable = index === 6 && relateNotApplicable; const complete = !notApplicable && (playbackDone || stageAvailable[index] && index < activeStage); const active = !notApplicable && !complete && index === activeStage && lifecycle === "READY" && !demoFailure.length && !playbackFailure; return <li key={label} className={(complete ? "complete" : "") + (active ? " active" : "") + (notApplicable ? " not-applicable" : "")} title={notApplicable ? "No cross-family relation is expected for this scenario" : undefined} aria-current={active ? "step" : undefined}><span>{notApplicable ? "—" : complete ? "✓" : active ? "●" : "○"}</span>{label}</li>; })}</ol>
       </section>
 
-      {demoFailure.length > 0 && <div className="replay-diagnostic demo-unavailable" role="alert"><strong>{replay?.state === "COMPLETED" ? "Demo contract mismatch" : "Runtime failure"}</strong><p>{replay?.state === "COMPLETED" ? "The scientific runtime completed, but the curated demo contract did not match the presented evidence." : "The runtime did not complete this replay."}</p><details><summary>Technical details</summary><ul>{demoFailure.map((reason) => <li key={reason}>{reason}</li>)}</ul></details></div>}
+      {demoFailure.length > 0 && <div className="replay-diagnostic demo-unavailable" role="alert"><strong>{failureTitle}</strong><p>{replay?.state === "COMPLETED" ? "The runtime completed, but the replay evidence did not pass finalization." : "The runtime did not complete this replay."}</p><details><summary>Technical details</summary><ul>{demoFailure.map((reason) => <li key={reason}>{reason}</li>)}</ul></details></div>}
       {playbackFailure && <div className="replay-diagnostic" role="alert"><strong>Playback could not complete</strong><p>Runtime evidence remains available below.</p><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>}
       {lifecycle === "FAILED" && <div className="replay-diagnostic" role="alert"><strong>Replay failed</strong><p>{error || replay.error || "Runtime replay could not be completed."}</p><button className="secondary-button" onClick={() => void runScenario(replay.scenario!)}>Try again</button></div>}
       {traceUnavailable && replay.results_persisted > 0 && <div className="replay-diagnostic" role="status"><strong>Detailed playback unavailable</strong><p>The runtime reports {replay.results_persisted} persisted Results. The presentation trace could not be verified, so this timeline was not animated.</p><button className="text-button" onClick={() => navigate("results")}>Open Evidence →</button></div>}
@@ -412,9 +489,11 @@ export function ReplayPage({ navigate }: { navigate: (page: PageKey, context?: N
       </section>
       <section className="panel recent-evidence-panel"><div className="player-panel-head"><div><span className="eyebrow">{resultTimeHeading}</span><strong>Recent evidence</strong></div><button className="text-button" onClick={() => navigate("results")}>View all evidence ({runResults.length}) →</button></div>{recentResults.length ? <div className="recent-result-list">{recentResults.map((result) => <article key={result.result_id}><time title={formatEvidenceDateTime(result.created_time, zone)}>{formatEvidenceClockTime(result.created_time, zone)}</time><div><strong>{mechanismLabel(result.mechanism_id || result.lane_id)}</strong><small>{readable(result.result_type)} · {pluralize(result.source_observation_ids.length, "source observation")}</small><span>{contextSummary(result)}</span></div><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Review →</button></article>)}</div> : <p className="player-waiting">{resultSyncUnavailable ? "Durable Results could not be synchronized." : lifecycle === "READY" && !runResults.length ? diagnostic || "No mechanism Result was produced." : "Results will appear after runtime finalization."}</p>}</section>
       {error && <div className="stream-notice" role="status">{error}</div>}
-      <details className="technical-details-panel"><summary>Run details</summary><div className="technical-details-grid"><div><span>Scenario</span><strong>{scenarioName}</strong></div><div><span>Input type</span><strong>{sourceType}</strong></div><div><span>Frontend build</span><strong>{frontendBuildSha}</strong></div><div><span>Backend build</span><strong>{state.runtime?.build_sha ?? "Unavailable"}</strong></div><div><span>Demo asset</span><strong>{scenarioInfo?.asset_version ?? "Not reported"}</strong></div><div><span>Demo contract</span><strong>{demoContract ? demoFailure.length ? "Failed · judge-demo-v2" : playbackDone ? "Passed · judge-demo-v2" : "Pending · judge-demo-v2" : "Internal scenario"}</strong></div><div><span>Runtime elapsed</span><strong>{replay.elapsed_wall_seconds.toFixed(2)} s</strong></div><div><span>Durable source-linked Results</span><strong>{runResults.length}</strong></div><div><span>Results shown</span><strong>{visibleRunResults.length}</strong></div><div><span>Trace events presented</span><strong>{presentedTrace.length}{traceUnavailable ? " · partial/unavailable" : ""}</strong></div></div></details>
-      <details className="technical-details-panel"><summary>View evidence Results ({visibleRunResults.length} shown / {runResults.length} total)</summary>{visibleRunResults.map((result) => <div className="technical-result-row" key={result.result_id}><strong>{normalizeFamilyName(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)}</span><code>{result.result_id}</code><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Open →</button></div>)}</details>
-      <details className="technical-details-panel raw-trace-details"><summary>View presented runtime trace ({presentedTrace.length} events)</summary><p className="technical-time-heading">{stageTimeTitle} · not observed network event time</p>{presentedTrace.map((event) => <div className="technical-result-row trace-detail-row" key={event.sequence}><time title={"Runtime trace · " + formatEvidenceDateTime(event.occurred_at, "local")}>{formatEvidenceClockTime(event.occurred_at, "local")}</time><strong>{readable(event.kind)}</strong><span>{event.mechanism || event.reason || event.readiness || "Runtime telemetry"}</span><code>#{event.sequence}</code></div>)}</details>
+      {developerUi && <>
+        {developerUi && <><details className="technical-details-panel"><summary>Run details</summary><div className="technical-details-grid"><div><span>Scenario</span><strong>{scenarioName}</strong></div><div><span>Input type</span><strong>{sourceType}</strong></div><div><span>Release</span><strong>{state.runtime?.release_id ?? "Unavailable"}</strong></div><div><span>Source SHA</span><strong>{state.runtime?.source_sha ?? "Unavailable"}</strong></div><div><span>Demo asset</span><strong>{scenarioInfo?.asset_version ?? "Not reported"}</strong></div><div><span>Demo contract</span><strong>{demoContract ? demoFailure.length ? "Failed · judge-demo-v2" : playbackDone ? "Passed · judge-demo-v2" : "Pending · judge-demo-v2" : "Internal scenario"}</strong></div><div><span>Runtime elapsed</span><strong>{replay.elapsed_wall_seconds.toFixed(2)} s</strong></div><div><span>Durable source-linked Results</span><strong>{runResults.length}</strong></div><div><span>Results shown</span><strong>{visibleRunResults.length}</strong></div><div><span>Trace events presented</span><strong>{presentedTrace.length}{traceUnavailable ? " · partial/unavailable" : ""}</strong></div></div></details>
+        <details className="technical-details-panel"><summary>View evidence Results ({visibleRunResults.length} shown / {runResults.length} total)</summary>{visibleRunResults.map((result) => <div className="technical-result-row" key={result.result_id}><strong>{normalizeFamilyName(result.taxonomy[1])}</strong><span>{mechanismLabel(result.mechanism_id || result.lane_id)}</span><code>{result.result_id}</code><button className="text-button" onClick={() => navigate("results", { resultId: result.result_id })}>Open →</button></div>)}</details>
+        <details className="technical-details-panel raw-trace-details"><summary>View presented runtime trace ({presentedTrace.length} events)</summary><p className="technical-time-heading">{stageTimeTitle} · not observed network event time</p>{presentedTrace.map((event) => <div className="technical-result-row trace-detail-row" key={event.sequence}><time title={"Runtime trace · " + formatEvidenceDateTime(event.occurred_at, "local")}>{formatEvidenceClockTime(event.occurred_at, "local")}</time><strong>{readable(event.kind)}</strong><span>{event.mechanism || event.reason || event.readiness || "Runtime telemetry"}</span><code>#{event.sequence}</code></div>)}</details></>}
+      </>}
     </>}
   </section>;}
 

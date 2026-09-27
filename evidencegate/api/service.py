@@ -70,6 +70,7 @@ def default_scenarios(root: Path) -> dict[str, ReplayScenario]:
         "c2_recurrence": {"demo_title":"C2 recurrence", "demo_purpose":"Flow history builds across repeated observations before recurrence evidence appears.", "expected_records":7,"expected_observations":7,"expected_routes":14,"expected_zero_route_observations":0,"expected_results":14,"expected_family_views":10,"expected_relations":7,"max_trace_events":500,"source_label":"Controlled observations","episode_summary":["7 flow observations","4 min 11 s source window","3 observed peers","forward flow facts · reverse facts unavailable"]},
         "dga_lexical": {"demo_title":"DGA + DNS", "demo_purpose":"Each DNS observation produces independent lexical and structural evidence.", "expected_records":6,"expected_observations":6,"expected_routes":12,"expected_zero_route_observations":0,"expected_results":12,"expected_family_views":6,"expected_relations":0,"max_trace_events":500,"needs_dga":True,"source_label":"Controlled observations","episode_summary":["6 DNS observations","6 controlled query names","A · AAAA · UDP","clear DNS fields available"]},
         "raw_pcap_ddos_recon": {"demo_title":"Recorded PCAP", "demo_purpose":"A controlled classic PCAP becomes canonical packet observations and linked evidence.", "expected_records":18,"expected_observations":18,"expected_routes":71,"expected_zero_route_observations":5,"expected_results":58,"expected_family_views":15,"expected_relations":8,"max_trace_events":500,"source_label":"Recorded PCAP","episode_summary":["18 recorded packets","2 s capture window","11 observed endpoints","5 no-route observations"]},
+        "encrypted_tls_session": {"demo_title":"Encrypted TLS session", "demo_purpose":"Controlled passive TLS handshake metadata is visible while application payload remains unavailable.", "expected_records":1,"expected_observations":1,"expected_routes":1,"expected_zero_route_observations":0,"expected_results":1,"expected_family_views":1,"expected_relations":0,"max_trace_events":50,"source_label":"Controlled passive TLS handshake observation","episode_summary":["1 TLS ClientHello observation","SNI: example.test","Handshake metadata visible","Application payload not decrypted"]},
     }
     definitions = (("mixed_ddos_recon", "DDoS + Recon fan-out", "DDoS / Reconnaissance", "mixed_ddos_recon_v2"), ("ddos_one_way", "One-way SYN visibility", "DDoS", "ddos_one_way_v2"), ("c2_recurrence", "C2 recurrence", "C2 / Beaconing", "c2_recurrence_v2"), ("dga_lexical", "DGA + DNS", "DGA / DNS", "dga_dns_v2"))
     scenarios = {sid: ReplayScenario(sid, label, family, demos / bundle, demo_contract={"asset_version":bundle, **contracts[sid]}) for sid,label,family,bundle in definitions}
@@ -78,6 +79,11 @@ def default_scenarios(root: Path) -> dict[str, ReplayScenario]:
         "raw_pcap_ddos_recon", "Raw PCAP — DDoS + Recon",
         "DDoS / Reconnaissance", pcap_bundle / "capture.pcap", "PCAP",
         pcap_bundle / "manifest.json", {"asset_version":"raw_pcap_ddos_recon_v2", **contracts["raw_pcap_ddos_recon"]},
+    )
+    scenarios["encrypted_tls_session"] = ReplayScenario(
+        "encrypted_tls_session", "Encrypted TLS session", "Encrypted Sessions",
+        demos / "encrypted_tls_session_v1",
+        demo_contract={"asset_version":"encrypted_tls_session_v1", **contracts["encrypted_tls_session"]},
     )
     if os.environ.get("EVIDENCEGATE_DEV_SCENARIOS", "").strip().lower() in {"1", "true", "yes"}:
         fixtures = root / "tests" / "fixtures" / "replay"

@@ -40,6 +40,7 @@ class ServiceMapping:
     protocol: int
     port: int
     service_id: str
+    basis: IdentityBasis = IdentityBasis.POLICY_DECLARED_ROLE
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,8 +190,9 @@ def parse_pcap_manifest(path: str | Path) -> PcapAdapterManifest:
         services: list[ServiceMapping] = []
         service_keys: set[tuple[str, int, int]] = set()
         for entry in services_value:
-            if not isinstance(entry, dict) or set(entry) != {"target_address", "protocol", "port", "service_id"}:
-                raise ValueError("each service requires target_address, protocol, port, service_id")
+            required = {"target_address", "protocol", "port", "service_id"}
+            if not isinstance(entry, dict) or not required.issubset(entry) or set(entry) - required - {"basis"}:
+                raise ValueError("each service requires target_address, protocol, port, service_id and optional basis")
             target = ipaddress.ip_address(entry["target_address"])
             protocol, port, service_id = entry["protocol"], entry["port"], entry["service_id"]
             if not isinstance(target, ipaddress.IPv4Address):
@@ -203,7 +205,14 @@ def parse_pcap_manifest(path: str | Path) -> PcapAdapterManifest:
             if key in service_keys:
                 raise ValueError("service mappings must not duplicate target/protocol/port")
             service_keys.add(key)
-            services.append(ServiceMapping(str(target), protocol, port, service_id))
+            basis_value = entry.get("basis", IdentityBasis.POLICY_DECLARED_ROLE.value)
+            try:
+                basis = IdentityBasis(basis_value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("service basis must be a recognized identity basis") from exc
+            if basis is not IdentityBasis.POLICY_DECLARED_ROLE:
+                raise ValueError("configured PCAP service roles must use POLICY_DECLARED_ROLE")
+            services.append(ServiceMapping(str(target), protocol, port, service_id, basis))
 
         reflection_value = value["reflection_facts"]
         if not isinstance(reflection_value, dict):
@@ -405,7 +414,7 @@ class PcapReplaySource:
                 src_port if source == service.target_address else None
             )
             if ip.p == service.protocol and target_side_port == service.port:
-                roles.append(RoleAssignment(service.service_id, "service_id", IdentityBasis.POLICY_DECLARED_ROLE))
+                roles.append(RoleAssignment(service.service_id, "service_id", service.basis))
 
         payload = PacketObservation(
             lengths=lengths, observed_l2_facts=l2_facts,

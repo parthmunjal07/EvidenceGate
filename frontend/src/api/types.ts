@@ -238,7 +238,10 @@ export type RuntimeTarget = {
 };
 export type FamilyStatus = { family: string; status: string };
 export type RuntimeStatusResponse = {
+  release_id: string;
+  source_sha: string;
   build_sha: string;
+  api_contract_version: string;
   state: "ONLINE" | "REPLAYING";
   default_target_count: number;
   active_lane_ids: string[];

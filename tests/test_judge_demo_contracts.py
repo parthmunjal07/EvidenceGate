@@ -13,16 +13,18 @@ DEMOS = (
     ("ddos_one_way", 8, 40, 37, 11, {"DDoS"}, 5, 2, 500),
     ("c2_recurrence", 7, 14, 14, 10, {"C2 / Beaconing", "Data Transfer"}, 7, 0, 500),
     ("dga_lexical", 6, 12, 12, 6, {"DGA + DNS"}, 0, 0, 500),
+    ("encrypted_tls_session", 1, 1, 1, 1, {"Encrypted Sessions"}, 0, 0, 50),
     ("raw_pcap_ddos_recon", 18, 58, 71, 15, {"DDoS", "Reconnaissance"}, 8, 5, 500),
 )
 
 
 @pytest.mark.asyncio
-async def test_mixed_demo_deterministic_rerun_recomposes_exact_source_results(tmp_path: Path):
-    async with client_for(tmp_path / "mixed-rerun.db") as (client, service):
+@pytest.mark.parametrize("scenario,result_count,family_count,link_count", [("mixed_ddos_recon", 65, 17, 8), ("dga_lexical", 12, 6, 0), ("encrypted_tls_session", 1, 1, 0)])
+async def test_curated_demo_deterministic_rerun_recomposes_exact_source_results(tmp_path: Path, scenario: str, result_count: int, family_count: int, link_count: int):
+    async with client_for(tmp_path / f"{scenario}-rerun.db") as (client, service):
         run_result_ids = []
         for attempt in range(2):
-            started = await client.post("/replay", json={"scenario":"mixed_ddos_recon", "speed":0})
+            started = await client.post("/replay", json={"scenario":scenario, "speed":0})
             assert started.status_code == 202
             status = await service.wait_for_replay()
             assert status.state == "COMPLETED"
@@ -32,13 +34,13 @@ async def test_mixed_demo_deterministic_rerun_recomposes_exact_source_results(tm
             observations = {event["observation_id"] for event in trace if event["kind"] == "OBSERVATION_CREATED" and event["canonical_observation"]}
             results = (await client.get("/results", params={"limit":500})).json()["results"]
             source_results = [result for result in results if result["source_observation_ids"] and set(result["source_observation_ids"]) <= observations]
-            assert len(source_results) == 65
+            assert len(source_results) == result_count
             ids = sorted(result["result_id"] for result in source_results)
             run_result_ids.append(ids)
             derived = (await client.get("/investigations", params=[("source_result_id", item) for item in ids])).json()
-            assert len(derived["family_views"]) == 17
+            assert len(derived["family_views"]) == family_count
             view_ids = {view["family_view_id"] for view in derived["family_views"]}
-            assert len(derived["links"]) == 8
+            assert len(derived["links"]) == link_count
             assert all(link["left_family_view_id"] in view_ids and link["right_family_view_id"] in view_ids for link in derived["links"])
         assert run_result_ids[0] == run_result_ids[1]
 
@@ -100,3 +102,8 @@ async def test_curated_judge_demo_completes_with_its_presentation_contract(
             assert persisted["sequence"] > max(source_sequences)
         if scenario == "dga_lexical":
             assert {result["mechanism_id"] for result in results} == {"DGA-A1-M1", "DNS-T1"}
+        if scenario == "encrypted_tls_session":
+            assert {result["mechanism_id"] for result in results} == {"ENC-A"}
+            result = results[0]
+            assert result["evidence"]["parsed_handshake_metadata"] == {"message_type":"ClientHello", "sni":"example.test"}
+            assert "DECRYPTED_CONTENT" in result["claim_ceiling"]
