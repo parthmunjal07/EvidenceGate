@@ -47,7 +47,7 @@ The parser canonicalizes once, shared facts are routed early, and stateful mecha
 
 ## Judge demo
 
-Follow the 2–4 minute walkthrough in [docs/JUDGE_DEMO.md](docs/JUDGE_DEMO.md). It shows one-way visibility, one-to-many evidence routing, independent DGA and DNS evidence, bounded C2 recurrence, visible encrypted-session context, offline PCAP replay, and factual investigation links without causal claims.
+Start with the mixed DDoS + Recon and one-way SYN replays; the workbench also includes DGA + DNS, C2 recurrence, encrypted-session, and recorded-PCAP scenarios. Results are evidence for review, not verdicts.
 
 ## Quick start
 
