@@ -1,247 +1,88 @@
-# SIH26145 EvidenceGate Runtime (MVP)
+# EvidenceGate
 
-EvidenceGate is a strictly-bounded, single-host Python runtime application that
-incrementally ingests, canonicalizes, routes, and persists immutable network
-observations and factual analytic results.
+Passive, visibility-aware cyber-threat evidence construction for unidirectional network traffic.
 
-The implemented mechanisms are DGA-A1/M1-R1, DNS-T1, ENC-A, CAT6-EX-M1, C2-R1 recurrence
-measurement, DDOS-A-B0 SYN/state, and factual bounded DDoS demand/context
-mechanisms for UDP, victim reflection shape, apparent source diversity, ICMP,
-fragments, and TCP initiating-attempt churn. All seven factual DDoS mechanisms
-are default active. Category-5 Recon horizontal breadth, target-port breadth,
-host-by-port geometry, and captured TCP probing-state measurements are also
-default active. The former `ddos` and `recon` provider shells are not default
-runtime targets.
+EvidenceGate is a research prototype for the Smart India Hackathon 2026 problem statement SIH26145, “AI-Based Detection of Cyber Threats in Unidirectional IP Traffic.” It turns recorded passive network observations into bounded, reviewable evidence while preserving what the sensor could not see. A result supports investigation; it does not by itself establish an attack, intent, identity, or impact.
 
-DGA is **DEFAULT ACTIVE M1-R1 LEXICAL MODEL EVIDENCE**. It verifies and reuses
-the exact Drive-owned artifact identified by SHA-256. Deployment stores the
-restricted artifact on persistent storage; its Drive locator is never public.
-There is
-no DGA maliciousness threshold and no malware, infection, C2, tunnelling,
-exfiltration, ownership, or intent conclusion. DNS-T1 remains an independent
-structural observation; one clear-DNS observation may produce both immutable
-results without fusion. Active ML is limited to the DGA-A1/M1-R1 lexical model;
-the other mechanisms remain transparent rules, statistics, state, and context.
+## The problem
 
-Gate A remains `SCIENTIFICALLY_CONSISTENT_REBUILD WITH ORIGINAL-RUN TRACEABILITY
-LIMITATION`, not a bit-identical historical reproduction. Recovered R1 execution
-files remain separate history, reference a different serialization hash, and
-show a later evaluation-pipeline failure.
+A passive sensor may observe only one direction of a conversation. Replies, handshakes, completion, and application context may be absent because of placement, packet loss, sampling, encryption, or capture boundaries. Systems that treat missing fields as zero or assume a complete bidirectional flow can make stronger claims than the evidence supports.
 
-The DDoS SYN lane uses controlled-MVP engineering bounds of 1024 state keys,
-16 reordered events per key, and 2048 reordered events lane-wide. Each DDoS
-window lane uses 512 state keys, 256 reordered events per key, and 2048 reordered
-events lane-wide; bounded apparent-source and visible-tuple sets retain at most
-256 values where applicable. The five-second SYN TTL and one-second event-time
-measurement window remain controlled reference/POC configuration, not attack
-thresholds.
+EvidenceGate records visibility and quality with each observation. When required evidence is absent or degraded, the corresponding analytic degrades or becomes unavailable; missing evidence is not interpreted as benign activity.
 
-Each default Recon lane uses controlled-MVP bounds of 1024 state keys, 16
-retained events per key, 16 reordered events per key, and 1024 reordered events
-lane-wide, with a 3600-second state TTL and 60/3600-second observation horizons.
-Truncation is reported as lower-bound evidence. These limits and windows are
-controlled-MVP configuration, not production sizing or malicious-scan
-thresholds. There is no DDoS verdict, malicious-scan verdict, universal score,
-confidence/severity ranking, or active DDoS/Recon ML.
+## The solution
 
-C2-R1 is default active with controlled-MVP engineering bounds of
-1024 state keys, 16 pending reordered events per key, and 2048 pending reordered
-events lane-wide. These are tested controlled-MVP engineering containment bounds,
-not production sizing or C2/scientific thresholds. Supported passive inputs are
-structured typed-NDJSON replay and offline raw-PCAP replay. PCAP processing is
-incremental and read-only: capture timestamps remain event time, current replay
-arrival is ingest time, and direction, visibility, endpoint roles, services, and
-reflection facts come only from an explicit trusted sidecar. Live interface
-capture and NetFlow/IPFIX/sFlow input are not implemented.
+```text
+Recorded input → canonical observations → visibility, quality and identity
+ → zero-to-many threat mechanisms → independent Results → family evidence
+ → deterministic investigation links → analyst workbench
+```
 
-## Setup, Run, and Test Instructions
+The parser canonicalizes once, shared facts are routed early, and stateful mechanisms use bounded state. Independent mechanisms can consume one observation without collapsing their findings into a single threat score. The immutable `Result` is the scientific record. The analyst queue is a versioned presentation of evidence that merits attention, not a list of confirmed attacks.
 
-### Prerequisites
-- Python 3.11+
-- `pip` / `venv`
+## What is implemented
 
-### Installation
-```bash
+- Typed and NDJSON replay, plus offline classic Ethernet PCAP replay. There is no live NIC capture or NetFlow/IPFIX/sFlow ingestion.
+- TCP, UDP, ICMP, fragment, DNS, TLS/QUIC, and flow-level observations with explicit direction, visibility, quality, and source identity where available.
+- Six official threat families, represented with separate DGA and DNS lanes and independent factual DDoS mechanisms.
+- Bounded C2 recurrence/history; a DGA lexical model; transparent DNS structure/transaction evidence; visible encrypted-session context; factual reconnaissance and demand/state measurements; and directional transfer magnitude.
+- Persistent results in SQLite, REST and server-sent event interfaces, a browser analyst workbench, family evidence views, and deterministic factual cross-family investigation links.
+- An allowlisted replay catalogue for demo inputs. Replay requests do not accept arbitrary paths or URLs.
+
+## Threat coverage
+
+| Family | Current MVP evidence | ML status | Claim ceiling |
+|---|---|---|---|
+| DDoS | Independent TCP state, protocol demand, source-diversity and connection-churn measurements | Not active | Observed demand/state; not victim exhaustion or confirmed DDoS |
+| C2 / beaconing | Bounded recurrence and timing history | Not active | Recurrent communication evidence; not C2 or compromise |
+| DGA | DGA-A1-M1-R1 lexical model | Active, controlled MVP | DGA-labelled lexical resemblance; not malware or infection |
+| DNS tunnelling | Structural and transaction measurements | Not active | DNS structure/transaction evidence; not a tunnel verdict |
+| Encrypted sessions | Visible TLS/QUIC outer and handshake context | Not active | Session context; not payload meaning or maliciousness |
+| Reconnaissance | Host, port, host-by-port breadth and visible TCP activity/outcome | Not active | Scan-like activity evidence; not authorization or intent |
+| Data transfer | Directional transfer magnitude | Not active | Transfer evidence; not unusualness, unauthorized access, or theft |
+
+## Why ML is not everywhere
+
+“AI-based” does not require a classifier for every family. Before admitting a model, the project asks what the sensor observes, what the sample unit is, whether labels represent the intended claim, whether hard negatives and leakage-resistant splits exist, and what a model adds over a transparent baseline. DGA lexical ML passed a limited admission gate for controlled MVP use, with explicit source-shift and unseen-family limits. For the other families, present evidence supports measurements, rules, bounded state, and context—not stronger learned semantics. Rejecting unsupported model claims is a scientific decision, not an unimplemented feature.
+
+## Judge demo
+
+Follow the 2–4 minute walkthrough in [docs/JUDGE_DEMO.md](docs/JUDGE_DEMO.md). It shows one-way visibility, one-to-many evidence routing, independent DGA and DNS evidence, bounded C2 recurrence, visible encrypted-session context, offline PCAP replay, and factual investigation links without causal claims.
+
+## Quick start
+
+Requires Python 3.11 or newer and Node.js 24.21 or newer. From the repository root:
+
+```powershell
 python -m venv .venv
-```
-
-Activate it with `.venv\Scripts\Activate.ps1` on PowerShell or
-`source .venv/bin/activate` on Linux/macOS, then install the package:
-
-```bash
-python -m pip install -e ".[test,dga-m1,benchmark]"
-```
-
-### Running the System
-EvidenceGate exposes the dashboard, durable API, live result-notification
-stream, and controlled replay service from one FastAPI process. SQLite data is
-stored in `evidencegate.db` by default.
-
-```bash
-python -m uvicorn evidencegate.api.app:app --host 127.0.0.1 --port 8000
-```
-
-Open `http://127.0.0.1:8000/` to use the EvidenceGate Operations Console. Its
-sections are Overview, Analyst Alerts, Evidence Results, System & Evidence
-Status, and Replay. Choose an allowlisted scenario on Replay, follow persisted
-results in the Overview flow, and select a result to inspect its evidence,
-visibility, quality, claim ceiling, and provenance. The application creates and
-migrates the database automatically. Set `EVIDENCEGATE_DB` before startup to use
-a different SQLite file. Set `EVIDENCEGATE_DGA_MODEL` to the explicit local path
-of `DGA_M1_R1_SERIALIZED_MODEL.joblib`. If the exact artifact cannot be verified,
-the `dga.m1` lane stays registered and emits `ANALYTIC_UNAVAILABLE`; it never
-substitutes a model or reports zero detections.
-
-The React/TypeScript console source is in `frontend/src`. Its reproducible Vite
-build is committed under `evidencegate/api/static`, so a normal demo launch uses
-only the Python/FastAPI process above. Node/npm are needed only when changing the
-frontend. From a clean checkout, rebuild it with:
-
-```bash
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[test,quality]"
 cd frontend
 npm ci
 npm run build
+cd ..
+python -m uvicorn evidencegate.api.app:app --host 127.0.0.1 --port 8000
 ```
 
-For frontend development, start FastAPI as above and run `npm run dev` in
-`frontend`; Vite proxies the existing API routes and SSE connection to port
-8000. See [`frontend/README.md`](frontend/README.md) for the source layout,
-architecture, test commands, and generated-asset policy.
+Open `http://127.0.0.1:8000/`. Check `http://127.0.0.1:8000/health`. For input limits, model artifact setup, public mode, persistence, and deployment, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-The API is documented at `http://127.0.0.1:8000/docs` and provides:
+## Verification
 
-- `GET /health`
-- `GET /results` and `GET /results/{result_id}`
-- `GET /alerts` (analyst alerts and separate status projections)
-- `GET /events` (Server-Sent Events)
-- `POST /replay` and `GET /replay/status`
-- `GET /runtime`
-- `GET /runtime/trace` (bounded presentation-only runtime telemetry)
-
-`GET /alerts` is active by default under `SIH_ALERT_POLICY_V1`. It derives a
-bounded, deterministic analyst queue and a separate system/evidence status view
-from the newest 500 persisted Results. An alert means an analyst-attention
-record, not confirmed malicious activity. `/results` and
-`/results/{result_id}` remain the immutable scientific authority; `/alerts` is
-versioned SIH analyst presentation. Each projected record links to its source
-Result. The console keeps Evidence Results as scientific authority, Analyst
-Alerts as the versioned attention queue, and System & Evidence Status as a
-separate operational view. For development only,
-`EVIDENCEGATE_DISABLE_ALERTS=1` disables the endpoint.
-
-On the measured development machine, the controlled MVP sustained a configured offered rate of 50 input observations/s for 30 seconds with zero input/runtime drops under the declared mixed workload.
-
-This is a controlled SIH demo operating claim, not production capacity or an
-SLA. Active ML is limited to DGA-A1/M1-R1. See
-[`SIH_ALERT_POLICY_V1.md`](SIH_ALERT_POLICY_V1.md) and
-[`FINAL_MVP_IMPLEMENTATION_CLOSURE.md`](FINAL_MVP_IMPLEMENTATION_CLOSURE.md).
-
-`POST /replay` accepts only scenario IDs returned by `GET /runtime`; it never
-accepts filesystem paths or network locations. Example:
-
-```bash
-curl -X POST http://127.0.0.1:8000/replay \
-  -H "Content-Type: application/json" \
-  -d '{"scenario":"mixed_ddos_recon","speed":0}'
-```
-
-## Judge demo and Railway deployment
-
-The default Traffic Lab allowlist contains five runtime-owned, deterministic
-demonstrations: DDoS + Recon fan-out, One-way SYN visibility, C2 recurrence,
-DGA + DNS, and recorded classic PCAP. Internal developer fixtures are exposed
-only when `EVIDENCEGATE_DEV_SCENARIOS=1` is explicitly set. The workbench shows
-the safe source-record summary beside its canonical network observation,
-visibility and quality, eligible analytic routes, and linked Results. Trace
-summaries omit raw payloads and private artifact locators; canonicalization and
-analysis continue if a presentation summary fails.
-
-The deployed service uses the root `Dockerfile`, one Railway service process,
-and one persistent `/data` volume. Configure `EVIDENCEGATE_PUBLIC_MODE=1`,
-`EVIDENCEGATE_DB=/data/evidencegate.db`, and
-`EVIDENCEGATE_DGA_MODEL=/data/DGA_M1_R1_SERIALIZED_MODEL.joblib`; keep internal
-scenarios off. The DGA artifact is required for `VERIFIED_READY` and must match
-SHA-256 `39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df`.
-Never commit the artifact, a Railway token, or private Drive locator.
-
-See [`docs/JUDGE_DEMO_RUNBOOK.md`](docs/JUDGE_DEMO_RUNBOOK.md) for the five demo
-talk tracks and [`docs/RAILWAY_DEPLOYMENT_RUNBOOK.md`](docs/RAILWAY_DEPLOYMENT_RUNBOOK.md)
-for volume setup, model upload, backups, restart, rollback, and public-noindex
-verification. Live interface capture, NetFlow/IPFIX/sFlow, raw-PCAP DNS parsing,
-learned correlation, distributed execution, and production throughput sizing
-remain deferred.
-
-Replay a versioned finite bundle through the same streaming runtime:
-
-```bash
-python scripts/replay.py --bundle tests/fixtures/replay/dns_forward --database evidencegate.db --speed 0
-```
-
-Replay a passive raw PCAP with its trusted adapter manifest:
-
-```bash
-python scripts/replay.py \
-  --pcap tests/fixtures/pcap/raw_ddos_recon/capture.pcap \
-  --manifest tests/fixtures/pcap/raw_ddos_recon/manifest.json \
-  --database evidencegate.db --speed 0
-```
-
-Replay bundles contain a `manifest.json` plus line-oriented `records.ndjson`.
-They are opened read-only and contain source/network facts only, never analytic
-results. `--speed 0` disables pacing; a positive value replays event-time spacing
-at that multiplier. Use `--validate-only` to validate without running analytics.
-
-### Testing the System
-The system is protected by a suite of invariants derived directly from the Implementation Contract.
-```bash
-pytest
-
+```powershell
+ruff check .
+ruff format --check .
+python -m pytest -q
 python -m compileall -q evidencegate scripts
-
-# Characterize the final 16-target stack with real DGA inference and SQLite
-python scripts/benchmark_final_mvp.py
-
-# Run the sustained offered-rate characterization (several minutes)
-python scripts/benchmark_sustained_final_mvp.py --duration 30 --warmup 3
-
-# Run exactly one post-activation 50 obs/s acceptance point
-python -m scripts.accept_final_mvp_rate
+cd frontend
+npm run lint
+npm run format:check
+npm run typecheck
+npm run test:run
+npm run build
 ```
 
-This benchmark is explicitly **CONTROLLED MVP CHARACTERIZATION / NOT PRODUCTION
-SIZING**. The typed workload exercises DGA; the separate raw-PCAP workload does
-not because raw-PCAP DNS extraction remains deferred. The M13 pre-DGA benchmark
-and historical dummy-plugin saturation benchmark remain superseded history.
-The sustained benchmark records requested and actual offered/accepted/processed
-rates, routed updates, persisted results, all drop classes, queue/reorder
-backlog, post-offer drain, latency, memory, state, and SQLite size. M16's
-candidate rate became the approved 50 obs/s controlled demo point after the
-Human Gate and M17 post-activation acceptance. It is never production capacity.
+These checks verify repository behavior; benchmark values in [benchmark_results/](benchmark_results/) are controlled development measurements, not production capacity or an SLA.
 
-## Dependency and License Inventory
-The MVP runtime utilizes the following minimal open-source packages:
-- `fastapi` (MIT) - API, lifecycle, static dashboard, and SSE routing.
-- `dpkt` 1.9.x (BSD-3-Clause) - incremental offline PCAP and packet parsing.
-- `uvicorn` (BSD) - ASGI application server.
-- `pydantic` (MIT) - Strongly-typed immutable validation for domain objects.
-- `prometheus-client` (Apache 2.0) - Instrumenting bounded health metrics.
-- `pytest` / `pytest-asyncio` (MIT / Apache) - Contract verification framework.
-- `httpx` (BSD) - ASGI integration testing only.
-- `psutil` (BSD) - Baseline system health tracking for benchmarks.
-- `scikit-learn` 1.6.1 / `joblib` 1.6.0 - verified DGA M1-R1 inference only.
-- `tldextract` 5.1.3 - offline bundled-PSL DGA representation with private suffixes.
+## Limitations
 
-## Explicit Scientific No-Go Boundaries
-The runtime infrastructure enforces strict boundaries separating operational plumbing from scientific analytic responsibility. 
-- **No Global Detectors**: The runtime does not evaluate, tune, or judge threats. It brokers information.
-- **No Thresholds**: The runtime does not define global thresholds for volume, bytes, or time gaps.
-- **No Invented Context**: Absence of a signal, failure to admit an observation, or an unavailable analytic lane **must never** be silently translated into a "benign" or "no threat" claim.
-- **Scaffold Separation**: Scaffold pipelines (used for tests) are structurally prevented from emitting `ThreatAlert` outcomes or attaching confidence/severity rankings.
-- **No Dynamic External Plugins**: Analytics are integrated statically. The MVP prohibits hot-reloading random external binaries.
-
-## Documentation Reference
-See the `docs/` folder for comprehensive manuals:
-- [Architecture & Data Flow](docs/ARCHITECTURE_AND_DATA_FLOW.md)
-- [Plugin Author Contract](docs/PLUGIN_AUTHOR_CONTRACT.md)
-- [API & Persistence](docs/API_AND_PERSISTENCE.md)
-- [Troubleshooting & Runbook](docs/TROUBLESHOOTING_RUNBOOK.md)
+EvidenceGate is not a production IDS, live capture system, incident attribution service, or universal threat classifier. It does not infer benignness from absence, recover encrypted payload, establish authorization or intent, or prove impact. Each family has separate hard negatives and missing evidence; see [docs/SCIENTIFIC_BOUNDARIES.md](docs/SCIENTIFIC_BOUNDARIES.md) and [docs/THREAT_STRATEGY.md](docs/THREAT_STRATEGY.md). The architecture and current/deferred boundary are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); experiment decisions are in [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
