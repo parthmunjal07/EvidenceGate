@@ -4,6 +4,7 @@ import { useEvidence } from "../../state/EvidenceContext";
 import { useTimeZone } from "../../state/TimeZoneContext";
 import { formatTimeZoneLabel } from "../../utils/formatting";
 import { checkReleaseCompatibility, RELEASE_RECOVERY_KEY } from "../../utils/releaseCompatibility";
+import { ModalPortal } from "../common/ModalPortal";
 
 const links: Array<[PageKey, string]> = [
   ["overview", "Overview"], ["replay", "Traffic Lab"], ["alerts", "Analyst Queue"],
@@ -55,7 +56,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
   return <div className="app-shell">
     <aside className="sidebar" aria-label="Primary navigation">
       <a className="brand" href="#/overview" onClick={(event) => { event.preventDefault(); onNavigate("overview"); }}>
-        <span className="brand-mark" aria-hidden="true">EG</span><span><strong>EvidenceGate</strong><small>Passive network evidence</small></span>
+        <span className="brand-mark" aria-hidden="true">EG</span><span><strong>EvidenceGate</strong></span>
       </a>
       <nav className="primary-nav">{links.map(([key, label]) => <button type="button" key={key} data-page={key} onClick={() => onNavigate(key)} className={`nav-item${page === key ? " active" : ""}`} aria-current={page === key ? "page" : undefined}>
         <span className="nav-icon" aria-hidden="true"><NavIcon name={key} /></span>{label}
@@ -81,7 +82,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
       </div>}</header>
       <main id="main-content">{(state.pageError || state.streamState === "reconnecting") && <div className="connection-notice" role="status"><strong>{state.pageError ? "Unable to reach EvidenceGate" : "Reconnecting to the service"}</strong><span>Previously captured evidence remains available if already loaded. Check backend connectivity if this persists.</span></div>}{releaseCheck?.state === "warning" && <div className="release-warning" role="status"><span><strong>EvidenceGate is updating.</strong> The application files are temporarily on different releases.</span><button type="button" className="text-button" onClick={refreshApplication}>Reload</button></div>}{children}</main>
     </div>
-    {diagnosticsOpen && <>
+    {diagnosticsOpen && <ModalPortal className="diagnostics-layer">
       <button className="drawer-backdrop" aria-label="Close system diagnostics" onClick={() => setDiagnosticsOpen(false)} />
       <aside className="diagnostics-drawer" role="dialog" aria-modal="true" aria-labelledby="diagnostics-title" onKeyDown={(event) => { if (event.key === "Escape") { setDiagnosticsOpen(false); healthButton.current?.focus(); } }}>
         <div className="inspector-head"><div><span className="eyebrow">System diagnostics</span><h2 id="diagnostics-title">Technical details</h2></div><button ref={diagnosticClose} className="inspector-close" aria-label="Close diagnostics" onClick={() => { setDiagnosticsOpen(false); healthButton.current?.focus(); }}>×</button></div>
@@ -90,7 +91,7 @@ export function AppShell({ page, onNavigate, children }: { page: PageKey; onNavi
         ].map(([label, value]) => <div key={String(label)}><dt>{label}</dt><dd>{value ?? "Unavailable"}</dd></div>)}</dl>
         <p>Exact IDs and runtime values are available here for audit and troubleshooting.</p>
       </aside>
-    </>}
+    </ModalPortal>}
   </div>;
 }
 

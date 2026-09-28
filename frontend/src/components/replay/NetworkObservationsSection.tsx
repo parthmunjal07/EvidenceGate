@@ -6,6 +6,7 @@ import type { NavigationContext } from "../../state/navigation";
 import type { PageKey } from "../../state/types";
 import { projectResultExplanation } from "../../utils/resultExplanation";
 import { formatEndpointPair, presentService, transportLabel } from "../../utils/networkContext";
+import { ModalPortal } from "../common/ModalPortal";
 
 type Row = { observation: ObservationPresentationDto; source: RuntimeTraceEvent["source_record"] };
 
@@ -127,7 +128,12 @@ export function ObservationDetail({ row, routes, results, close, navigate }: {
 }) {
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
   const { observation, source } = row;
-  return <div className="observation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+  useEffect(() => {
+    const alreadyLocked = document.body.classList.contains("inspector-open");
+    document.body.classList.add("inspector-open");
+    return () => { if (!alreadyLocked) document.body.classList.remove("inspector-open"); };
+  }, []);
+  return <ModalPortal className="observation-layer"><div className="observation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
     <section className="observation-modal" role="dialog" aria-modal="true" aria-labelledby="observation-detail-title">
       <header className="observation-modal-header"><div><span className="eyebrow">Traffic Lab</span><h2 id="observation-detail-title">Canonical network observation</h2></div><button className="secondary-button" onClick={close} autoFocus>Close</button></header>
       <div className="observation-modal-body">
@@ -144,7 +150,7 @@ export function ObservationDetail({ row, routes, results, close, navigate }: {
         <p className="observation-lineage">One source network record was normalized into this canonical observation.</p>
       </div>
     </section>
-  </div>;
+  </div></ModalPortal>;
 }
 
 function FactList({ facts, empty }: { facts: Record<string, unknown>; empty: string }) {

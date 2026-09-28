@@ -199,8 +199,10 @@ describe("evidence table and inspector components", () => {
     expect(screen.getAllByText("DNS evidence").length).toBeGreaterThan(0);
     expect(screen.getAllByText("DNS name structure")).toHaveLength(2);
     expect(screen.queryByText(/attack probability/i)).not.toBeInTheDocument();
-    expect(container.querySelector(".inspector-modal")).toBeInTheDocument();
-    expect(container.querySelector("[aria-modal='true']")).toBeInTheDocument();
+    expect(document.body.querySelector(".inspector-modal")).toBeInTheDocument();
+    expect(document.body.querySelector("[aria-modal='true']")).toBeInTheDocument();
+    expect(document.body.querySelector(".inspector-layer")).toBeInTheDocument();
+    expect(document.body).toHaveClass("inspector-open");
     expect(container.querySelector(".technical-details")).toBeNull();
   });
   it("keeps DGA representation metadata and source IDs out of the analyst modal", () => {

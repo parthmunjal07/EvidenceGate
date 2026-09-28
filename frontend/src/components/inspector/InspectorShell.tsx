@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ModalPortal } from "../common/ModalPortal";
 
 export function Inspector({
   label,
@@ -71,7 +72,8 @@ export function Inspector({
     return () => document.body.classList.remove("inspector-open");
   }, [selected, modal, variant]);
 
-  return (
+  const isDialog = selected && (modal || variant === "modal");
+  const markup = (
     <>
       {selected && (modal || variant === "modal") && (
         <button
@@ -100,6 +102,9 @@ export function Inspector({
       </aside>
     </>
   );
+  return isDialog
+    ? <ModalPortal className={`inspector-layer${variant === "modal" ? " inspector-layer-centered" : " inspector-layer-drawer"}`}>{markup}</ModalPortal>
+    : markup;
 }
 
 export function Header({
