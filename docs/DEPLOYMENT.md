@@ -16,7 +16,7 @@ From the repository root in PowerShell:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[test,quality]"
+python -m pip install -e ".[test,quality,benchmark,dga-m1]"
 Push-Location frontend
 npm ci
 npm run build

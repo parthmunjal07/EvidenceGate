@@ -12,7 +12,7 @@
     "build:assets": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
-    "format:check": "prettier --check src",
+    "format:check": "prettier --check src --end-of-line auto",
     "test": "vitest",
     "test:run": "vitest run",
     "format": "prettier --write src"

@@ -56,7 +56,7 @@ Requires Python 3.11 or newer and Node.js 24.21 or newer. From the repository ro
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[test,quality]"
+python -m pip install -e ".[test,quality,benchmark,dga-m1]"
 cd frontend
 npm ci
 npm run build
