@@ -43,7 +43,7 @@ from evidencegate.plugins.providers.registry import build_mvp_provider_registry
 NOW = datetime(2026, 9, 23, tzinfo=timezone.utc)
 ARTIFACT = Path("artifacts/dga/local/DGA_M1_R1_SERIALIZED_MODEL.joblib")
 requires_model = pytest.mark.skipif(
-    not ARTIFACT.is_file(),
+    not ARTIFACT.exists(),
     reason="The admitted DGA model bytes are private and absent from a clean checkout",
 )
 

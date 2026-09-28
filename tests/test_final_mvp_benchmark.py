@@ -10,12 +10,14 @@ from scripts.benchmark_final_mvp import (
     markdown_report,
     run_characterization,
 )
+from tests.test_dga_m1_r1 import requires_model
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.asyncio
+@requires_model
 async def test_final_benchmark_is_model_inclusive_no_drop_and_pcap_truthful():
     payload = await run_characterization(ROOT)
     assert payload["classification"] == CLASSIFICATION

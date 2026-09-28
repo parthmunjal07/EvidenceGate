@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ResultDto, SihAlertProjection } from "../../api/types";
+import { formatTimeZoneLabel } from "../../utils/formatting";
 import {
   AlertInspector,
   AlertTable,
@@ -106,17 +107,23 @@ describe("evidence table and inspector components", () => {
     render(
       <ResultTable results={[result]} selectedId={null} onSelect={select} />,
     );
-    expect(
-      screen.getByRole("columnheader", { name: /Result time/ }),
-    ).toHaveTextContent(/UTC|Local|IST|GMT/);
+    const timeZone = formatTimeZoneLabel();
+    const timeHeader = screen.getByRole("columnheader", {
+      name: /Result time/,
+    });
+    expect(timeHeader).toHaveTextContent(timeZone);
     expect(screen.getAllByRole("columnheader")).toHaveLength(6);
     expect(screen.getByText("DNS tunnelling")).toBeInTheDocument();
     expect(screen.getByText("Review")).toBeInTheDocument();
-    const time = screen.getByText("05:30:00").closest("time");
+    const clock = screen.getByText(/^\d{2}:\d{2}:\d{2}$/);
+    const time = clock.closest("time");
+    expect(clock).toBeInTheDocument();
+    expect(time).toHaveAttribute("datetime", result.created_time);
     expect(time).toHaveAttribute(
       "title",
       expect.stringContaining("Observed / Result time:"),
     );
+    expect(time).toHaveAttribute("title", expect.stringContaining(timeZone));
     const row = screen.getByText("DNS name structure").closest("tr");
     expect(row).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(row!, { key: " " });
