@@ -41,8 +41,9 @@ event-time reorder where required, immutable Result finalization, and
 disk-backed SQLite. Queue, state, and reorder capacities are explicit and
 independent. The active ML is limited to DGA-A1/M1-R1. Its Drive-owned,
 untracked `DGA_M1_R1_SERIALIZED_MODEL.joblib` has SHA-256
-`39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df`
-and Drive ID `16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y`.
+`39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df`.
+The private Drive locator is omitted. The repository retains the model
+identity through its SHA-256 manifest entry.
 
 The FastAPI application exposes authoritative `/results` and
 `/results/{result_id}`, active `/alerts`, `/runtime`, health, allowlisted replay,

@@ -12,7 +12,8 @@ from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.plugins.providers.dga_m1 import (
     ARTIFACT_BYTES, ARTIFACT_SHA256, CLAIM_CEILING, DgaM1ArtifactVerifier,
     DgaM1ModelService, DgaM1Plugin, DgaM1Readiness, DgaM1RepresentationAdapter,
-    PROMOTION_DECISION_ID, dga_m1_config_hash, resolve_dga_model_path,
+    MODEL_ID, NORMALIZATION, PROMOTION_DECISION_ID, REPRESENTATION_VERSION,
+    R1_NEGATIVE_CLASS, R1_POSITIVE_CLASS, dga_m1_config_hash, resolve_dga_model_path,
     r1_class_semantic_failure,
 )
 from evidencegate.routing.router import LaneTarget
@@ -45,11 +46,22 @@ def observation(qname: str):
 
 
 def test_m1_artifact_identity_then_exact_r1_string_label_contract_passes():
+    assert MODEL_ID == "DGA-A1-M1-R1"
+    assert ARTIFACT.name == "DGA_M1_R1_SERIALIZED_MODEL.joblib"
+    assert ARTIFACT_BYTES == 5720970
+    assert ARTIFACT_SHA256 == "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df"
+    assert REPRESENTATION_VERSION == "DGA_M1_REPRESENTATION_v1"
+    assert NORMALIZATION == "str(value).strip().lower().rstrip('.')"
     assert ARTIFACT.stat().st_size == ARTIFACT_BYTES
     verifier = DgaM1ArtifactVerifier()
     value = verifier.verify_and_load(ARTIFACT)
     assert value.available is True
+    assert value.loaded["model_id"] == MODEL_ID
+    assert value.loaded["representation_version"] == REPRESENTATION_VERSION
+    assert value.loaded["normalization"] == NORMALIZATION
+    assert value.loaded["config"]["positive_class"] == R1_POSITIVE_CLASS
     assert value.loaded["classifier"].classes_.tolist() == ["benign", "dga"]
+    assert R1_NEGATIVE_CLASS == "benign"
 
 
 def test_r1_semantic_contract_rejects_wrong_negative_missing_positive_and_multiclass():
@@ -257,7 +269,6 @@ async def test_default_registry_dns_zero_to_many_and_pinned_score(monkeypatch):
         assert PROMOTION_DECISION_ID in dga.governing_ids
         assert dga.model_refs == (
             "model:DGA-A1-M1-R1", "sha256:" + ARTIFACT_SHA256,
-            "drive:16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y",
         )
     finally:
         await supervisor.stop_all()

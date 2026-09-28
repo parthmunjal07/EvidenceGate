@@ -26,7 +26,6 @@ REPRESENTATION_VERSION = "DGA_M1_REPRESENTATION_v1"
 NORMALIZATION = "str(value).strip().lower().rstrip('.')"
 ARTIFACT_BYTES = 5720970
 ARTIFACT_SHA256 = "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df"
-ARTIFACT_DRIVE_ID = "16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y"
 R1_POSITIVE_CLASS = "dga"
 R1_NEGATIVE_CLASS = "benign"
 CLAIM_CEILING = (
@@ -301,7 +300,7 @@ class DgaM1Plugin:
     def readiness_failure_reason(self) -> str | None:
         return self.adapter.failure_reason or self.service.verification.failure_reason
     def model_refs(self) -> tuple[str, ...]:
-        return (f"model:{MODEL_ID}", f"sha256:{ARTIFACT_SHA256}", f"drive:{ARTIFACT_DRIVE_ID}")
+        return (f"model:{MODEL_ID}", f"sha256:{ARTIFACT_SHA256}")
     def route(self, observation: NetworkObservation) -> bool:
         return observation.observation_type is ObservationType.DNS and observation.visibility.state(VisibilityCapability.CLEAR_DNS_FIELDS) is CapabilityState.AVAILABLE
     def state_key(self, observation: NetworkObservation) -> None: return None

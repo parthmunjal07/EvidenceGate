@@ -59,7 +59,7 @@
         "state_capacity_events": 0
       },
       "database": {
-        "path": "C:\\Users\\tanej\\Desktop\\Projects\\sih26145\\benchmark_results\\current-stack-ndjson-0z19fnxd.db",
+        "path": "current-stack-ndjson-0z19fnxd.db",
         "pragmas": {
           "foreign_keys": "ON",
           "journal_mode": "WAL",
@@ -125,7 +125,7 @@
         "state_capacity_events": 0
       },
       "database": {
-        "path": "C:\\Users\\tanej\\Desktop\\Projects\\sih26145\\benchmark_results\\current-stack-pcap-v4g79cpu.db",
+        "path": "current-stack-pcap-v4g79cpu.db",
         "pragmas": {
           "foreign_keys": "ON",
           "journal_mode": "WAL",

@@ -1,8 +1,7 @@
 {
   "artifact": {
     "bytes": 5720970,
-    "sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df",
-    "drive_id": "16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y"
+    "sha256": "39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df"
   },
   "status": "POST_HOC_VERIFIED_MODEL_MICROBENCHMARK",
   "class_semantics": {"classes": ["benign", "dga"], "positive_class": "dga", "positive_class_index": 1},

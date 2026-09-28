@@ -4,8 +4,8 @@
 
 Human-Gate decision `C3-DEC-DGA-M1-R1-PROMOTION-V1` is accepted for controlled
 MVP promotion. The admitted Drive-owned binary is
-`DGA_M1_R1_SERIALIZED_MODEL.joblib` (5,720,970 bytes), Drive ID
-`16YbGrjsC_aCluWGa8-bC0mN5DVPO_T-Y`, SHA-256
+`DGA_M1_R1_SERIALIZED_MODEL.joblib` (5,720,970 bytes), with private Drive
+locator omitted and SHA-256
 `39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df`.
 The binary remains gitignored; the repository owns only its identity manifest.
 

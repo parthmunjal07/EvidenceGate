@@ -105,9 +105,8 @@ npm run build
 
 For frontend development, start FastAPI as above and run `npm run dev` in
 `frontend`; Vite proxies the existing API routes and SSE connection to port
-8000. See [`frontend/README.md`](frontend/README.md) and
-[`UI_REACT_MIGRATION_REPORT.md`](UI_REACT_MIGRATION_REPORT.md) for the source
-layout, architecture, test commands, and generated-asset policy.
+8000. See [`frontend/README.md`](frontend/README.md) for the source layout,
+architecture, test commands, and generated-asset policy.
 
 The API is documented at `http://127.0.0.1:8000/docs` and provides:
 

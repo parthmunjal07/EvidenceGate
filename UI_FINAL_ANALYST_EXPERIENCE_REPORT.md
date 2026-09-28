@@ -36,26 +36,6 @@ Processing trace opens on demand in an accessible dialog. It groups only persist
 
 The primary runtime’s paced C2 run completed in about 240 seconds. A clean temporary SQLite runtime was also used to capture the zero-to-many trace example: the same C2 fixture produced six persisted results from three observations at unpaced rate. That temporary server was stopped after capture. DGA was skipped because runtime readiness was `ARTIFACT_MISSING`; no score was fabricated.
 
-## Screenshot review
-
-Screenshots were captured after the final frontend build. Main views were reviewed at 1440×900, 1366×768, and 1920×1080. The set includes overview, queue, selected DDoS investigation, evidence, selected result, health popover, diagnostics drawer, Traffic lab idle/running/completed, and processing trace, including the zero-to-many example.
-
-Screenshots are in [`screenshots/ui05`](screenshots/ui05/):
-
-- [Overview, 1440×900](screenshots/ui05/overview-1440x900.png)
-- [Analyst queue with selected DDoS item, 1440×900](screenshots/ui05/analyst-queue-selected-ddos-1440x900.png)
-- [Evidence with selected result, 1440×900](screenshots/ui05/evidence-selected-result-1440x900.png)
-- [System health popover, 1440×900](screenshots/ui05/system-health-popover-1440x900.png)
-- [System diagnostics, 1440×900](screenshots/ui05/system-diagnostics-1440x900.png)
-- [Traffic lab running, 1440×900](screenshots/ui05/traffic-lab-running-1440x900.png)
-- [Traffic lab completed, 1440×900](screenshots/ui05/traffic-lab-completed-1440x900.png)
-- [Processing trace, 1440×900](screenshots/ui05/processing-trace-1440x900.png)
-- [Processing trace zero-to-many, 1440×900](screenshots/ui05/processing-trace-zero-to-many-1440x900.png)
-- [Overview, 1366×768](screenshots/ui05/overview-1366x768.png)
-- [Analyst queue with selection, 1366×768](screenshots/ui05/analyst-queue-selected-1366x768.png)
-- [Overview, 1920×1080](screenshots/ui05/overview-1920x1080.png)
-- [Analyst queue with selection, 1920×1080](screenshots/ui05/analyst-queue-selected-1920x1080.png)
-
 ## Verification
 
 - `npm ci` completed; Node 22.20.0 emitted the project’s existing Node >=24.21.0 engine warning.
