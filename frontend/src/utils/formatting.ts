@@ -13,6 +13,16 @@ import { dgaScoreNote, nonDgaProbabilityNote } from "./copy";
 export type DisplayTimeZone = "local" | "utc";
 export const TIME_ZONE_STORAGE_KEY = "evidencegate.time-zone";
 
+export const RESULT_FAMILY_OPTIONS = [
+  "DDoS",
+  "C2 / Beaconing",
+  "DGA",
+  "DNS tunnelling",
+  "Encrypted Sessions",
+  "Reconnaissance",
+  "Data Transfer",
+] as const;
+
 export function getDisplayTimeZone(): DisplayTimeZone {
   return typeof localStorage !== "undefined" && localStorage.getItem(TIME_ZONE_STORAGE_KEY) === "utc" ? "utc" : "local";
 }

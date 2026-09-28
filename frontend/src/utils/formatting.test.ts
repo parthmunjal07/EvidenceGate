@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SihAlertProjection } from "../api/types";
-import { claimSemantics, confidenceText, contextSummary, formatEvidenceTableClock, formatEvidenceTableDate, formatEvidenceValue, formatQuality, friendlyCategory, groupFamilyFindings, groupInvestigationLinks, humanEvidenceRows, normalizeFamilyName, observationLineageLabel, pluralize, primaryEntityLabel, resultCountLabel, resultEvidenceStateLabel, resultEvidenceSummary, summarizeEvidence, summarizeReference, summarizeTableEvidence, summarizeAnalystContext, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
+import { claimSemantics, confidenceText, contextSummary, formatEvidenceTableClock, formatEvidenceTableDate, formatEvidenceValue, formatQuality, friendlyCategory, groupFamilyFindings, groupInvestigationLinks, humanEvidenceRows, normalizeFamilyName, observationLineageLabel, pluralize, primaryEntityLabel, RESULT_FAMILY_OPTIONS, resultCountLabel, resultEvidenceStateLabel, resultEvidenceSummary, summarizeEvidence, summarizeReference, summarizeTableEvidence, summarizeAnalystContext, threatClassLabel, familyLabel, mechanismLabel, shortId, whySurfaced } from "./formatting";
 import { filterAlerts, filterResults } from "./filters";
 
 const alert: SihAlertProjection = {
@@ -290,5 +290,12 @@ describe("scientific display helpers", () => {
         resultType: "REVIEW_FINDING",
       }),
     ).toHaveLength(1);
+  });
+  it("keeps every supported result family available regardless of current evidence", () => {
+    expect(RESULT_FAMILY_OPTIONS).toEqual([
+      "DDoS", "C2 / Beaconing", "DGA", "DNS tunnelling", "Encrypted Sessions", "Reconnaissance", "Data Transfer",
+    ]);
+    const result = { family: "Data Exfiltration" } as Parameters<typeof filterResults>[0][number];
+    expect(filterResults([result], { search: "", family: "Data Transfer", resultType: "" })).toHaveLength(1);
   });
 });

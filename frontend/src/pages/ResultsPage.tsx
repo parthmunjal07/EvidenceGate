@@ -8,7 +8,7 @@ import { useEvidence } from "../state/EvidenceContext";
 import { filterResults } from "../utils/filters";
 import type { ResultDto } from "../api/types";
 import { resultsSourceNote } from "../utils/copy";
-import { normalizeFamilyName, resultCountLabel, resultEvidenceStateLabel } from "../utils/formatting";
+import { normalizeFamilyName, RESULT_FAMILY_OPTIONS, resultCountLabel, resultEvidenceStateLabel } from "../utils/formatting";
 import { useEffect } from "react";
 import { api } from "../api/client";
 import { useTimeZone } from "../state/TimeZoneContext";
@@ -53,7 +53,6 @@ export function ResultsPage({
     () => filterResults(scoped, { search, family, resultType }),
     [scoped, search, family, resultType],
   );
-  const families = [...new Set(all.map((item) => item.family))].sort();
   const selected = selectedId ? (state.results.get(selectedId) ?? null) : null;
   const cachedSourceIds = selected ? cachedObservationIds(selected.source_observation_ids) : [];
   const cachedSources = selected ? readCachedObservations(selected.source_observation_ids) : [];
@@ -89,8 +88,8 @@ export function ResultsPage({
           Family
           <select value={family} onChange={(e) => setFamily(e.target.value)}>
             <option value="">All families</option>
-            {families.map((value) => (
-              <option key={value} value={value}>{normalizeFamilyName(value)}</option>
+            {RESULT_FAMILY_OPTIONS.map((value) => (
+              <option key={value} value={value}>{value}</option>
             ))}
           </select>
         </label>

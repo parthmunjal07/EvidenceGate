@@ -2,6 +2,7 @@ import type { ResultDto, SihAlertProjection } from "../api/types";
 import {
   alertSearchText,
   formatQuality,
+  normalizeFamilyName,
   summarizeEvidence,
 } from "./formatting";
 
@@ -46,7 +47,7 @@ export function filterResults(results: ResultDto[], filters: ResultFilters) {
           .join(" ")
           .toLowerCase()
           .includes(term)) &&
-      (!filters.family || result.family === filters.family) &&
+      (!filters.family || normalizeFamilyName(result.family) === normalizeFamilyName(filters.family)) &&
       (!filters.resultType || result.result_type === filters.resultType),
   );
 }
