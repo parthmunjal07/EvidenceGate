@@ -1,4 +1,5 @@
 """Deterministic, test-only Category-5 Recon resource characterization."""
+
 from __future__ import annotations
 
 import argparse
@@ -14,19 +15,33 @@ from time import perf_counter
 import tracemalloc
 
 from evidencegate.domain.enums import (
-    AvailabilityBasis, DirectionBasis, Finality, IdentityBasis, ObservationType,
-    QualityState, ResultType, ScientificStatus, SourceKind,
-    VisibilityCapability, WireDirection,
+    AvailabilityBasis,
+    DirectionBasis,
+    Finality,
+    IdentityBasis,
+    ObservationType,
+    QualityState,
+    ResultType,
+    ScientificStatus,
+    SourceKind,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import (
-    NetworkObservationEnvelope, ObservationIdentity, RoleAssignment,
+    NetworkObservationEnvelope,
+    ObservationIdentity,
+    RoleAssignment,
     VisibilityProfile,
 )
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.payloads import PacketObservation
 from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.plugins.providers.recon import (
-    CLAIM_CEILING, Recon2DPlugin, ReconHPlugin, ReconTcpPlugin, ReconVPlugin,
+    CLAIM_CEILING,
+    Recon2DPlugin,
+    ReconHPlugin,
+    ReconTcpPlugin,
+    ReconVPlugin,
 )
 from evidencegate.plugins.providers.recon_config import ReconConfig
 from evidencegate.routing.router import LaneTarget
@@ -70,30 +85,60 @@ def observation(index: int, source: int, host: int, port: int) -> NetworkObserva
     target_port = (22, 80, 443, 8443)[port]
     event_time = NOW + timedelta(microseconds=index)
     payload = PacketObservation(
-        lengths={"ip": 40}, observed_l2_facts={}, observed_l3_facts={},
-        observed_l4_facts={}, src_address=initiator,
-        dst_address=target, src_port=10000 + host * 16 + port,
-        dst_port=target_port, flags=["SYN"], sequence_facts=None,
-        fragmentation=None, raw_reference=f"capacity:{index}", protocol=6,
+        lengths={"ip": 40},
+        observed_l2_facts={},
+        observed_l3_facts={},
+        observed_l4_facts={},
+        src_address=initiator,
+        dst_address=target,
+        src_port=10000 + host * 16 + port,
+        dst_port=target_port,
+        flags=["SYN"],
+        sequence_facts=None,
+        fragmentation=None,
+        raw_reference=f"capacity:{index}",
+        protocol=6,
     )
     return NetworkObservationEnvelope(
-        observation_id=f"recon-capacity-{index}", schema_version="1.1",
-        observation_type=ObservationType.PACKET, event_time=event_time,
-        causal_available_time=event_time, ingest_time=event_time,
-        source_id="recon-capacity-fixture", source_kind=SourceKind.DERIVED,
-        source_position=str(index), observation_contract="REPLAY_TYPED_V1",
+        observation_id=f"recon-capacity-{index}",
+        schema_version="1.1",
+        observation_type=ObservationType.PACKET,
+        event_time=event_time,
+        causal_available_time=event_time,
+        ingest_time=event_time,
+        source_id="recon-capacity-fixture",
+        source_kind=SourceKind.DERIVED,
+        source_position=str(index),
+        observation_contract="REPLAY_TYPED_V1",
         wire_direction=WireDirection.FORWARD,
         direction_basis=DirectionBasis.CAPTURE_INTERFACE,
-        finality=Finality.CURRENT, availability_basis=AvailabilityBasis.IMMEDIATE,
-        provenance_ref=f"prov:capacity:{index}", quality_ref="quality:clear",
-        present_fields=frozenset({
-            "lengths", "protocol", "observed_l4_facts", "src_address", "dst_address",
-            "src_port", "dst_port", "flags", "raw_reference",
-        }),
+        finality=Finality.CURRENT,
+        availability_basis=AvailabilityBasis.IMMEDIATE,
+        provenance_ref=f"prov:capacity:{index}",
+        quality_ref="quality:clear",
+        present_fields=frozenset(
+            {
+                "lengths",
+                "protocol",
+                "observed_l4_facts",
+                "src_address",
+                "dst_address",
+                "src_port",
+                "dst_port",
+                "flags",
+                "raw_reference",
+            }
+        ),
         typed_payload=payload,
-        visibility=VisibilityProfile(available=frozenset({
-            VisibilityCapability.PACKET_FACTS, VisibilityCapability.FORWARD_FACTS,
-        }), unavailable=frozenset({VisibilityCapability.REVERSE_FACTS})),
+        visibility=VisibilityProfile(
+            available=frozenset(
+                {
+                    VisibilityCapability.PACKET_FACTS,
+                    VisibilityCapability.FORWARD_FACTS,
+                }
+            ),
+            unavailable=frozenset({VisibilityCapability.REVERSE_FACTS}),
+        ),
         identity=ObservationIdentity(
             observed_identifiers=(initiator, target),
             identifier_basis=IdentityBasis.OBSERVED_IDENTIFIER,
@@ -103,8 +148,10 @@ def observation(index: int, source: int, host: int, port: int) -> NetworkObserva
             ),
         ),
         quality=EvidenceQuality(
-            packet_loss=QualityState.CLEAR, sampling=QualityState.CLEAR,
-            parser=QualityState.CLEAR, capture_gap=QualityState.CLEAR,
+            packet_loss=QualityState.CLEAR,
+            sampling=QualityState.CLEAR,
+            parser=QualityState.CLEAR,
+            capture_gap=QualityState.CLEAR,
         ),
     )
 
@@ -120,24 +167,37 @@ def workload(value: ExperimentConfig):
 
 def governance(lane: LaneTarget) -> LaneGovernance:
     return LaneGovernance(
-        analytic_lane=str(lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-        scientific_phase="test-only resource characterization", scientific_blockers=(),
-        claim_ceiling=CLAIM_CEILING, governance_version="recon-capacity-test-v1",
+        analytic_lane=str(lane),
+        scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="test-only resource characterization",
+        scientific_blockers=(),
+        claim_ceiling=CLAIM_CEILING,
+        governance_version="recon-capacity-test-v1",
         effective_at=NOW,
         allowed_result_types=(
-            ResultType.REVIEW_FINDING, ResultType.INSUFFICIENT_EVIDENCE,
+            ResultType.REVIEW_FINDING,
+            ResultType.INSUFFICIENT_EVIDENCE,
             ResultType.QUALITY_DEGRADED,
-        ), ingest_permitted=True,
+        ),
+        ingest_permitted=True,
     )
 
 
 async def run(value: ExperimentConfig) -> dict[str, object]:
     configuration = mechanism_config(value)
     lanes = {
-        LaneTarget("recon.h"): ReconHPlugin(configuration, max_state_entries=value.max_state_entries_per_lane),
-        LaneTarget("recon.v"): ReconVPlugin(configuration, max_state_entries=value.max_state_entries_per_lane),
-        LaneTarget("recon.2d"): Recon2DPlugin(configuration, max_state_entries=value.max_state_entries_per_lane),
-        LaneTarget("recon.tcp"): ReconTcpPlugin(configuration, max_state_entries=value.max_state_entries_per_lane),
+        LaneTarget("recon.h"): ReconHPlugin(
+            configuration, max_state_entries=value.max_state_entries_per_lane
+        ),
+        LaneTarget("recon.v"): ReconVPlugin(
+            configuration, max_state_entries=value.max_state_entries_per_lane
+        ),
+        LaneTarget("recon.2d"): Recon2DPlugin(
+            configuration, max_state_entries=value.max_state_entries_per_lane
+        ),
+        LaneTarget("recon.tcp"): ReconTcpPlugin(
+            configuration, max_state_entries=value.max_state_entries_per_lane
+        ),
     }
     result_types: Counter[str] = Counter()
 
@@ -145,7 +205,9 @@ async def run(value: ExperimentConfig) -> dict[str, object]:
         result_types[result.result_type.value] += 1
 
     supervisor = RuntimeSupervisor(
-        lanes, {lane: governance(lane) for lane in lanes}, writer,
+        lanes,
+        {lane: governance(lane) for lane in lanes},
+        writer,
         shard_count=value.shard_count,
         reorder_policies={
             lane: EventTimeReorderPolicy(value.reorder_per_key, value.reorder_total_per_lane)
@@ -196,18 +258,15 @@ async def run(value: ExperimentConfig) -> dict[str, object]:
             }
             if str(lane) == "recon.h":
                 set_cardinality["h_distinct_host_memberships"] = sum(
-                    len({event.target_host for event in entry.payload.events})
-                    for entry in entries
+                    len({event.target_host for event in entry.payload.events}) for entry in entries
                 )
             elif str(lane) == "recon.v":
                 set_cardinality["v_distinct_port_memberships"] = sum(
-                    len({event.target_port for event in entry.payload.events})
-                    for entry in entries
+                    len({event.target_port for event in entry.payload.events}) for entry in entries
                 )
             elif str(lane) == "recon.2d":
                 set_cardinality["two_d_distinct_pair_memberships"] = sum(
-                    len({(event.target_host, event.target_port)
-                         for event in entry.payload.events})
+                    len({(event.target_host, event.target_port) for event in entry.payload.events})
                     for entry in entries
                 )
         result_count = sum(result_types.values())
@@ -230,12 +289,10 @@ async def run(value: ExperimentConfig) -> dict[str, object]:
             "tracemalloc_current_bytes": current,
             "tracemalloc_peak_bytes": peak,
             "reorder": reorder,
-            "quality_gap_types": dict(sorted(Counter(
-                gap_type for gap in gaps for gap_type in gap.gap_types
-            ).items())),
-            "runtime_error_controls": sum(
-                item.control_type.value == "ERROR" for item in controls
+            "quality_gap_types": dict(
+                sorted(Counter(gap_type for gap in gaps for gap_type in gap.gap_types).items())
             ),
+            "runtime_error_controls": sum(item.control_type.value == "ERROR" for item in controls),
             "expected_cardinality": {
                 "h_state_keys": value.source_count * value.ports_per_source,
                 "v_state_keys": value.source_count * value.hosts_per_source,
@@ -268,27 +325,27 @@ Reproduce from the repository root with
 
 ## Workload
 
-- Observations: {payload['observations']}
-- Independent mechanism results: {payload['mechanism_results']}
-- Elapsed seconds: {payload['elapsed_seconds']:.6f}
-- Observations/second (this run only): {payload['observations_per_second']:.2f}
-- Mechanism updates/second (this run only): {payload['mechanism_updates_per_second']:.2f}
+- Observations: {payload["observations"]}
+- Independent mechanism results: {payload["mechanism_results"]}
+- Elapsed seconds: {payload["elapsed_seconds"]:.6f}
+- Observations/second (this run only): {payload["observations_per_second"]:.2f}
+- Mechanism updates/second (this run only): {payload["mechanism_updates_per_second"]:.2f}
 
 ## Bounded state
 
-- Total state entries: {payload['total_state_entries']}
-- Total retained events: {payload['total_retained_events']}
-- Serialized state payload bytes (engineering proxy): {payload['total_serialized_payload_bytes']}
-- Measured exact-set memberships: `{json.dumps(payload['measured_exact_set_cardinality'], sort_keys=True)}`
-- Tracemalloc current/peak bytes: {payload['tracemalloc_current_bytes']} / {payload['tracemalloc_peak_bytes']}
+- Total state entries: {payload["total_state_entries"]}
+- Total retained events: {payload["total_retained_events"]}
+- Serialized state payload bytes (engineering proxy): {payload["total_serialized_payload_bytes"]}
+- Measured exact-set memberships: `{json.dumps(payload["measured_exact_set_cardinality"], sort_keys=True)}`
+- Tracemalloc current/peak bytes: {payload["tracemalloc_current_bytes"]} / {payload["tracemalloc_peak_bytes"]}
 - Per lane: `{json.dumps(state, sort_keys=True)}`
 
 ## Reorder occupancy
 
 `{json.dumps(reorder, sort_keys=True)}`
 
-Quality gaps: `{json.dumps(payload['quality_gap_types'], sort_keys=True)}`
-Runtime error controls: {payload['runtime_error_controls']}
+Quality gaps: `{json.dumps(payload["quality_gap_types"], sort_keys=True)}`
+Runtime error controls: {payload["runtime_error_controls"]}
 
 ## Engineering interpretation
 
@@ -301,21 +358,32 @@ capacity, horizon, or reorder value is introduced by this report.
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--json", type=Path, default=Path("benchmark_results/recon_capacity_characterization.json"))
-    parser.add_argument("--report", type=Path, default=Path("RECON_CAPACITY_CHARACTERIZATION_REPORT.md"))
+    parser.add_argument(
+        "--json", type=Path, default=Path("benchmark_results/recon_capacity_characterization.json")
+    )
+    parser.add_argument(
+        "--report", type=Path, default=Path("RECON_CAPACITY_CHARACTERIZATION_REPORT.md")
+    )
     args = parser.parse_args()
     payload = asyncio.run(run(ExperimentConfig()))
     payload["environment"] = {
-        "python": platform.python_version(), "platform": platform.platform(),
+        "python": platform.python_version(),
+        "platform": platform.platform(),
     }
     args.json.parent.mkdir(parents=True, exist_ok=True)
     args.json.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     args.report.write_text(report(payload), encoding="utf-8")
-    print(json.dumps({
-        "json": str(args.json), "report": str(args.report),
-        "observations": payload["observations"],
-        "results": payload["mechanism_results"],
-    }, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "json": str(args.json),
+                "report": str(args.report),
+                "observations": payload["observations"],
+                "results": payload["mechanism_results"],
+            },
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

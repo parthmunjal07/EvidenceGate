@@ -1,4 +1,5 @@
 """Incremental, read-only replay adapter and runtime orchestrator."""
+
 from __future__ import annotations
 
 import asyncio
@@ -11,12 +12,17 @@ from typing import AsyncIterator, Awaitable, Callable
 from evidencegate.domain.enums import ControlType, ObservationType, WireDirection
 from evidencegate.domain.events import RuntimeControlEvent
 from evidencegate.ingest.builders import (
-    DNSCanonicalBuilder, PacketCanonicalBuilder, QUICCanonicalBuilder,
+    DNSCanonicalBuilder,
+    PacketCanonicalBuilder,
+    QUICCanonicalBuilder,
     TLSCanonicalBuilder,
 )
 from evidencegate.ingest.canonicalizer import CanonicalizationResult, FlowCanonicalizer
 from evidencegate.ingest.replay_schema import (
-    ReplayManifest, ReplaySourceRecord, ReplayValidationError, parse_manifest,
+    ReplayManifest,
+    ReplaySourceRecord,
+    ReplayValidationError,
+    parse_manifest,
     parse_record_line,
 )
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
@@ -54,7 +60,9 @@ class NdjsonReplaySource:
         try:
             self._file = (self.bundle / "records.ndjson").open("r", encoding="utf-8")
         except OSError as exc:
-            raise ReplayValidationError(self.source_id, "records.ndjson", type(exc).__name__, str(exc)) from exc
+            raise ReplayValidationError(
+                self.source_id, "records.ndjson", type(exc).__name__, str(exc)
+            ) from exc
         self._opened = True
         return manifest
 
@@ -69,11 +77,18 @@ class NdjsonReplaySource:
         for line_number, text in enumerate(self._file, 1):
             await self._paused.wait()
             if not text.strip():
-                raise ReplayValidationError(self.source_id, f"line {line_number}", "SchemaError", "blank NDJSON lines are not allowed")
+                raise ReplayValidationError(
+                    self.source_id,
+                    f"line {line_number}",
+                    "SchemaError",
+                    "blank NDJSON lines are not allowed",
+                )
             record = parse_record_line(text, source_id=self.source_id, line_number=line_number)
             if previous is not None and record.timestamp < previous:
                 raise ReplayValidationError(
-                    self.source_id, f"line {line_number}", "EventTimeOrderError",
+                    self.source_id,
+                    f"line {line_number}",
+                    "EventTimeOrderError",
                     "timestamp decreases under NONDECREASING contract",
                 )
             previous = record.timestamp
@@ -81,7 +96,12 @@ class NdjsonReplaySource:
             yield record
         expected = self.replay_manifest.record_count
         if expected is not None and count != expected:
-            raise ReplayValidationError(self.source_id, "EOF", "RecordCountError", f"manifest declares {expected}, read {count}")
+            raise ReplayValidationError(
+                self.source_id,
+                "EOF",
+                "RecordCountError",
+                f"manifest declares {expected}, read {count}",
+            )
 
     async def pause(self) -> None:
         self._paused.clear()
@@ -109,21 +129,30 @@ class ReplayCanonicalizer:
         }
 
     def canonicalize(
-        self, record: RawSourceRecord, manifest: SourceManifest, quality_ref: str,
+        self,
+        record: RawSourceRecord,
+        manifest: SourceManifest,
+        quality_ref: str,
         ingest_time: datetime,
     ) -> CanonicalizationResult:
         if not isinstance(record, ReplaySourceRecord):
             raise TypeError("ReplayCanonicalizer requires ReplaySourceRecord")
-        if (record.wire_direction not in (None, WireDirection.UNKNOWN)
-                and manifest.wire_direction is not WireDirection.UNKNOWN
-                and record.wire_direction is not manifest.wire_direction):
+        if (
+            record.wire_direction not in (None, WireDirection.UNKNOWN)
+            and manifest.wire_direction is not WireDirection.UNKNOWN
+            and record.wire_direction is not manifest.wire_direction
+        ):
             raise ReplayValidationError(
-                manifest.source_id, record.position, "DirectionContractError",
+                manifest.source_id,
+                record.position,
+                "DirectionContractError",
                 f"record wire_direction {record.wire_direction.value} contradicts "
                 f"manifest wire_direction {manifest.wire_direction.value}",
             )
         common = dict(
-            record=record, manifest=manifest, quality_ref=quality_ref,
+            record=record,
+            manifest=manifest,
+            quality_ref=quality_ref,
             ingest_time=ingest_time,
             declared_observed_fields=record.declared_observed_fields,
             role_assignments=record.role_assignments,
@@ -132,7 +161,8 @@ class ReplayCanonicalizer:
         if record.observation_type is ObservationType.FLOW:
             return self._flow.canonicalize(**common)
         envelope = self._builders[record.observation_type].canonicalize(
-            **common, **record.canonicalization_options,
+            **common,
+            **record.canonicalization_options,
         )
         return CanonicalizationResult((envelope,), ())
 
@@ -152,7 +182,10 @@ class ReplayRunner:
     """Feed a finite source incrementally into the existing runtime."""
 
     def __init__(
-        self, source: InputSource, supervisor: RuntimeSupervisor, *,
+        self,
+        source: InputSource,
+        supervisor: RuntimeSupervisor,
+        *,
         speed: float = 0,
         control_sink: Callable[[RuntimeControlEvent], Awaitable[None]] | None = None,
         canonicalizer: ReplayCanonicalizer | None = None,
@@ -184,8 +217,10 @@ class ReplayRunner:
     async def _control(self, control_type: ControlType, *, event_time=None, payload=None) -> None:
         event = RuntimeControlEvent(
             control_event_id=f"replay:{self.source.source_id}:{control_type.value}:{self._control_count + 1}",
-            schema_version="1.1", control_type=control_type,
-            ingest_time=self._clock_now(), event_time=event_time,
+            schema_version="1.1",
+            control_type=control_type,
+            ingest_time=self._clock_now(),
+            event_time=event_time,
             source_id=self.source.source_id,
             typed_payload=payload or {"component": "replay"},
         )
@@ -195,7 +230,8 @@ class ReplayRunner:
 
     def _stateful_targets(self):
         return tuple(
-            target for target, plugin in self.supervisor.plugins.items()
+            target
+            for target, plugin in self.supervisor.plugins.items()
             if plugin.manifest().state_resource_policy is not None
         )
 
@@ -205,8 +241,12 @@ class ReplayRunner:
 
     async def _drain(self) -> None:
         if self.supervisor.dispatchers:
-            await asyncio.gather(*(item.queue.join() for item in self.supervisor.dispatchers.values()))
-        queues = [shard.queue.join() for shards in self.supervisor.shards.values() for shard in shards]
+            await asyncio.gather(
+                *(item.queue.join() for item in self.supervisor.dispatchers.values())
+            )
+        queues = [
+            shard.queue.join() for shards in self.supervisor.shards.values() for shard in shards
+        ]
         if queues:
             await asyncio.gather(*queues)
 
@@ -217,17 +257,22 @@ class ReplayRunner:
         self.supervisor.start_all()
         previous = maximum = None
         try:
-            await self._control(ControlType.SOURCE_STARTED, payload={
-                "component": "replay",
-                "source": str(getattr(self.source, "bundle", self.source.source_id)),
-                "source_type": str(getattr(self.source, "source_type", "UNKNOWN")),
-                "event_time_order": "SOURCE_ORDER",
-            })
+            await self._control(
+                ControlType.SOURCE_STARTED,
+                payload={
+                    "component": "replay",
+                    "source": str(getattr(self.source, "bundle", self.source.source_id)),
+                    "source_type": str(getattr(self.source, "source_type", "UNKNOWN")),
+                    "event_time_order": "SOURCE_ORDER",
+                },
+            )
             async for raw in self.source.records():
                 record = raw
                 if previous is not None and record.timestamp > previous:
                     if self.speed:
-                        await asyncio.sleep((record.timestamp - previous).total_seconds() / self.speed)
+                        await asyncio.sleep(
+                            (record.timestamp - previous).total_seconds() / self.speed
+                        )
                     await self._watermark(record.timestamp)
                 records_read += 1
                 if self.progress_sink is not None:
@@ -236,13 +281,18 @@ class ReplayRunner:
                 if self.trace_sink is not None:
                     try:
                         from evidencegate.api.observation_presentation import project_source_record
+
                         source_presentation = project_source_record(record)
                     except Exception:
                         # A malformed display summary cannot reject an accepted input record.
                         pass
-                emit_trace(self.trace_sink, "SOURCE_RECORD_ACCEPTED", source_record=source_presentation)
+                emit_trace(
+                    self.trace_sink, "SOURCE_RECORD_ACCEPTED", source_record=source_presentation
+                )
                 result = self.canonicalizer.canonicalize(
-                    record, manifest, f"quality:{manifest.source_id}:{record.position}",
+                    record,
+                    manifest,
+                    f"quality:{manifest.source_id}:{record.position}",
                     self._clock_now(),
                 )
                 for event in result.control_events:
@@ -259,23 +309,41 @@ class ReplayRunner:
                 maximum = record.timestamp if maximum is None else max(maximum, record.timestamp)
             if maximum is not None and self._stateful_targets():
                 if maximum == datetime.max.replace(tzinfo=maximum.tzinfo):
-                    raise ReplayValidationError(manifest.source_id, "EOF", "TerminalWatermarkError", "datetime.max cannot be advanced by one microsecond")
+                    raise ReplayValidationError(
+                        manifest.source_id,
+                        "EOF",
+                        "TerminalWatermarkError",
+                        "datetime.max cannot be advanced by one microsecond",
+                    )
                 await self._watermark(maximum + timedelta(microseconds=1))
             await self._drain()
-            await self._control(ControlType.SOURCE_ENDED, event_time=maximum, payload={
-                "component": "replay", "records_read": records_read,
-                "observations_emitted": observations_emitted,
-                "terminal_boundary": "finite-source EOF",
-            })
+            await self._control(
+                ControlType.SOURCE_ENDED,
+                event_time=maximum,
+                payload={
+                    "component": "replay",
+                    "records_read": records_read,
+                    "observations_emitted": observations_emitted,
+                    "terminal_boundary": "finite-source EOF",
+                },
+            )
             return ReplaySummary(
-                records_read, observations_emitted, self._control_count,
-                perf_counter() - started, routed_mechanism_updates,
+                records_read,
+                observations_emitted,
+                self._control_count,
+                perf_counter() - started,
+                routed_mechanism_updates,
             )
         except Exception as exc:
-            await self._control(ControlType.ERROR, event_time=maximum, payload={
-                "component": "replay", "exception_type": type(exc).__name__,
-                "error": str(exc)[:500],
-            })
+            await self._control(
+                ControlType.ERROR,
+                event_time=maximum,
+                payload={
+                    "component": "replay",
+                    "exception_type": type(exc).__name__,
+                    "error": str(exc)[:500],
+                },
+            )
             raise
         finally:
             await self._drain()
@@ -296,8 +364,10 @@ async def validate_bundle(bundle: str | Path) -> int:
             # presence and factual visibility options), but no runtime/plugin
             # code is invoked in validation-only mode.
             canonicalizer.canonicalize(
-                record, manifest,
-                f"quality:{manifest.source_id}:{record.position}", record.timestamp,
+                record,
+                manifest,
+                f"quality:{manifest.source_id}:{record.position}",
+                record.timestamp,
             )
             count += 1
     finally:

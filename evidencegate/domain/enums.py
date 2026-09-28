@@ -1,4 +1,5 @@
-from enum import Enum, auto
+from enum import Enum
+
 
 class ObservationType(str, Enum):
     PACKET = "PACKET"
@@ -6,6 +7,7 @@ class ObservationType(str, Enum):
     DNS = "DNS"
     TLS = "TLS"
     QUIC = "QUIC"
+
 
 class ControlType(str, Enum):
     SOURCE_STARTED = "SOURCE_STARTED"
@@ -25,6 +27,7 @@ class ControlType(str, Enum):
     GAP_ACTION_STATUS = "GAP_ACTION_STATUS"
     LATE_EVENT_OBSERVED = "LATE_EVENT_OBSERVED"
 
+
 class OfficialPsCategory(str, Enum):
     DDOS = "DDOS"
     C2_BEACONING = "C2_BEACONING"
@@ -32,6 +35,7 @@ class OfficialPsCategory(str, Enum):
     ENCRYPTED_SESSIONS = "ENCRYPTED_SESSIONS"
     RECONNAISSANCE_AND_PORT_SCANNING = "RECONNAISSANCE_AND_PORT_SCANNING"
     DATA_EXFILTRATION = "DATA_EXFILTRATION"
+
 
 class AnalyticFamily(str, Enum):
     DDOS = "DDOS"
@@ -42,12 +46,14 @@ class AnalyticFamily(str, Enum):
     RECON = "RECON"
     UNUSUAL_TRANSFER = "UNUSUAL_TRANSFER"
 
+
 class IntegrationStatus(str, Enum):
     RESEARCHING = "RESEARCHING"
     OBSERVATION_CONTRACT_READY = "OBSERVATION_CONTRACT_READY"
     RUNTIME_SCAFFOLD_READY = "RUNTIME_SCAFFOLD_READY"
     BASELINE_IMPLEMENTED = "BASELINE_IMPLEMENTED"
     DEMO_READY = "DEMO_READY"
+
 
 class OperationalHealth(str, Enum):
     HEALTHY = "HEALTHY"
@@ -57,6 +63,7 @@ class OperationalHealth(str, Enum):
     DISABLED = "DISABLED"
     SHUTTING_DOWN = "SHUTTING_DOWN"
 
+
 class ScientificStatus(str, Enum):
     ANALYTIC_UNAVAILABLE = "ANALYTIC_UNAVAILABLE"
     EVIDENCE_CONSTRUCTION = "EVIDENCE_CONSTRUCTION"
@@ -64,8 +71,10 @@ class ScientificStatus(str, Enum):
     ANALYTIC_VALIDATING = "ANALYTIC_VALIDATING"
     MODEL_VALIDATED = "MODEL_VALIDATED"
 
+
 class AdmissionReason(str, Enum):
     """Rejection reasons only. The positive case is AdmissionDecision.admitted == True."""
+
     PREREQUISITE_MISSING = "PREREQUISITE_MISSING"
     UNSUPPORTED_OBSERVATION_CONTRACT = "UNSUPPORTED_OBSERVATION_CONTRACT"
     INSUFFICIENT_VISIBILITY = "INSUFFICIENT_VISIBILITY"
@@ -79,12 +88,14 @@ class AdmissionReason(str, Enum):
     INSUFFICIENT_HISTORY = "INSUFFICIENT_HISTORY"
     STATE_EVICTED = "STATE_EVICTED"
 
+
 class GapAction(str, Enum):
     CONTINUE_WITH_QUALITY_FLAG = "CONTINUE_WITH_QUALITY_FLAG"
     RESET_AFFECTED_STATE = "RESET_AFFECTED_STATE"
     REENTER_WARMUP = "REENTER_WARMUP"
     ABSTAIN_UNTIL_RECOVERED = "ABSTAIN_UNTIL_RECOVERED"
     DISABLE_LANE = "DISABLE_LANE"
+
 
 class ResultType(str, Enum):
     THREAT_ALERT = "THREAT_ALERT"
@@ -96,6 +107,7 @@ class ResultType(str, Enum):
     PLUGIN_STATUS = "PLUGIN_STATUS"
     CORRELATION_FINDING = "CORRELATION_FINDING"
 
+
 class AnalyticUnavailableReason(str, Enum):
     # Reason codes for AnalyticUnavailable
     SCIENTIFIC_NOT_READY = "SCIENTIFIC_NOT_READY"
@@ -105,6 +117,7 @@ class AnalyticUnavailableReason(str, Enum):
     IMPLEMENTATION_NOT_READY = "IMPLEMENTATION_NOT_READY"
     GOVERNANCE_DISABLED = "GOVERNANCE_DISABLED"
 
+
 class SourceKind(str, Enum):
     PCAP = "PCAP"
     LIVE = "LIVE"
@@ -113,6 +126,7 @@ class SourceKind(str, Enum):
     SURICATA = "SURICATA"
     DERIVED = "DERIVED"
 
+
 class TimestampSemantics(str, Enum):
     SOURCE_EVENT_TIME = "SOURCE_EVENT_TIME"
     FLOW_START = "FLOW_START"
@@ -120,10 +134,12 @@ class TimestampSemantics(str, Enum):
     EXPORT_TIME = "EXPORT_TIME"
     OTHER = "OTHER"
 
+
 class WireDirection(str, Enum):
     FORWARD = "FORWARD"
     REVERSE = "REVERSE"
     UNKNOWN = "UNKNOWN"
+
 
 class DirectionBasis(str, Enum):
     SOURCE_RECORD_ORDER = "SOURCE_RECORD_ORDER"
@@ -133,11 +149,13 @@ class DirectionBasis(str, Enum):
     LOCAL_EXTERNAL_POLICY = "LOCAL_EXTERNAL_POLICY"
     UNKNOWN = "UNKNOWN"
 
+
 class IdentityBasis(str, Enum):
     OBSERVED_IDENTIFIER = "OBSERVED_IDENTIFIER"
     SOURCE_DECLARED_ROLE = "SOURCE_DECLARED_ROLE"
     POLICY_DECLARED_ROLE = "POLICY_DECLARED_ROLE"
     UNKNOWN = "UNKNOWN"
+
 
 class VisibilityCapability(str, Enum):
     FORWARD_FACTS = "FORWARD_FACTS"
@@ -149,14 +167,17 @@ class VisibilityCapability(str, Enum):
     TLS_RECORD_METADATA = "TLS_RECORD_METADATA"
     QUIC_OUTER_METADATA = "QUIC_OUTER_METADATA"
 
+
 class CapabilityState(str, Enum):
     AVAILABLE = "AVAILABLE"
     UNAVAILABLE = "UNAVAILABLE"
     DEGRADED = "DEGRADED"
     UNKNOWN = "UNKNOWN"
 
+
 class RouteReason(str, Enum):
     """Bounded, non-scientific explanations for one routing candidate."""
+
     SELECTED = "SELECTED"
     CONTRACT_MISMATCH = "CONTRACT_MISMATCH"
     REQUIRED_FIELD_MISSING = "REQUIRED_FIELD_MISSING"
@@ -166,16 +187,19 @@ class RouteReason(str, Enum):
     PREDICATE_FALSE = "PREDICATE_FALSE"
     PREDICATE_ERROR = "PREDICATE_ERROR"
 
+
 class QualityFact(str, Enum):
     PACKET_LOSS = "PACKET_LOSS"
     SAMPLING = "SAMPLING"
     PARSER = "PARSER"
     CAPTURE_GAP = "CAPTURE_GAP"
 
+
 class QualityState(str, Enum):
     CLEAR = "CLEAR"
     DEGRADED = "DEGRADED"
     UNKNOWN = "UNKNOWN"
+
 
 class Finality(str, Enum):
     CURRENT = "CURRENT"
@@ -183,12 +207,14 @@ class Finality(str, Enum):
     TERMINAL = "TERMINAL"
     UNKNOWN = "UNKNOWN"
 
+
 class AvailabilityBasis(str, Enum):
     IMMEDIATE = "IMMEDIATE"
     WINDOW_DERIVED = "WINDOW_DERIVED"
     REVERSE_DEPENDENT = "REVERSE_DEPENDENT"
     FLOW_END_ONLY = "FLOW_END_ONLY"
     OTHER = "OTHER"
+
 
 class QualityGapReason(str, Enum):
     UPSTREAM_LOSS = "UPSTREAM_LOSS"
@@ -198,6 +224,7 @@ class QualityGapReason(str, Enum):
     CAPTURE_GAP = "CAPTURE_GAP"
     UNKNOWN = "UNKNOWN"
 
+
 class EvidenceReadiness(str, Enum):
     READY = "READY"
     WARMING_UP = "WARMING_UP"
@@ -205,6 +232,7 @@ class EvidenceReadiness(str, Enum):
     STATE_EVICTED = "STATE_EVICTED"
     ABSTAINING = "ABSTAINING"
     TERMINAL_EVIDENCE_PENDING = "TERMINAL_EVIDENCE_PENDING"
+
 
 class QualityCondition(str, Enum):
     SUFFICIENT = "SUFFICIENT"

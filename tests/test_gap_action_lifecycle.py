@@ -7,8 +7,16 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from evidencegate.domain.enums import (
-    AvailabilityBasis, ControlType, DirectionBasis, EvidenceReadiness, Finality,
-    GapAction, ObservationType, ResultType, ScientificStatus, SourceKind,
+    AvailabilityBasis,
+    ControlType,
+    DirectionBasis,
+    EvidenceReadiness,
+    Finality,
+    GapAction,
+    ObservationType,
+    ResultType,
+    ScientificStatus,
+    SourceKind,
     WireDirection,
 )
 from evidencegate.domain.events import NetworkObservationEnvelope
@@ -30,23 +38,52 @@ NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 def obs(number: int, key: str = "a") -> NetworkObservationEnvelope:
     return NetworkObservationEnvelope(
-        observation_id=f"gap-{key}-{number}", schema_version="1.1",
-        observation_type=ObservationType.PACKET, event_time=NOW + timedelta(seconds=number),
-        causal_available_time=NOW + timedelta(seconds=number), ingest_time=NOW + timedelta(seconds=number),
-        source_id="test", source_kind=SourceKind.PCAP, source_position=str(number),
-        observation_contract="packet_v1", wire_direction=WireDirection.UNKNOWN,
-        direction_basis=DirectionBasis.UNKNOWN, finality=Finality.TERMINAL,
-        availability_basis=AvailabilityBasis.IMMEDIATE, provenance_ref="prov", quality_ref="quality",
+        observation_id=f"gap-{key}-{number}",
+        schema_version="1.1",
+        observation_type=ObservationType.PACKET,
+        event_time=NOW + timedelta(seconds=number),
+        causal_available_time=NOW + timedelta(seconds=number),
+        ingest_time=NOW + timedelta(seconds=number),
+        source_id="test",
+        source_kind=SourceKind.PCAP,
+        source_position=str(number),
+        observation_contract="packet_v1",
+        wire_direction=WireDirection.UNKNOWN,
+        direction_basis=DirectionBasis.UNKNOWN,
+        finality=Finality.TERMINAL,
+        availability_basis=AvailabilityBasis.IMMEDIATE,
+        provenance_ref="prov",
+        quality_ref="quality",
         present_fields=frozenset({"src_address", "dst_address"}),
-        typed_payload=PacketObservation(lengths={"ip": 20}, observed_l2_facts={}, observed_l3_facts={},
-            observed_l4_facts={}, src_address="10.0.0.1", dst_address="10.0.0.2", src_port=None,
-            dst_port=None, flags=[], sequence_facts=None, fragmentation=None, raw_reference=None),
+        typed_payload=PacketObservation(
+            lengths={"ip": 20},
+            observed_l2_facts={},
+            observed_l3_facts={},
+            observed_l4_facts={},
+            src_address="10.0.0.1",
+            dst_address="10.0.0.2",
+            src_port=None,
+            dst_port=None,
+            flags=[],
+            sequence_facts=None,
+            fragmentation=None,
+            raw_reference=None,
+        ),
     )
 
 
 def gov() -> LaneGovernance:
-    return LaneGovernance("lane", ScientificStatus.EVIDENCE_CONSTRUCTION, "test", (),
-        "REVIEW_FINDING_ONLY", "gov", NOW, (ResultType.REVIEW_FINDING,), True)
+    return LaneGovernance(
+        "lane",
+        ScientificStatus.EVIDENCE_CONSTRUCTION,
+        "test",
+        (),
+        "REVIEW_FINDING_ONLY",
+        "gov",
+        NOW,
+        (ResultType.REVIEW_FINDING,),
+        True,
+    )
 
 
 class StatefulPlugin(BasicScaffoldPlugin):
@@ -54,8 +91,12 @@ class StatefulPlugin(BasicScaffoldPlugin):
         self.action, self.contexts, self.calls = action, [], 0
 
     def manifest(self):
-        return replace(super().manifest(), plugin_id="gap-fixture", gap_action=self.action,
-                       state_resource_policy=StateResourcePolicy(10, timedelta(minutes=10)))
+        return replace(
+            super().manifest(),
+            plugin_id="gap-fixture",
+            gap_action=self.action,
+            state_resource_policy=StateResourcePolicy(10, timedelta(minutes=10)),
+        )
 
     def state_key(self, observation):
         return StateKey(observation.observation_id.split("-")[1])
@@ -64,10 +105,17 @@ class StatefulPlugin(BasicScaffoldPlugin):
         self.calls += 1
         self.contexts.append(context)
         count = 1 if state is None else state.payload["count"] + 1
-        return PluginProcessOutcome((ResultDraft(ResultType.REVIEW_FINDING, "generic", (observation.observation_id,), ()),),
-            StateTransitionRequest(self.state_key(observation), None if state is None else state.version,
-                StateOperation.UPSERT, {"count": count}, timedelta(minutes=5)),
-            EvaluationReadinessDecision(EvidenceReadiness.READY))
+        return PluginProcessOutcome(
+            (ResultDraft(ResultType.REVIEW_FINDING, "generic", (observation.observation_id,), ()),),
+            StateTransitionRequest(
+                self.state_key(observation),
+                None if state is None else state.version,
+                StateOperation.UPSERT,
+                {"count": count},
+                timedelta(minutes=5),
+            ),
+            EvaluationReadinessDecision(EvidenceReadiness.READY),
+        )
 
 
 async def emit(target, item):
@@ -81,9 +129,15 @@ async def run_shard(shard, item):
 
 
 def dispatcher(plugin, shard, controls):
-    return LaneDispatcher("lane", plugin, gov(), [shard], 1,
+    return LaneDispatcher(
+        "lane",
+        plugin,
+        gov(),
+        [shard],
+        1,
         control_sink=lambda event: emit(controls, event),
-        reorder_policy=EventTimeReorderPolicy(10, 100))
+        reorder_policy=EventTimeReorderPolicy(10, 100),
+    )
 
 
 @pytest.mark.asyncio
@@ -113,12 +167,17 @@ async def test_continue_flag_is_visible_and_multiple_gaps_require_all_resolution
 @pytest.mark.asyncio
 async def test_reset_only_changes_affected_key_and_emits_applied_status():
     plugin, results, controls = StatefulPlugin(GapAction.RESET_AFFECTED_STATE), [], []
-    store, shard = StateStore(), LaneShard(0, plugin, StateStore(), lambda result: emit(results, result))
+    store, shard = (
+        StateStore(),
+        LaneShard(0, plugin, StateStore(), lambda result: emit(results, result)),
+    )
     # Use the shard's authoritative store and mature independent keys.
     store = shard.state_store
-    await run_shard(shard, obs(1, "a")); await run_shard(shard, obs(2, "a")); await run_shard(shard, obs(1, "b"))
+    await run_shard(shard, obs(1, "a"))
+    await run_shard(shard, obs(2, "a"))
+    await run_shard(shard, obs(1, "b"))
     d = dispatcher(plugin, shard, controls)
-    gap = await d._handle_queue_saturation(obs(3, "a"), 0, StateKey("a"))
+    await d._handle_queue_saturation(obs(3, "a"), 0, StateKey("a"))
     assert store.read("gap-fixture", "a", obs(3, "a").event_time) is None
     assert store.read("gap-fixture", "b", obs(3, "a").event_time).payload == {"count": 1}
     assert shard.get_readiness("a").readiness is EvidenceReadiness.WARMING_UP
@@ -131,12 +190,17 @@ async def test_reset_only_changes_affected_key_and_emits_applied_status():
 async def test_reenter_warmup_preserves_entry_and_unknown_key_blocks_safely():
     plugin, results, controls = StatefulPlugin(GapAction.REENTER_WARMUP), [], []
     shard = LaneShard(0, plugin, StateStore(), lambda result: emit(results, result))
-    await run_shard(shard, obs(1)); await run_shard(shard, obs(2))
+    await run_shard(shard, obs(1))
+    await run_shard(shard, obs(2))
     before = shard.state_store.read("gap-fixture", "a", obs(2).event_time)
     d = dispatcher(plugin, shard, controls)
     await d._handle_queue_saturation(obs(3), 0, StateKey("a"))
     after = shard.state_store.read("gap-fixture", "a", obs(3).event_time)
-    assert (after.payload, after.version, after.expires_at) == (before.payload, before.version, before.expires_at)
+    assert (after.payload, after.version, after.expires_at) == (
+        before.payload,
+        before.version,
+        before.expires_at,
+    )
     assert shard.get_readiness("a").readiness is EvidenceReadiness.WARMING_UP
     unknown = await d._handle_queue_saturation(obs(4), 0, None)
     assert unknown.gap_id in {gap.gap_id for gap in d.health.active_gaps}
@@ -166,21 +230,32 @@ async def test_disable_skips_visibly_without_mutating_governance_then_reenables(
     plugin, results, controls = StatefulPlugin(GapAction.DISABLE_LANE), [], []
     shard = LaneShard(0, plugin, StateStore(), lambda result: emit(results, result))
     d = dispatcher(plugin, shard, controls)
-    original = (d.governance.scientific_status, d.governance.ingest_permitted, d.governance.allowed_result_types)
+    original = (
+        d.governance.scientific_status,
+        d.governance.ingest_permitted,
+        d.governance.allowed_result_types,
+    )
     await d.handle_ingress_saturation(obs(1))
     shard.start()
     d.start()
     try:
-        d.put_nowait(obs(2)); await asyncio.wait_for(d.queue.join(), 1)
+        d.put_nowait(obs(2))
+        await asyncio.wait_for(d.queue.join(), 1)
         assert plugin.calls == 0 and len(shard.state_store) == 0 and results == []
         assert controls[-1].typed_payload["status"] == "SKIPPED_DISABLED"
-        assert (d.governance.scientific_status, d.governance.ingest_permitted, d.governance.allowed_result_types) == original
+        assert (
+            d.governance.scientific_status,
+            d.governance.ingest_permitted,
+            d.governance.allowed_result_types,
+        ) == original
         d.enable_lane()
-        d.put_nowait(obs(3)); await asyncio.wait_for(d.queue.join(), 1)
+        d.put_nowait(obs(3))
+        await asyncio.wait_for(d.queue.join(), 1)
         await d.advance_watermark(NOW + timedelta(seconds=4))
         assert plugin.calls == 1
     finally:
-        await d.stop(); await shard.stop()
+        await d.stop()
+        await shard.stop()
 
 
 @pytest.mark.asyncio
@@ -193,8 +268,24 @@ async def test_lifecycle_state_conflict_is_typed_failure_without_broad_mutation(
 
     plugin, controls = StatefulPlugin(GapAction.RESET_AFFECTED_STATE), []
     store = ConflictingStore()
-    store.transition("gap-fixture", StateKey("a"), None, StateOperation.UPSERT, {"count": 1}, NOW, timedelta(minutes=5))
-    store.transition("gap-fixture", StateKey("b"), None, StateOperation.UPSERT, {"count": 1}, NOW, timedelta(minutes=5))
+    store.transition(
+        "gap-fixture",
+        StateKey("a"),
+        None,
+        StateOperation.UPSERT,
+        {"count": 1},
+        NOW,
+        timedelta(minutes=5),
+    )
+    store.transition(
+        "gap-fixture",
+        StateKey("b"),
+        None,
+        StateOperation.UPSERT,
+        {"count": 1},
+        NOW,
+        timedelta(minutes=5),
+    )
     shard = LaneShard(0, plugin, store, lambda result: emit([], result))
     d = dispatcher(plugin, shard, controls)
     await d._handle_queue_saturation(obs(2), 0, StateKey("a"))

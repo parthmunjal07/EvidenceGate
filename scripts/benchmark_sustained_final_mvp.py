@@ -4,6 +4,7 @@
 This is infrastructure/load evidence on one development host. It is not a
 production-capacity, SLA, attack-rate, or network-line-rate measurement.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,13 +29,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from evidencegate.domain.enums import ControlType, ObservationType
+from evidencegate.domain.enums import ControlType
 from evidencegate.domain.events import NetworkObservation, ObservationIdentity, RoleAssignment
 from evidencegate.domain.payloads import FlowObservation, TLSObservation
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayCanonicalizer
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.dga_m1 import ARTIFACT_SHA256, DgaM1Plugin, DgaM1Readiness
-from evidencegate.plugins.providers.registry import MvpRuntimeRegistration, build_mvp_runtime_registration
+from evidencegate.plugins.providers.registry import (
+    MvpRuntimeRegistration,
+    build_mvp_runtime_registration,
+)
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 
 
@@ -44,7 +48,13 @@ MODEL_PATH = ROOT / "artifacts" / "dga" / "local" / "DGA_M1_R1_SERIALIZED_MODEL.
 DEFAULT_RATES = (25, 50, 75, 100, 150, 200, 300, 400, 500)
 MIX_COUNTS = {"PACKET": 3, "FLOW": 4, "DNS": 1, "TLS": 1}
 ELIGIBLE_FAMILIES = (
-    "DDoS", "C2", "DGA M1-R1", "DNS-T1", "ENC-A", "Recon", "Exfil-M1",
+    "DDoS",
+    "C2",
+    "DGA M1-R1",
+    "DNS-T1",
+    "ENC-A",
+    "Recon",
+    "Exfil-M1",
 )
 
 
@@ -74,7 +84,9 @@ async def load_workload_templates(root: Path = ROOT) -> tuple[NetworkObservation
     try:
         async for record in records:
             result = canonicalizer.canonicalize(
-                record, manifest, f"quality:sustained-template:{record.position}",
+                record,
+                manifest,
+                f"quality:sustained-template:{record.position}",
                 record.timestamp,
             )
             observations.extend(result.observations)
@@ -85,7 +97,9 @@ async def load_workload_templates(root: Path = ROOT) -> tuple[NetworkObservation
 
 
 def repeated_observation(
-    templates: tuple[NetworkObservation, ...], index: int, run_id: str,
+    templates: tuple[NetworkObservation, ...],
+    index: int,
+    run_id: str,
 ) -> NetworkObservation:
     """Create one causally valid fact in a bounded, explicit benchmark episode.
 
@@ -103,9 +117,14 @@ def repeated_observation(
     event_time = first + timedelta(minutes=7 * episode) + (template.event_time - first)
     delta = event_time - template.event_time
     episode_tag = f"{run_id}:episode:{episode:08d}"
-    roles = tuple(RoleAssignment(
-        identifier=f"{item.identifier}:{episode_tag}", role=item.role, basis=item.basis,
-    ) for item in template.identity.role_assignments)
+    roles = tuple(
+        RoleAssignment(
+            identifier=f"{item.identifier}:{episode_tag}",
+            role=item.role,
+            basis=item.basis,
+        )
+        for item in template.identity.role_assignments
+    )
     identity = ObservationIdentity(
         observed_identifiers=tuple(
             f"{value}:{episode_tag}" for value in template.identity.observed_identifiers
@@ -142,22 +161,33 @@ def queue_snapshot(supervisor: RuntimeSupervisor) -> dict[str, int]:
     dispatch = sum(item.queue.qsize() for item in supervisor.dispatchers.values())
     shard = sum(shard.queue.qsize() for shards in supervisor.shards.values() for shard in shards)
     reorder = sum(item.pending_reorder_count for item in supervisor.dispatchers.values())
-    return {"dispatcher": dispatch, "shard": shard, "reorder": reorder, "total": dispatch + shard + reorder}
+    return {
+        "dispatcher": dispatch,
+        "shard": shard,
+        "reorder": reorder,
+        "total": dispatch + shard + reorder,
+    }
 
 
 def backlog_assessment(samples: list[dict[str, float | int]], final_total: int) -> dict[str, Any]:
     values = [int(item["total"]) for item in samples]
     peak = max(values, default=0)
     if not values:
-        return {"peak": peak, "final": final_total, "trend_slope_items_per_second": 0.0, "stable": final_total == 0}
+        return {
+            "peak": peak,
+            "final": final_total,
+            "trend_slope_items_per_second": 0.0,
+            "stable": final_total == 0,
+        }
     times = [float(item["elapsed_seconds"]) for item in samples]
-    elapsed = times[-1] - times[0]
     mean_time = statistics.fmean(times)
     mean_value = statistics.fmean(values)
     denominator = sum((value - mean_time) ** 2 for value in times)
     slope = (
-        0.0 if denominator == 0
-        else sum((at - mean_time) * (value - mean_value) for at, value in zip(times, values)) / denominator
+        0.0
+        if denominator == 0
+        else sum((at - mean_time) * (value - mean_value) for at, value in zip(times, values))
+        / denominator
     )
     width = max(1, len(values) // 4)
     first_mean = statistics.fmean(values[:width])
@@ -196,14 +226,21 @@ def latency_stability(values: list[float]) -> dict[str, Any]:
 async def run_rate_point(
     registration: MvpRuntimeRegistration,
     templates: tuple[NetworkObservation, ...],
-    *, rate: int, duration_seconds: float, replicate: int,
-    root: Path = ROOT, keep_database: bool = False, probe_alerts: bool = False,
+    *,
+    rate: int,
+    duration_seconds: float,
+    replicate: int,
+    root: Path = ROOT,
+    keep_database: bool = False,
+    probe_alerts: bool = False,
 ) -> dict[str, Any]:
     """Offer observations at a clocked rate, then drain and measure exact work."""
     run_id = f"r{rate}-rep{replicate}"
     results_dir = root / "benchmark_results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    fd, database_name = tempfile.mkstemp(prefix=f"sustained-{run_id}-", suffix=".db", dir=results_dir)
+    fd, database_name = tempfile.mkstemp(
+        prefix=f"sustained-{run_id}-", suffix=".db", dir=results_dir
+    )
     os.close(fd)
     database = Path(database_name)
     api_context = None
@@ -220,12 +257,16 @@ async def run_rate_point(
         # Measure the live application's SQLite writer with the warmed registry.
         writer = application.state.service.writer
         api_client = httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=application), base_url="http://acceptance",
+            transport=httpx.ASGITransport(app=application),
+            base_url="http://acceptance",
         )
         runtime_response = await api_client.get("/runtime")
         runtime_response.raise_for_status()
         runtime_status = runtime_response.json()
-        if not runtime_status["alert_policy_active"] or runtime_status["alert_policy_version"] != "SIH_ALERT_POLICY_V1":
+        if (
+            not runtime_status["alert_policy_active"]
+            or runtime_status["alert_policy_version"] != "SIH_ALERT_POLICY_V1"
+        ):
             raise RuntimeError("active SIH alert policy unavailable during acceptance")
         dashboard_response = await api_client.get("/")
         dashboard_response.raise_for_status()
@@ -233,11 +274,14 @@ async def run_rate_point(
             raise RuntimeError("analyst dashboard unavailable during acceptance")
         before_alerts = await api_client.get("/alerts?limit=500")
         before_alerts.raise_for_status()
-        api_probe_results.append({
-            "phase": "before_measured_load", "http_status": before_alerts.status_code,
-            "policy_version": runtime_status["alert_policy_version"],
-            "dashboard_http_status": dashboard_response.status_code,
-        })
+        api_probe_results.append(
+            {
+                "phase": "before_measured_load",
+                "http_status": before_alerts.status_code,
+                "policy_version": runtime_status["alert_policy_version"],
+                "dashboard_http_status": dashboard_response.status_code,
+            }
+        )
     else:
         writer = SqliteWriter(database, root / "evidencegate" / "persistence" / "schema.sql")
         writer.connect()
@@ -282,13 +326,18 @@ async def run_rate_point(
             persistence_latencies.append(perf_counter() - started)
         if inserted:
             persisted += 1
-        arrivals = [offered_at[item] for item in result.source_observation_ids if item in offered_at]
+        arrivals = [
+            offered_at[item] for item in result.source_observation_ids if item in offered_at
+        ]
         if arrivals:
             end_to_end_latencies.append(perf_counter() - max(arrivals))
 
     supervisor = RuntimeSupervisor(
-        registration.plugins, registration.governances, persist,
-        control_sink=control_sink, gap_sink=gap_sink,
+        registration.plugins,
+        registration.governances,
+        persist,
+        control_sink=control_sink,
+        gap_sink=gap_sink,
         reorder_policies=registration.reorder_policies,
     )
 
@@ -325,7 +374,9 @@ async def run_rate_point(
                 state_entry_peak,
                 sum(len(store) for store in supervisor.state_stores.values()),
             )
-            queue_samples.append({"elapsed_seconds": perf_counter() - started, **queue_snapshot(supervisor)})
+            queue_samples.append(
+                {"elapsed_seconds": perf_counter() - started, **queue_snapshot(supervisor)}
+            )
             await asyncio.sleep(0.05)
 
     supervisor.start_all()
@@ -360,9 +411,11 @@ async def run_rate_point(
             if index and index % rate == 0:
                 for target, plugin in registration.plugins.items():
                     if plugin.manifest().state_resource_policy is not None:
-                        watermark_tasks.append(asyncio.create_task(
-                            supervisor.advance_watermark(target, observation.event_time)
-                        ))
+                        watermark_tasks.append(
+                            asyncio.create_task(
+                                supervisor.advance_watermark(target, observation.event_time)
+                            )
+                        )
         offer_finished = perf_counter()
         # Drain begins the instant offered load stops. It deliberately includes
         # outstanding periodic watermarks, the terminal watermark, queued
@@ -371,13 +424,15 @@ async def run_rate_point(
         terminal = last_event_time + timedelta(microseconds=1)
         for target, plugin in registration.plugins.items():
             if plugin.manifest().state_resource_policy is not None:
-                watermark_tasks.append(asyncio.create_task(supervisor.advance_watermark(target, terminal)))
+                watermark_tasks.append(
+                    asyncio.create_task(supervisor.advance_watermark(target, terminal))
+                )
         if watermark_tasks:
             await asyncio.gather(*watermark_tasks)
         await asyncio.gather(*(item.queue.join() for item in supervisor.dispatchers.values()))
-        await asyncio.gather(*(
-            shard.queue.join() for shards in supervisor.shards.values() for shard in shards
-        ))
+        await asyncio.gather(
+            *(shard.queue.join() for shards in supervisor.shards.values() for shard in shards)
+        )
         drain_seconds = perf_counter() - drain_started
     finally:
         sampling = False
@@ -390,19 +445,23 @@ async def run_rate_point(
         final_queue = queue_snapshot(supervisor)
         state_entries = sum(len(store) for store in supervisor.state_stores.values())
         state_entry_peak = max(state_entry_peak, state_entries)
-        reorder_peak = max((item.peak_pending_reorder_total for item in supervisor.dispatchers.values()), default=0)
+        reorder_peak = max(
+            (item.peak_pending_reorder_total for item in supervisor.dispatchers.values()), default=0
+        )
         if api_client is not None:
             try:
                 response = await api_client.get("/alerts?limit=500")
                 response.raise_for_status()
                 body = response.json()
-                api_probe_results.append({
-                    "phase": "after_measured_load_and_drain",
-                    "http_status": response.status_code,
-                    "policy_version": body["policy_version"],
-                    "alert_count": len(body["alerts"]),
-                    "status_count": len(body["status_items"]),
-                })
+                api_probe_results.append(
+                    {
+                        "phase": "after_measured_load_and_drain",
+                        "http_status": response.status_code,
+                        "policy_version": body["policy_version"],
+                        "alert_count": len(body["alerts"]),
+                        "status_count": len(body["status_items"]),
+                    }
+                )
             except Exception as exc:
                 api_probe_results.append({"error": f"{type(exc).__name__}: {exc}"})
         if api_client is not None:
@@ -431,24 +490,35 @@ async def run_rate_point(
     offered_elapsed = max(offer_finished - offer_started, interval)
     completed = len(completed_observations)
     backlog = backlog_assessment(queue_samples, final_queue["total"])
-    latency_trend = latency_stability([
-        processing_latency_by_index[index] for index in sorted(processing_latency_by_index)
-    ])
+    latency_trend = latency_stability(
+        [processing_latency_by_index[index] for index in sorted(processing_latency_by_index)]
+    )
     zero_drop = (
-        accepted == count and dropped_runtime == 0 and queue_overflow == 0
-        and state_capacity_events == 0 and reorder_capacity_events == 0
-        and persistence_failures == 0 and not error_controls
+        accepted == count
+        and dropped_runtime == 0
+        and queue_overflow == 0
+        and state_capacity_events == 0
+        and reorder_capacity_events == 0
+        and persistence_failures == 0
+        and not error_controls
     )
     sustainable = (
-        zero_drop and backlog["stable"] and final_queue["total"] == 0
+        zero_drop
+        and backlog["stable"]
+        and final_queue["total"] == 0
         and drain_seconds <= max(5.0, duration_seconds * 0.25)
-        and completed == accepted and latency_trend["stable"]
-        and (not probe_alerts or (
-            len(api_probe_results) == 2 and all(
-                item.get("policy_version") == "SIH_ALERT_POLICY_V1"
-                for item in api_probe_results
+        and completed == accepted
+        and latency_trend["stable"]
+        and (
+            not probe_alerts
+            or (
+                len(api_probe_results) == 2
+                and all(
+                    item.get("policy_version") == "SIH_ALERT_POLICY_V1"
+                    for item in api_probe_results
+                )
             )
-        ))
+        )
     )
     return {
         "rate_requested_obs_s": rate,
@@ -463,9 +533,13 @@ async def run_rate_point(
         "rates": {
             "offered_obs_s": round(count / offered_elapsed, 3),
             "accepted_obs_s": round(accepted / offered_elapsed, 3),
-            "processed_obs_s": round(completed / (offer_finished - offer_started + drain_seconds), 3),
+            "processed_obs_s": round(
+                completed / (offer_finished - offer_started + drain_seconds), 3
+            ),
             "routed_updates_s": round(sum(expected_updates.values()) / offered_elapsed, 3),
-            "persisted_results_s": round(persisted / (offer_finished - offer_started + drain_seconds), 3),
+            "persisted_results_s": round(
+                persisted / (offer_finished - offer_started + drain_seconds), 3
+            ),
         },
         "drops": {
             "dropped_input": count - accepted,
@@ -515,15 +589,18 @@ def choose_candidate(rate_results: list[dict[str, Any]]) -> tuple[int | None, in
     for result in rate_results:
         grouped[int(result["rate_requested_obs_s"])].append(result)
     repeated = sorted(
-        rate for rate, runs in grouped.items()
+        rate
+        for rate, runs in grouped.items()
         if len(runs) >= 3 and all(bool(item["sustainable"]) for item in runs)
     )
     if not repeated:
         return None, None
     highest = repeated[-1]
-    lower = sorted(rate for rate in grouped if rate < highest and all(
-        bool(item["sustainable"]) for item in grouped[rate]
-    ))
+    lower = sorted(
+        rate
+        for rate in grouped
+        if rate < highest and all(bool(item["sustainable"]) for item in grouped[rate])
+    )
     return highest, (lower[-1] if lower else None)
 
 
@@ -549,32 +626,46 @@ def environment_snapshot() -> dict[str, Any]:
 
 
 async def run_characterization(
-    *, rates: tuple[int, ...] = DEFAULT_RATES, duration_seconds: float = 30.0,
-    warmup_seconds: float = 3.0, root: Path = ROOT,
+    *,
+    rates: tuple[int, ...] = DEFAULT_RATES,
+    duration_seconds: float = 30.0,
+    warmup_seconds: float = 3.0,
+    root: Path = ROOT,
 ) -> dict[str, Any]:
     process = psutil.Process()
     rss_before = process.memory_info().rss
     load_started = perf_counter()
     registration = build_mvp_runtime_registration(
-        datetime.now(timezone.utc), dga_model_path=str(root / MODEL_PATH.relative_to(ROOT)),
+        datetime.now(timezone.utc),
+        dga_model_path=str(root / MODEL_PATH.relative_to(ROOT)),
     )
     model_load_seconds = perf_counter() - load_started
     rss_after = process.memory_info().rss
     dga = registration.plugins["dga.m1"]
     if not isinstance(dga, DgaM1Plugin) or dga.readiness is not DgaM1Readiness.VERIFIED_READY:
-        raise RuntimeError(getattr(dga, "readiness_failure_reason", None) or "DGA model unavailable")
+        raise RuntimeError(
+            getattr(dga, "readiness_failure_reason", None) or "DGA model unavailable"
+        )
     templates = await load_workload_templates(root)
 
     warmup = await run_rate_point(
-        registration, templates, rate=25, duration_seconds=warmup_seconds,
-        replicate=0, root=root,
+        registration,
+        templates,
+        rate=25,
+        duration_seconds=warmup_seconds,
+        replicate=0,
+        root=root,
     )
     results: list[dict[str, Any]] = []
     first_limit = None
     for rate in rates:
         result = await run_rate_point(
-            registration, templates, rate=rate, duration_seconds=duration_seconds,
-            replicate=1, root=root,
+            registration,
+            templates,
+            rate=rate,
+            duration_seconds=duration_seconds,
+            replicate=1,
+            root=root,
         )
         results.append(result)
         if not result["sustainable"]:
@@ -585,23 +676,33 @@ async def run_characterization(
     if clean_rates:
         highest_once = max(clean_rates)
         for replicate in (2, 3):
-            results.append(await run_rate_point(
-                registration, templates, rate=highest_once,
-                duration_seconds=duration_seconds, replicate=replicate, root=root,
-            ))
+            results.append(
+                await run_rate_point(
+                    registration,
+                    templates,
+                    rate=highest_once,
+                    duration_seconds=duration_seconds,
+                    replicate=replicate,
+                    root=root,
+                )
+            )
 
     # Repeat the next lower clean point too, because the final target itself must
     # have three repetitions rather than inherit evidence from one lucky run.
     temporary_highest, temporary_candidate = choose_candidate(results)
     if temporary_candidate is not None:
-        existing = sum(
-            int(item["rate_requested_obs_s"]) == temporary_candidate for item in results
-        )
+        existing = sum(int(item["rate_requested_obs_s"]) == temporary_candidate for item in results)
         for replicate in range(existing + 1, 4):
-            results.append(await run_rate_point(
-                registration, templates, rate=temporary_candidate,
-                duration_seconds=duration_seconds, replicate=replicate, root=root,
-            ))
+            results.append(
+                await run_rate_point(
+                    registration,
+                    templates,
+                    rate=temporary_candidate,
+                    duration_seconds=duration_seconds,
+                    replicate=replicate,
+                    root=root,
+                )
+            )
     highest_repeated, candidate = choose_candidate(results)
     candidate_runs = [item for item in results if item["rate_requested_obs_s"] == candidate]
     candidate_wording = None
@@ -632,7 +733,9 @@ async def run_characterization(
         "workload": {
             "cycle_observations": len(templates),
             "typed_mix_counts": MIX_COUNTS,
-            "typed_mix_proportions": {key: value / len(templates) for key, value in MIX_COUNTS.items()},
+            "typed_mix_proportions": {
+                key: value / len(templates) for key, value in MIX_COUNTS.items()
+            },
             "eligible_families": ELIGIBLE_FAMILIES,
             "episode_policy": "unique source and role identities per nine-observation episode",
             "event_time_policy": "fixture-relative offsets; seven-minute monotonic episode progression",
@@ -647,7 +750,9 @@ async def run_characterization(
         "first_saturation_or_limit_rate": first_limit,
         "candidate_sih_demo_input_rate": candidate,
         "candidate_margin_obs_s": (
-            highest_repeated - candidate if highest_repeated is not None and candidate is not None else None
+            highest_repeated - candidate
+            if highest_repeated is not None and candidate is not None
+            else None
         ),
         "candidate_replicates": candidate_runs,
         "candidate_wording": candidate_wording,
@@ -691,22 +796,22 @@ def markdown_report(payload: dict[str, Any]) -> str:
         )
     return f"""# Sustained Final MVP Benchmark Report
 
-> **{payload['watermark']}**
+> **{payload["watermark"]}**
 
-Classification: **{payload['classification']}**. This measures offered typed input observations on one development machine. It is not production capacity, an SLA, network line rate, or attacks per second.
+Classification: **{payload["classification"]}**. This measures offered typed input observations on one development machine. It is not production capacity, an SLA, network line rate, or attacks per second.
 
 ## Method
 
-The exact stack is real canonicalization -> the real {payload['default_target_count']}-target registry -> the verified DGA model -> real stateful mechanisms and event-time reorder -> real finalization -> disk-backed SQLite (WAL/NORMAL). The DGA model is loaded and verified once, followed by a separate {payload['model']['warmup_duration_seconds']}-second warm-up excluded from every steady-state point.
+The exact stack is real canonicalization -> the real {payload["default_target_count"]}-target registry -> the verified DGA model -> real stateful mechanisms and event-time reorder -> real finalization -> disk-backed SQLite (WAL/NORMAL). The DGA model is loaded and verified once, followed by a separate {payload["model"]["warmup_duration_seconds"]}-second warm-up excluded from every steady-state point.
 
-Workload: `{json.dumps(payload['workload'], sort_keys=True)}`
+Workload: `{json.dumps(payload["workload"], sort_keys=True)}`
 
-Duration basis: {payload['duration_basis']}. Queue/reorder occupancy is sampled every 50 ms. A point is sustainable only with every declared drop counter at zero, completed routed work, empty final backlog, stable backlog, prompt drain, bounded latency, and no runtime control error.
+Duration basis: {payload["duration_basis"]}. Queue/reorder occupancy is sampled every 50 ms. A point is sustainable only with every declared drop counter at zero, completed routed work, empty final backlog, stable backlog, prompt drain, bounded latency, and no runtime control error.
 
 ## Environment and startup
 
 ```json
-{json.dumps({'environment': payload['environment'], 'model': {key: value for key, value in payload['model'].items() if key != 'warmup_result'}}, indent=2, sort_keys=True)}
+{json.dumps({"environment": payload["environment"], "model": {key: value for key, value in payload["model"].items() if key != "warmup_result"}}, indent=2, sort_keys=True)}
 ```
 
 ## Rate sweep and repetitions
@@ -715,17 +820,17 @@ Duration basis: {payload['duration_basis']}. Queue/reorder occupancy is sampled 
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
 {chr(10).join(rows)}
 
-Highest repeatedly demonstrated sustainable zero-drop point: **{payload['highest_repeated_sustainable_zero_drop_rate']} observations/s**.
+Highest repeatedly demonstrated sustainable zero-drop point: **{payload["highest_repeated_sustainable_zero_drop_rate"]} observations/s**.
 
-First saturation/limit point: **{payload['first_saturation_or_limit_rate'] if payload['first_saturation_or_limit_rate'] is not None else 'not reached in bounded sweep'}**.
+First saturation/limit point: **{payload["first_saturation_or_limit_rate"] if payload["first_saturation_or_limit_rate"] is not None else "not reached in bounded sweep"}**.
 
-Candidate controlled demo target: **{candidate if candidate is not None else 'NONE'} observations/s**. Margin below the highest repeated point: **{payload['candidate_margin_obs_s']} observations/s**.
+Candidate controlled demo target: **{candidate if candidate is not None else "NONE"} observations/s**. Margin below the highest repeated point: **{payload["candidate_margin_obs_s"]} observations/s**.
 
 ## Candidate latency
 
 | Rep | Processing p50 ms | p95 | p99 | Persistence p50 ms | p95 | p99 | End-to-end evidence p50 ms | p95 | p99 |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-{chr(10).join(latency_rows) if latency_rows else '| - | - | - | - | - | - | - | - | - | - |'}
+{chr(10).join(latency_rows) if latency_rows else "| - | - | - | - | - | - | - | - | - | - |"}
 
 Processing latency runs from offered admission until every selected mechanism update completes. Persistence latency is the actual SQLite write. End-to-end evidence latency runs from the latest contributing observation admission until its immutable result is persisted.
 
@@ -733,15 +838,15 @@ Processing latency runs from offered admission until every selected mechanism up
 
 | Rep | RSS start | RSS peak | RSS final | Growth | Peak state entries | Peak reorder | SQLite bytes |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-{chr(10).join(memory_rows) if memory_rows else '| - | - | - | - | - | - | - | - |'}
+{chr(10).join(memory_rows) if memory_rows else "| - | - | - | - | - | - | - | - |"}
 
 ## Governed wording
 
-{payload['candidate_wording'] or 'No candidate wording is available because the repeated sustainable-rate rule was not met.'}
+{payload["candidate_wording"] or "No candidate wording is available because the repeated sustainable-rate rule was not met."}
 
 ## Limitations
 
-{chr(10).join('- ' + item for item in payload['limitations'])}
+{chr(10).join("- " + item for item in payload["limitations"])}
 """
 
 
@@ -750,23 +855,36 @@ async def main() -> None:
     parser.add_argument("--duration", type=float, default=30.0)
     parser.add_argument("--warmup", type=float, default=3.0)
     parser.add_argument("--rates", type=int, nargs="+", default=list(DEFAULT_RATES))
-    parser.add_argument("--json", type=Path, default=ROOT / "benchmark_results" / "sustained_final_mvp_benchmark.json")
-    parser.add_argument("--report", type=Path, default=ROOT / "SUSTAINED_FINAL_MVP_BENCHMARK_REPORT.md")
+    parser.add_argument(
+        "--json",
+        type=Path,
+        default=ROOT / "benchmark_results" / "sustained_final_mvp_benchmark.json",
+    )
+    parser.add_argument(
+        "--report", type=Path, default=ROOT / "SUSTAINED_FINAL_MVP_BENCHMARK_REPORT.md"
+    )
     args = parser.parse_args()
     if args.duration <= 0 or args.warmup <= 0 or any(rate <= 0 for rate in args.rates):
         parser.error("duration, warmup, and rates must be positive")
     payload = await run_characterization(
-        rates=tuple(args.rates), duration_seconds=args.duration, warmup_seconds=args.warmup,
+        rates=tuple(args.rates),
+        duration_seconds=args.duration,
+        warmup_seconds=args.warmup,
     )
     args.json.parent.mkdir(parents=True, exist_ok=True)
     args.json.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     args.report.write_text(markdown_report(payload), encoding="utf-8")
-    print(json.dumps({
-        "highest_repeated": payload["highest_repeated_sustainable_zero_drop_rate"],
-        "first_limit": payload["first_saturation_or_limit_rate"],
-        "candidate": payload["candidate_sih_demo_input_rate"],
-        "candidate_wording": payload["candidate_wording"],
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "highest_repeated": payload["highest_repeated_sustainable_zero_drop_rate"],
+                "first_limit": payload["first_saturation_or_limit_rate"],
+                "candidate": payload["candidate_sih_demo_input_rate"],
+                "candidate_wording": payload["candidate_wording"],
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

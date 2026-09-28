@@ -1,4 +1,5 @@
 """Run every curated DGA demo name through the verified DGA-A1/M1-R1 runtime."""
+
 from __future__ import annotations
 
 import asyncio
@@ -30,17 +31,25 @@ async def measure() -> dict[str, object]:
         app = create_app(Path(temporary) / "measure.db")
         async with app.router.lifespan_context(app):
             async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=app), base_url="http://measure",
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://measure",
             ) as client:
-                response = await client.post("/replay", json={"scenario": "dga_lexical", "speed": 0})
+                response = await client.post(
+                    "/replay", json={"scenario": "dga_lexical", "speed": 0}
+                )
                 response.raise_for_status()
                 status = await app.state.service.wait_for_replay()
                 if status.state != "COMPLETED":
                     raise SystemExit(f"Replay did not complete: {status.state}")
-                trace = (await client.get("/runtime/trace", params={"after": 0, "limit": 500})).json()["events"]
+                trace = (
+                    await client.get("/runtime/trace", params={"after": 0, "limit": 500})
+                ).json()["events"]
                 names = {
-                    event["observation_id"]: event["canonical_observation"]["facts"].get("qname_rendered")
-                    for event in trace if event["kind"] == "OBSERVATION_CREATED"
+                    event["observation_id"]: event["canonical_observation"]["facts"].get(
+                        "qname_rendered"
+                    )
+                    for event in trace
+                    if event["kind"] == "OBSERVATION_CREATED"
                 }
                 results = (await client.get("/results", params={"limit": 100})).json()["results"]
                 dga = [item for item in results if item["mechanism_id"] == "DGA-A1-M1"]
@@ -48,16 +57,24 @@ async def measure() -> dict[str, object]:
                     raise SystemExit(f"Expected six DGA results; received {len(dga)}")
                 for result in dga:
                     observation_id = result["source_observation_ids"][0]
-                    rows.append({
-                        "source_position": next(
-                            event["canonical_observation"]["source_position"] for event in trace
-                            if event.get("observation_id") == observation_id and event["kind"] == "OBSERVATION_CREATED"
-                        ),
-                        "qname": names[observation_id],
-                        "model_input_domain": result["evidence"].get("representation", {}).get("model_input"),
-                        "dga_labelled_lexical_resemblance_score": result["evidence"]["dga_labelled_lexical_resemblance_score"],
-                        "model_id": "DGA-A1-M1-R1",
-                    })
+                    rows.append(
+                        {
+                            "source_position": next(
+                                event["canonical_observation"]["source_position"]
+                                for event in trace
+                                if event.get("observation_id") == observation_id
+                                and event["kind"] == "OBSERVATION_CREATED"
+                            ),
+                            "qname": names[observation_id],
+                            "model_input_domain": result["evidence"]
+                            .get("representation", {})
+                            .get("model_input"),
+                            "dga_labelled_lexical_resemblance_score": result["evidence"][
+                                "dga_labelled_lexical_resemblance_score"
+                            ],
+                            "model_id": "DGA-A1-M1-R1",
+                        }
+                    )
     rows.sort(key=lambda item: int(item["source_position"]))
     return {
         "measurement_kind": "controlled_demo_model_inference",
@@ -73,7 +90,9 @@ async def measure() -> dict[str, object]:
 def main() -> None:
     measurement = asyncio.run(measure())
     OUTPUT.write_text(json.dumps(measurement, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"Recorded {len(measurement['rows'])} actual DGA-A1/M1-R1 scores in {OUTPUT.relative_to(ROOT)}")
+    print(
+        f"Recorded {len(measurement['rows'])} actual DGA-A1/M1-R1 scores in {OUTPUT.relative_to(ROOT)}"
+    )
 
 
 if __name__ == "__main__":

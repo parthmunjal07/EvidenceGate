@@ -1,10 +1,14 @@
 """Final model-inclusive benchmark harness contract tests."""
+
 from pathlib import Path
 
 import pytest
 
 from scripts.benchmark_final_mvp import (
-    CLASSIFICATION, WATERMARK, markdown_report, run_characterization,
+    CLASSIFICATION,
+    WATERMARK,
+    markdown_report,
+    run_characterization,
 )
 
 

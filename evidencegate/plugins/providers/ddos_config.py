@@ -1,4 +1,5 @@
 """Immutable controlled-reference configuration for DDOS-A SYN state."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -49,9 +50,7 @@ class DdosASynConfig:
             "config_status": self.config_status,
             "science_admitted": self.science_admitted,
             "service_role_label": self.service_role_label,
-            "syn_state_ttl_microseconds": int(
-                self.syn_state_ttl.total_seconds() * 1_000_000
-            ),
+            "syn_state_ttl_microseconds": int(self.syn_state_ttl.total_seconds() * 1_000_000),
             "target_role_label": self.target_role_label,
             "tcp_protocol_number": self.tcp_protocol_number,
         }

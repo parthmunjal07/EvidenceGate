@@ -1,4 +1,5 @@
 """Explicit, immutable configuration for the C2-R1 measurement path."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -64,9 +65,7 @@ class C2R1Config:
             "minimum_history_events": self.minimum_history_events,
             "peer_role_label": self.peer_role_label,
             "service_role_label": self.service_role_label,
-            "state_ttl_microseconds": int(
-                self.state_ttl.total_seconds() * 1_000_000
-            ),
+            "state_ttl_microseconds": int(self.state_ttl.total_seconds() * 1_000_000),
         }
         encoded = json.dumps(
             value, sort_keys=True, separators=(",", ":"), ensure_ascii=True

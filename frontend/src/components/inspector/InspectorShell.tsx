@@ -68,7 +68,10 @@ export function Inspector({
   }, [selected, modal, variant]);
 
   useEffect(() => {
-    document.body.classList.toggle("inspector-open", selected && (modal || variant === "modal"));
+    document.body.classList.toggle(
+      "inspector-open",
+      selected && (modal || variant === "modal"),
+    );
     return () => document.body.classList.remove("inspector-open");
   }, [selected, modal, variant]);
 
@@ -87,7 +90,9 @@ export function Inspector({
         ref={panelRef}
         className={`inspector${selected ? " has-selection is-open" : ""}${variant === "modal" ? " inspector-modal" : ""}`}
         aria-label={label}
-        aria-modal={selected && (modal || variant === "modal") ? true : undefined}
+        aria-modal={
+          selected && (modal || variant === "modal") ? true : undefined
+        }
         role={selected && (modal || variant === "modal") ? "dialog" : undefined}
       >
         {selected ? (
@@ -102,9 +107,15 @@ export function Inspector({
       </aside>
     </>
   );
-  return isDialog
-    ? <ModalPortal className={`inspector-layer${variant === "modal" ? " inspector-layer-centered" : " inspector-layer-drawer"}`}>{markup}</ModalPortal>
-    : markup;
+  return isDialog ? (
+    <ModalPortal
+      className={`inspector-layer${variant === "modal" ? " inspector-layer-centered" : " inspector-layer-drawer"}`}
+    >
+      {markup}
+    </ModalPortal>
+  ) : (
+    markup
+  );
 }
 
 export function Header({
@@ -125,7 +136,15 @@ export function Header({
   return (
     <div className="inspector-head">
       <div>
-        {onBack && <button type="button" className="inspector-back-link" onClick={onBack}>← {backLabel}</button>}
+        {onBack && (
+          <button
+            type="button"
+            className="inspector-back-link"
+            onClick={onBack}
+          >
+            ← {backLabel}
+          </button>
+        )}
         <p className="eyebrow">{kicker}</p>
         <h2>{title}</h2>
         <p className="inspector-subtitle">{subtitle}</p>

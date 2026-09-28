@@ -1,4 +1,8 @@
-import type { ReplayStatusResponse, RuntimeTraceEvent, RuntimeTraceResponse } from "../api/types";
+import type {
+  ReplayStatusResponse,
+  RuntimeTraceEvent,
+  RuntimeTraceResponse,
+} from "../api/types";
 
 export const observationLaneKey = (observationId: string, laneId: string) =>
   `${observationId}:${laneId}`;
@@ -16,7 +20,10 @@ export function latestReadinessByObservationLane(events: RuntimeTraceEvent[]) {
         "ANALYTIC_EVALUATED",
       ].includes(event.kind)
     ) {
-      latest.set(observationLaneKey(event.observation_id, event.lane_id), event);
+      latest.set(
+        observationLaneKey(event.observation_id, event.lane_id),
+        event,
+      );
     }
   }
   return latest;
@@ -27,8 +34,11 @@ export function mergeRuntimeTraceEvents(
   incoming: RuntimeTraceEvent[],
 ) {
   const bySequence = new Map<number, RuntimeTraceEvent>();
-  for (const event of [...current, ...incoming]) bySequence.set(event.sequence, event);
-  return [...bySequence.values()].sort((a, b) => a.sequence - b.sequence).slice(-500);
+  for (const event of [...current, ...incoming])
+    bySequence.set(event.sequence, event);
+  return [...bySequence.values()]
+    .sort((a, b) => a.sequence - b.sequence)
+    .slice(-500);
 }
 
 export async function captureRuntimeTraceBaseline(
@@ -38,20 +48,37 @@ export async function captureRuntimeTraceBaseline(
   return head.latest_sequence;
 }
 
-export function advanceRuntimeTraceCursor(cursor: number, events: RuntimeTraceEvent[]) {
+export function advanceRuntimeTraceCursor(
+  cursor: number,
+  events: RuntimeTraceEvent[],
+) {
   return Math.max(cursor, events.at(-1)?.sequence ?? cursor);
 }
 
-export function hasRuntimeTraceGap(cursor: number, events: RuntimeTraceEvent[]) {
+export function hasRuntimeTraceGap(
+  cursor: number,
+  events: RuntimeTraceEvent[],
+) {
   const firstReceived = events[0]?.sequence;
   return firstReceived !== undefined && firstReceived > cursor + 1;
 }
 
-export function hasCompleteRuntimeTraceRange(events: RuntimeTraceEvent[], startSequence: number, endSequence: number) {
+export function hasCompleteRuntimeTraceRange(
+  events: RuntimeTraceEvent[],
+  startSequence: number,
+  endSequence: number,
+) {
   if (endSequence < startSequence) return false;
-  const current = events.filter(event => event.sequence > startSequence && event.sequence <= endSequence).sort((a,b)=>a.sequence-b.sequence);
+  const current = events
+    .filter(
+      (event) =>
+        event.sequence > startSequence && event.sequence <= endSequence,
+    )
+    .sort((a, b) => a.sequence - b.sequence);
   if (current.length !== endSequence - startSequence) return false;
-  return current.every((event,index)=>event.sequence === startSequence + index + 1);
+  return current.every(
+    (event, index) => event.sequence === startSequence + index + 1,
+  );
 }
 
 export function replayJustCompleted(

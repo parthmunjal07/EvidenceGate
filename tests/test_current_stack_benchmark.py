@@ -1,10 +1,14 @@
 """Real current-stack benchmark harness contract tests."""
+
 from pathlib import Path
 
 import pytest
 
 from scripts.benchmark_current_stack import (
-    CLASSIFICATION, WATERMARK, markdown_report, run_characterization,
+    CLASSIFICATION,
+    WATERMARK,
+    markdown_report,
+    run_characterization,
 )
 
 

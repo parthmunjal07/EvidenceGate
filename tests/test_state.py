@@ -91,9 +91,7 @@ def test_delete_removes_entry() -> None:
     store = StateStore(max_entries=1)
     upsert(store, "lane", "key", "evidence")
 
-    result = store.transition(
-        "lane", "key", 1, StateOperation.DELETE, None, NOW, None
-    )
+    result = store.transition("lane", "key", 1, StateOperation.DELETE, None, NOW, None)
 
     assert result.version_before == 1
     assert result.version_after is None
@@ -106,9 +104,7 @@ def test_reset_removes_entry_and_reports_reset() -> None:
     store = StateStore(max_entries=1)
     upsert(store, "lane", "key", "evidence")
 
-    result = store.transition(
-        "lane", "key", 1, StateOperation.RESET, None, NOW, None
-    )
+    result = store.transition("lane", "key", 1, StateOperation.RESET, None, NOW, None)
 
     assert result.version_before == 1
     assert result.exists is False
@@ -154,9 +150,7 @@ def test_no_change_preserves_payload_version_and_expiry() -> None:
     original = {"evidence": [1]}
     created = upsert(store, "lane", "key", original)
 
-    result = store.transition(
-        "lane", "key", 1, StateOperation.NO_CHANGE, None, NOW, None
-    )
+    result = store.transition("lane", "key", 1, StateOperation.NO_CHANGE, None, NOW, None)
 
     assert result.version_before == result.version_after == 1
     assert result.expires_at == created.expires_at
@@ -166,15 +160,9 @@ def test_no_change_preserves_payload_version_and_expiry() -> None:
 def test_missing_operations_do_not_fabricate_zero_or_benign_state() -> None:
     store = StateStore(max_entries=1)
 
-    unchanged = store.transition(
-        "lane", "missing", None, StateOperation.NO_CHANGE, None, NOW, None
-    )
-    deleted = store.transition(
-        "lane", "missing", None, StateOperation.DELETE, None, NOW, None
-    )
-    reset = store.transition(
-        "lane", "missing", None, StateOperation.RESET, None, NOW, None
-    )
+    unchanged = store.transition("lane", "missing", None, StateOperation.NO_CHANGE, None, NOW, None)
+    deleted = store.transition("lane", "missing", None, StateOperation.DELETE, None, NOW, None)
+    reset = store.transition("lane", "missing", None, StateOperation.RESET, None, NOW, None)
 
     assert unchanged.exists is deleted.exists is reset.exists is False
     assert unchanged.version_after is deleted.version_after is reset.version_after is None
@@ -185,9 +173,7 @@ def test_reenter_warmup_is_visible_without_mutating_scientific_payload() -> None
     store = StateStore(max_entries=1)
     upsert(store, "lane", "key", {"evidence": "unchanged"})
 
-    result = store.transition(
-        "lane", "key", 1, StateOperation.REENTER_WARMUP, None, NOW, None
-    )
+    result = store.transition("lane", "key", 1, StateOperation.REENTER_WARMUP, None, NOW, None)
 
     assert result.operation is StateOperation.REENTER_WARMUP
     assert result.version_before == result.version_after == 1

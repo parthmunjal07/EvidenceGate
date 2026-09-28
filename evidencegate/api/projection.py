@@ -4,6 +4,7 @@ The policy in this module is deliberately separate from result
 finalization and persistence. It never changes, replaces, or writes a
 scientific :class:`~evidencegate.results.types.Result`.
 """
+
 from __future__ import annotations
 
 import math
@@ -118,10 +119,12 @@ class ProjectionPolicyError(ValueError):
 
 
 def _stable_id(kind: str, result_id: str) -> str:
-    return str(uuid.uuid5(
-        uuid.NAMESPACE_URL,
-        f"urn:evidencegate:{POLICY_VERSION}:{kind}:{result_id}",
-    ))
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"urn:evidencegate:{POLICY_VERSION}:{kind}:{result_id}",
+        )
+    )
 
 
 def _visibility(result: Result) -> dict[str, tuple[str, ...]]:
@@ -174,8 +177,7 @@ def _presentation_semantics(result: Result) -> tuple[str, ConfidenceBasis]:
 def _confidence(result: Result, basis: ConfidenceBasis) -> tuple[float | None, str]:
     if basis is not ConfidenceBasis.MODEL_SCORE:
         return None, (
-            f"{basis.value}; no numeric maliciousness probability is defined by "
-            "this mechanism"
+            f"{basis.value}; no numeric maliciousness probability is defined by this mechanism"
         )
     evidence = result.evidence.to_value()
     value = evidence.get("dga_labelled_lexical_resemblance_score")
@@ -189,16 +191,20 @@ def _confidence(result: Result, basis: ConfidenceBasis) -> tuple[float | None, s
 
 _STATUS_POLICY: dict[ResultType, tuple[StatusKind, StatusPriority]] = {
     ResultType.QUALITY_DEGRADED: (
-        StatusKind.QUALITY_NOTIFICATION, StatusPriority.ATTENTION,
+        StatusKind.QUALITY_NOTIFICATION,
+        StatusPriority.ATTENTION,
     ),
     ResultType.PREREQUISITE_MISSING: (
-        StatusKind.CAPABILITY_NOTIFICATION, StatusPriority.ATTENTION,
+        StatusKind.CAPABILITY_NOTIFICATION,
+        StatusPriority.ATTENTION,
     ),
     ResultType.INSUFFICIENT_EVIDENCE: (
-        StatusKind.EVIDENCE_STATUS, StatusPriority.INFO,
+        StatusKind.EVIDENCE_STATUS,
+        StatusPriority.INFO,
     ),
     ResultType.ANALYTIC_UNAVAILABLE: (
-        StatusKind.SYSTEM_CAPABILITY_STATUS, StatusPriority.ATTENTION,
+        StatusKind.SYSTEM_CAPABILITY_STATUS,
+        StatusPriority.ATTENTION,
     ),
     ResultType.PLUGIN_STATUS: (StatusKind.PLUGIN_STATUS, StatusPriority.INFO),
 }
@@ -230,27 +236,31 @@ def project_result(result: Result) -> tuple[ProjectionRecord, ...]:
     if result.result_type is ResultType.REVIEW_FINDING:
         threat_class, basis = _presentation_semantics(result)
         score, statement = _confidence(result, basis)
-        return (SihAlertProjection(
-            alert_id=_stable_id("alert", result.result_id),
-            threat_class=threat_class,
-            severity=AlertSeverity.REVIEW,
-            confidence_score=score,
-            confidence_basis=basis,
-            confidence_statement=statement,
-            model_refs=tuple(public_reference_list(result.model_refs)),
-            **common,
-        ),)
+        return (
+            SihAlertProjection(
+                alert_id=_stable_id("alert", result.result_id),
+                threat_class=threat_class,
+                severity=AlertSeverity.REVIEW,
+                confidence_score=score,
+                confidence_basis=basis,
+                confidence_statement=statement,
+                model_refs=tuple(public_reference_list(result.model_refs)),
+                **common,
+            ),
+        )
     status_policy = _STATUS_POLICY.get(result.result_type)
     if status_policy is None:
         return ()
     kind, priority = status_policy
-    return (SihStatusProjection(
-        status_id=_stable_id("status", result.result_id),
-        status_kind=kind,
-        priority=priority,
-        missing_prerequisites=result.missing_prerequisites,
-        **common,
-    ),)
+    return (
+        SihStatusProjection(
+            status_id=_stable_id("status", result.result_id),
+            status_kind=kind,
+            priority=priority,
+            missing_prerequisites=result.missing_prerequisites,
+            **common,
+        ),
+    )
 
 
 def project_results(

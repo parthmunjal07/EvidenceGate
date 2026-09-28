@@ -1,4 +1,5 @@
 """SQLite repository for immutable, finalized EvidenceGate results."""
+
 from __future__ import annotations
 
 import asyncio
@@ -10,16 +11,30 @@ from datetime import datetime
 from pathlib import Path
 
 from evidencegate.domain.enums import (
-    AnalyticUnavailableReason, EvidenceReadiness, IntegrationStatus,
-    QualityState, ResultType, ScientificStatus, VisibilityCapability,
+    AnalyticUnavailableReason,
+    EvidenceReadiness,
+    IntegrationStatus,
+    QualityState,
+    ResultType,
+    ScientificStatus,
+    VisibilityCapability,
 )
 from evidencegate.domain.events import VisibilityProfile
 from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.results.finalizer import canonical_result_content, result_id_for
 from evidencegate.results.types import (
-    AnalyticUnavailable, CorrelationFinding, EvidencePayload,
-    InsufficientEvidence, PluginStatus, PrerequisiteMissing, QualityDegraded,
-    Result, ResultDraft, ResultStatusSnapshot, ReviewFinding, ThreatAlert,
+    AnalyticUnavailable,
+    CorrelationFinding,
+    EvidencePayload,
+    InsufficientEvidence,
+    PluginStatus,
+    PrerequisiteMissing,
+    QualityDegraded,
+    Result,
+    ResultDraft,
+    ResultStatusSnapshot,
+    ReviewFinding,
+    ThreatAlert,
 )
 
 
@@ -36,10 +51,14 @@ class SchemaMigrationError(PersistenceError):
 
 
 _RESULT_CLASSES = {
-    ResultType.THREAT_ALERT: ThreatAlert, ResultType.REVIEW_FINDING: ReviewFinding,
-    ResultType.ANALYTIC_UNAVAILABLE: AnalyticUnavailable, ResultType.PREREQUISITE_MISSING: PrerequisiteMissing,
-    ResultType.INSUFFICIENT_EVIDENCE: InsufficientEvidence, ResultType.QUALITY_DEGRADED: QualityDegraded,
-    ResultType.PLUGIN_STATUS: PluginStatus, ResultType.CORRELATION_FINDING: CorrelationFinding,
+    ResultType.THREAT_ALERT: ThreatAlert,
+    ResultType.REVIEW_FINDING: ReviewFinding,
+    ResultType.ANALYTIC_UNAVAILABLE: AnalyticUnavailable,
+    ResultType.PREREQUISITE_MISSING: PrerequisiteMissing,
+    ResultType.INSUFFICIENT_EVIDENCE: InsufficientEvidence,
+    ResultType.QUALITY_DEGRADED: QualityDegraded,
+    ResultType.PLUGIN_STATUS: PluginStatus,
+    ResultType.CORRELATION_FINDING: CorrelationFinding,
 }
 
 
@@ -54,20 +73,24 @@ def _canonical_json(value: object) -> str:
 
 
 def _quality_json(value: EvidenceQuality) -> str:
-    return _canonical_json({
-        "packet_loss": value.packet_loss.value,
-        "sampling": value.sampling.value,
-        "parser": value.parser.value,
-        "capture_gap": value.capture_gap.value,
-    })
+    return _canonical_json(
+        {
+            "packet_loss": value.packet_loss.value,
+            "sampling": value.sampling.value,
+            "parser": value.parser.value,
+            "capture_gap": value.capture_gap.value,
+        }
+    )
 
 
 def _visibility_json(value: VisibilityProfile) -> str:
-    return _canonical_json({
-        "available": sorted(item.value for item in value.available),
-        "unavailable": sorted(item.value for item in value.unavailable),
-        "degraded": sorted(item.value for item in value.degraded),
-    })
+    return _canonical_json(
+        {
+            "available": sorted(item.value for item in value.available),
+            "unavailable": sorted(item.value for item in value.unavailable),
+            "degraded": sorted(item.value for item in value.degraded),
+        }
+    )
 
 
 class SqliteWriter:
@@ -107,7 +130,8 @@ class SqliteWriter:
             migration = migration_dir / filename
             try:
                 conn.executescript(
-                    "BEGIN;\n" + migration.read_text(encoding="utf-8")
+                    "BEGIN;\n"
+                    + migration.read_text(encoding="utf-8")
                     + f"\nINSERT INTO schema_migrations (version, applied_at) "
                     f"VALUES ({version}, CURRENT_TIMESTAMP);\nCOMMIT;"
                 )
@@ -144,14 +168,19 @@ class SqliteWriter:
         conn.execute("BEGIN")
         try:
             cursor = conn.cursor()
-            existing = cursor.execute("SELECT content_hash FROM results WHERE result_id = ?", (result.result_id,)).fetchone()
+            existing = cursor.execute(
+                "SELECT content_hash FROM results WHERE result_id = ?", (result.result_id,)
+            ).fetchone()
             if existing is not None:
                 if existing[0] == content_hash:
                     conn.execute("COMMIT")
                     return False
-                raise ResultIdentityConflict(f"result_id {result.result_id!r} already has different or unverifiable content")
+                raise ResultIdentityConflict(
+                    f"result_id {result.result_id!r} already has different or unverifiable content"
+                )
             interval_start, interval_end = result.evidence_interval or (None, None)
-            cursor.execute("""INSERT INTO results (
+            cursor.execute(
+                """INSERT INTO results (
                 result_id, content_hash, schema_version, result_type, created_time,
                 lane_id, plugin_id, plugin_version, analytic_version, governance_version,
                 entity_reference, taxonomy_1, taxonomy_2, taxonomy_3,
@@ -160,16 +189,37 @@ class SqliteWriter:
                 evidence_interval_end, mechanism_id, evidence_json, quality_snapshot_json,
                 visibility_snapshot_json, state_version, config_hash
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (result.result_id, content_hash, result.schema_version, result.result_type.value, _time_text(result.created_time),
-                 result.lane_id, result.plugin_id, result.plugin_version, result.analytic_version, result.governance_version,
-                 result.entity_reference, *result.taxonomy, result.status_snapshot.scientific_status.value,
-                 result.status_snapshot.integration_status.value, result.status_snapshot.readiness.value,
-                 int(result.status_snapshot.quality_degraded), result.claim_ceiling, getattr(result, "confidence", None),
-                 getattr(result, "severity", None), result.reason_code.value if isinstance(result, AnalyticUnavailable) else None,
-                 _time_text(interval_start) if interval_start else None, _time_text(interval_end) if interval_end else None,
-                 result.mechanism_id, result.evidence.canonical_json,
-                 _quality_json(result.quality_snapshot), _visibility_json(result.visibility_snapshot),
-                 result.state_version, result.config_hash))
+                (
+                    result.result_id,
+                    content_hash,
+                    result.schema_version,
+                    result.result_type.value,
+                    _time_text(result.created_time),
+                    result.lane_id,
+                    result.plugin_id,
+                    result.plugin_version,
+                    result.analytic_version,
+                    result.governance_version,
+                    result.entity_reference,
+                    *result.taxonomy,
+                    result.status_snapshot.scientific_status.value,
+                    result.status_snapshot.integration_status.value,
+                    result.status_snapshot.readiness.value,
+                    int(result.status_snapshot.quality_degraded),
+                    result.claim_ceiling,
+                    getattr(result, "confidence", None),
+                    getattr(result, "severity", None),
+                    result.reason_code.value if isinstance(result, AnalyticUnavailable) else None,
+                    _time_text(interval_start) if interval_start else None,
+                    _time_text(interval_end) if interval_end else None,
+                    result.mechanism_id,
+                    result.evidence.canonical_json,
+                    _quality_json(result.quality_snapshot),
+                    _visibility_json(result.visibility_snapshot),
+                    result.state_version,
+                    result.config_hash,
+                ),
+            )
             self._insert_children(cursor, result)
             conn.execute("COMMIT")
             return True
@@ -192,10 +242,16 @@ class SqliteWriter:
             ("model_references", "model_ref", result.model_refs),
         ):
             for position, value in enumerate(values):
-                cursor.execute(f"INSERT INTO {table} (result_id, {column}, position) VALUES (?, ?, ?)", (result.result_id, value, position))
+                cursor.execute(
+                    f"INSERT INTO {table} (result_id, {column}, position) VALUES (?, ?, ?)",
+                    (result.result_id, value, position),
+                )
         if isinstance(result, CorrelationFinding):
             for position, linked_id in enumerate(result.linked_result_ids):
-                cursor.execute("INSERT INTO result_links (source_result_id, linked_result_id, position) VALUES (?, ?, ?)", (result.result_id, linked_id, position))
+                cursor.execute(
+                    "INSERT INTO result_links (source_result_id, linked_result_id, position) VALUES (?, ?, ?)",
+                    (result.result_id, linked_id, position),
+                )
 
     async def get_result(self, result_id: str) -> Result | None:
         async with self._lock:
@@ -204,9 +260,14 @@ class SqliteWriter:
             return None if row is None else self._read_result(conn, row)
 
     async def list_results(
-        self, *, limit: int = 100, cursor: str | None = None,
-        lane_id: str | None = None, mechanism_id: str | None = None,
-        result_type: ResultType | None = None, source_id: str | None = None,
+        self,
+        *,
+        limit: int = 100,
+        cursor: str | None = None,
+        lane_id: str | None = None,
+        mechanism_id: str | None = None,
+        result_type: ResultType | None = None,
+        source_id: str | None = None,
         created_after: datetime | None = None,
         created_before: datetime | None = None,
         direction: str = "before",
@@ -223,16 +284,18 @@ class SqliteWriter:
             created_time, result_id = self._decode_cursor(cursor)
             operator = "<" if direction == "before" else ">"
             clauses.append(
-                f"(created_time {operator} ? OR "
-                f"(created_time = ? AND result_id {operator} ?))"
+                f"(created_time {operator} ? OR (created_time = ? AND result_id {operator} ?))"
             )
             params.extend((created_time, created_time, result_id))
         if lane_id:
-            clauses.append("lane_id = ?"); params.append(lane_id)
+            clauses.append("lane_id = ?")
+            params.append(lane_id)
         if mechanism_id:
-            clauses.append("mechanism_id = ?"); params.append(mechanism_id)
+            clauses.append("mechanism_id = ?")
+            params.append(mechanism_id)
         if result_type:
-            clauses.append("result_type = ?"); params.append(result_type.value)
+            clauses.append("result_type = ?")
+            params.append(result_type.value)
         if source_id:
             clauses.append(
                 "EXISTS (SELECT 1 FROM result_source_ids source_filter "
@@ -241,13 +304,16 @@ class SqliteWriter:
             )
             params.append(source_id)
         if created_after is not None:
-            clauses.append("created_time > ?"); params.append(_time_text(created_after))
+            clauses.append("created_time > ?")
+            params.append(_time_text(created_after))
         if created_before is not None:
-            clauses.append("created_time < ?"); params.append(_time_text(created_before))
+            clauses.append("created_time < ?")
+            params.append(_time_text(created_before))
         params.append(limit)
         order = "DESC" if direction == "before" else "ASC"
         sql = (
-            "SELECT * FROM results WHERE " + " AND ".join(clauses)
+            "SELECT * FROM results WHERE "
+            + " AND ".join(clauses)
             + f" ORDER BY created_time {order}, result_id {order} LIMIT ?"
         )
         async with self._lock:
@@ -255,12 +321,16 @@ class SqliteWriter:
             # A bounded page can require hundreds of child-row reconstructions.
             # Keep its connection lock, but leave the event loop free for ingest.
             return await asyncio.to_thread(
-                lambda: tuple(self._read_result(conn, row) for row in conn.execute(sql, params).fetchall())
+                lambda: tuple(
+                    self._read_result(conn, row) for row in conn.execute(sql, params).fetchall()
+                )
             )
 
     @staticmethod
     def cursor_for(result: Result) -> str:
-        return base64.urlsafe_b64encode(f"{_time_text(result.created_time)}\0{result.result_id}".encode()).decode()
+        return base64.urlsafe_b64encode(
+            f"{_time_text(result.created_time)}\0{result.result_id}".encode()
+        ).decode()
 
     @staticmethod
     def _decode_cursor(cursor: str) -> tuple[str, str]:
@@ -277,9 +347,11 @@ class SqliteWriter:
     async def count_results(self) -> int:
         async with self._lock:
             conn = self._require_connection()
-            return int(conn.execute(
-                "SELECT COUNT(*) FROM results WHERE content_hash IS NOT NULL"
-            ).fetchone()[0])
+            return int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM results WHERE content_hash IS NOT NULL"
+                ).fetchone()[0]
+            )
 
     def _read_result(self, conn: sqlite3.Connection, row: tuple) -> Result:
         columns = [item[0] for item in conn.execute("SELECT * FROM results LIMIT 0").description]
@@ -287,16 +359,42 @@ class SqliteWriter:
         if values["content_hash"] is None:
             raise PersistenceError("legacy v1 result cannot be reconstructed as a v2 Result")
         result_id = values["result_id"]
+
         def children(table: str, column: str, id_column: str = "result_id") -> tuple[str, ...]:
-            return tuple(item[0] for item in conn.execute(f"SELECT {column} FROM {table} WHERE {id_column} = ? ORDER BY position", (result_id,)))
-        status = ResultStatusSnapshot(ScientificStatus(values["scientific_status"]), IntegrationStatus(values["integration_status"]), values["governance_version"], EvidenceReadiness(values["readiness"]), bool(values["quality_degraded"]))
-        interval = ((datetime.fromisoformat(values["evidence_interval_start"]), datetime.fromisoformat(values["evidence_interval_end"])) if values["evidence_interval_start"] else None)
+            return tuple(
+                item[0]
+                for item in conn.execute(
+                    f"SELECT {column} FROM {table} WHERE {id_column} = ? ORDER BY position",
+                    (result_id,),
+                )
+            )
+
+        status = ResultStatusSnapshot(
+            ScientificStatus(values["scientific_status"]),
+            IntegrationStatus(values["integration_status"]),
+            values["governance_version"],
+            EvidenceReadiness(values["readiness"]),
+            bool(values["quality_degraded"]),
+        )
+        interval = (
+            (
+                datetime.fromisoformat(values["evidence_interval_start"]),
+                datetime.fromisoformat(values["evidence_interval_end"]),
+            )
+            if values["evidence_interval_start"]
+            else None
+        )
         is_v3 = values["schema_version"] != "2.0"
         if is_v3:
-            if not all(values[name] is not None for name in (
-                "mechanism_id", "evidence_json", "quality_snapshot_json",
-                "visibility_snapshot_json",
-            )):
+            if not all(
+                values[name] is not None
+                for name in (
+                    "mechanism_id",
+                    "evidence_json",
+                    "quality_snapshot_json",
+                    "visibility_snapshot_json",
+                )
+            ):
                 raise PersistenceError("v3 result is missing required evidence/provenance fields")
             quality_value = json.loads(values["quality_snapshot_json"])
             quality_snapshot = EvidenceQuality(
@@ -307,24 +405,33 @@ class SqliteWriter:
             )
             visibility_value = json.loads(values["visibility_snapshot_json"])
             visibility_snapshot = VisibilityProfile(
-                available=frozenset(VisibilityCapability(item) for item in visibility_value["available"]),
-                unavailable=frozenset(VisibilityCapability(item) for item in visibility_value["unavailable"]),
-                degraded=frozenset(VisibilityCapability(item) for item in visibility_value["degraded"]),
+                available=frozenset(
+                    VisibilityCapability(item) for item in visibility_value["available"]
+                ),
+                unavailable=frozenset(
+                    VisibilityCapability(item) for item in visibility_value["unavailable"]
+                ),
+                degraded=frozenset(
+                    VisibilityCapability(item) for item in visibility_value["degraded"]
+                ),
             )
         else:
             quality_snapshot = EvidenceQuality()
             visibility_snapshot = VisibilityProfile()
         common = dict(
-            result_id=result_id, schema_version=values["schema_version"],
+            result_id=result_id,
+            schema_version=values["schema_version"],
             result_type=ResultType(values["result_type"]),
             created_time=datetime.fromisoformat(values["created_time"]),
-            lane_id=values["lane_id"], plugin_id=values["plugin_id"],
+            lane_id=values["lane_id"],
+            plugin_id=values["plugin_id"],
             plugin_version=values["plugin_version"],
             analytic_version=values["analytic_version"],
             governance_version=values["governance_version"],
             entity_reference=values["entity_reference"],
             taxonomy=(values["taxonomy_1"], values["taxonomy_2"], values["taxonomy_3"]),
-            status_snapshot=status, claim_ceiling=values["claim_ceiling"],
+            status_snapshot=status,
+            claim_ceiling=values["claim_ceiling"],
             evidence_items=children("evidence_items", "evidence_ref"),
             provenance_refs=children("provenance_references", "provenance_ref"),
             quality_refs=children("quality_references", "quality_ref"),
@@ -332,10 +439,10 @@ class SqliteWriter:
             missing_prerequisites=children("missing_prerequisites", "prerequisite"),
             evidence_interval=interval,
             mechanism_id=values["mechanism_id"] if is_v3 else None,
-            evidence=(EvidencePayload(values["evidence_json"])
-                      if is_v3 else EvidencePayload("{}")),
-            source_observation_ids=(children("source_observation_ids", "source_observation_id")
-                                    if is_v3 else ()),
+            evidence=(EvidencePayload(values["evidence_json"]) if is_v3 else EvidencePayload("{}")),
+            source_observation_ids=(
+                children("source_observation_ids", "source_observation_id") if is_v3 else ()
+            ),
             source_ids=(children("result_source_ids", "source_id") if is_v3 else ()),
             quality_snapshot=quality_snapshot,
             visibility_snapshot=visibility_snapshot,
@@ -345,11 +452,18 @@ class SqliteWriter:
             model_refs=(children("model_references", "model_ref") if is_v3 else ()),
         )
         if common["result_type"] is ResultType.THREAT_ALERT:
-            return ThreatAlert(**common, confidence=values["confidence"], severity=values["severity"])
+            return ThreatAlert(
+                **common, confidence=values["confidence"], severity=values["severity"]
+            )
         if common["result_type"] is ResultType.ANALYTIC_UNAVAILABLE:
-            return AnalyticUnavailable(**common, reason_code=AnalyticUnavailableReason(values["reason_code"]))
+            return AnalyticUnavailable(
+                **common, reason_code=AnalyticUnavailableReason(values["reason_code"])
+            )
         if common["result_type"] is ResultType.CORRELATION_FINDING:
-            return CorrelationFinding(**common, linked_result_ids=children("result_links", "linked_result_id", "source_result_id"))
+            return CorrelationFinding(
+                **common,
+                linked_result_ids=children("result_links", "linked_result_id", "source_result_id"),
+            )
         return _RESULT_CLASSES[common["result_type"]](**common)
 
     def _require_connection(self) -> sqlite3.Connection:

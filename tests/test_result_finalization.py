@@ -1,4 +1,5 @@
 """M5-01: immutable, runtime-owned result finalization."""
+
 from dataclasses import FrozenInstanceError, replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -117,12 +118,18 @@ def test_draft_promotes_to_exact_final_subtype(kind, expected):
 def test_runtime_owns_metadata_and_references() -> None:
     result = ResultFinalizer.finalize(
         draft(evidence_items=("evidence-1", "obs-1", "evidence-1")),
-        manifest(), governance(),
-        context(refs=("quality-1", "quality-2", "quality-1"), provenance=("prov-1", "prov-2", "prov-1")),
+        manifest(),
+        governance(),
+        context(
+            refs=("quality-1", "quality-2", "quality-1"), provenance=("prov-1", "prov-2", "prov-1")
+        ),
     )
     assert result.schema_version == "3.0"
     assert (result.lane_id, result.plugin_id, result.plugin_version, result.analytic_version) == (
-        "m5-lane", "m5-plugin", "plugin-1", "analytic-1"
+        "m5-lane",
+        "m5-plugin",
+        "plugin-1",
+        "analytic-1",
     )
     assert result.taxonomy == ("network", "test", "m5")
     assert result.governing_ids == ("claim-1", "decision-1")
@@ -135,22 +142,35 @@ def test_runtime_owns_metadata_and_references() -> None:
         result.status_snapshot.quality_degraded = True  # type: ignore[misc]
     with pytest.raises(TypeError, match="plugin_id"):
         ResultDraft(
-            ResultType.REVIEW_FINDING, "entity-1", (), (), plugin_id="forged"  # type: ignore[call-arg]
+            ResultType.REVIEW_FINDING,
+            "entity-1",
+            (),
+            (),
+            plugin_id="forged",  # type: ignore[call-arg]
         )
 
 
 def test_identity_is_deterministic_and_tracks_scientific_versions_and_evidence() -> None:
     baseline = ResultFinalizer.finalize(draft(), manifest(), governance(), context())
     assert baseline == ResultFinalizer.finalize(draft(), manifest(), governance(), context())
-    assert baseline.result_id != ResultFinalizer.finalize(
-        draft(evidence_items=("other-evidence",)), manifest(), governance(), context()
-    ).result_id
-    assert baseline.result_id != ResultFinalizer.finalize(
-        draft(), manifest(analytic_version="analytic-2"), governance(), context()
-    ).result_id
-    assert baseline.result_id != ResultFinalizer.finalize(
-        draft(), manifest(), governance(version="gov-2"), context()
-    ).result_id
+    assert (
+        baseline.result_id
+        != ResultFinalizer.finalize(
+            draft(evidence_items=("other-evidence",)), manifest(), governance(), context()
+        ).result_id
+    )
+    assert (
+        baseline.result_id
+        != ResultFinalizer.finalize(
+            draft(), manifest(analytic_version="analytic-2"), governance(), context()
+        ).result_id
+    )
+    assert (
+        baseline.result_id
+        != ResultFinalizer.finalize(
+            draft(), manifest(), governance(version="gov-2"), context()
+        ).result_id
+    )
 
 
 def test_validator_rules_remain_authoritative() -> None:
@@ -162,8 +182,10 @@ def test_validator_rules_remain_authoritative() -> None:
         )
     with pytest.raises(ValueError, match="not allowed by governance"):
         ResultFinalizer.finalize(
-            draft(ResultType.THREAT_ALERT, confidence="DEFINED"), manifest(),
-            governance(allowed=(ResultType.REVIEW_FINDING,)), context(),
+            draft(ResultType.THREAT_ALERT, confidence="DEFINED"),
+            manifest(),
+            governance(allowed=(ResultType.REVIEW_FINDING,)),
+            context(),
         )
 
 
@@ -171,7 +193,9 @@ def test_validator_rules_remain_authoritative() -> None:
 async def test_shard_finalizes_normal_and_lifecycle_results_and_suppresses_abstention() -> None:
     class LifecyclePlugin(BasicScaffoldPlugin):
         def manifest(self):
-            return replace(super().manifest(), plugin_id="m5-plugin", taxonomy=("network", "test", "m5"))
+            return replace(
+                super().manifest(), plugin_id="m5-plugin", taxonomy=("network", "test", "m5")
+            )
 
         async def process(self, observation, context, state):
             return PluginProcessOutcome((draft(),))
@@ -185,8 +209,14 @@ async def test_shard_finalizes_normal_and_lifecycle_results_and_suppresses_abste
     plugin = LifecyclePlugin()
     emitted = []
     finalizer = lambda value, ctx: ResultFinalizer.finalize(value, manifest(), governance(), ctx)
-    shard = LaneShard(0, plugin, StateStore(), lambda result: collect(emitted, result),
-                       lane_id="m5-lane", result_finalizer=finalizer)
+    shard = LaneShard(
+        0,
+        plugin,
+        StateStore(),
+        lambda result: collect(emitted, result),
+        lane_id="m5-lane",
+        result_finalizer=finalizer,
+    )
 
     # A direct lifecycle callback uses the same finalizer and causal watermark.
     await shard.handle_watermark(NOW + timedelta(seconds=5), 0, publish_results=True)

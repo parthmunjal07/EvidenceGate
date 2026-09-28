@@ -1,16 +1,28 @@
 """M7-05 C2-R1 descriptive recurrence measurement contract."""
-from dataclasses import replace
+
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from evidencegate.domain.enums import (
-    AvailabilityBasis, DirectionBasis, EvidenceReadiness, Finality, IdentityBasis,
-    ObservationType, QualityState, ResultType, ScientificStatus, SourceKind,
-    TimestampSemantics, VisibilityCapability, WireDirection,
+    AvailabilityBasis,
+    DirectionBasis,
+    EvidenceReadiness,
+    Finality,
+    IdentityBasis,
+    ObservationType,
+    QualityState,
+    ResultType,
+    ScientificStatus,
+    SourceKind,
+    TimestampSemantics,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import (
-    NetworkObservationEnvelope, ObservationIdentity, RoleAssignment,
+    NetworkObservationEnvelope,
+    ObservationIdentity,
+    RoleAssignment,
     VisibilityProfile,
 )
 from evidencegate.domain.governance import LaneGovernance
@@ -19,7 +31,8 @@ from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.c2 import C2R1Plugin, C2R1State
 from evidencegate.plugins.providers.c2_config import (
-    C2R1Config, REFERENCE_WATERMARK_LATENESS,
+    C2R1Config,
+    REFERENCE_WATERMARK_LATENESS,
 )
 from evidencegate.plugins.providers.registry import build_mvp_provider_registry
 from evidencegate.results.types import InsufficientEvidence, ReviewFinding
@@ -32,8 +45,7 @@ NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 LANE = LaneTarget("c2.r1")
 SCHEMA = "evidencegate/persistence/schema.sql"
 CLAIM_CEILING = (
-    "RECURRENT_COMMUNICATION_MEASUREMENT_ONLY; NOT_C2; NOT_MALWARE; "
-    "NOT_COMPROMISE; NOT_BENIGN"
+    "RECURRENT_COMMUNICATION_MEASUREMENT_ONLY; NOT_C2; NOT_MALWARE; NOT_COMPROMISE; NOT_BENIGN"
 )
 
 
@@ -53,7 +65,10 @@ def config(**changes) -> C2R1Config:
 
 
 def roles(
-    *, client="client-a", peer="peer-a", service="443",
+    *,
+    client="client-a",
+    peer="peer-a",
+    service="443",
     basis=IdentityBasis.SOURCE_DECLARED_ROLE,
 ):
     return (
@@ -89,10 +104,18 @@ def flow(
         sampling=None,
         documented_end_state=None,
     )
-    fields = present_fields or frozenset({
-        "flow_id_basis", "endpoints", "protocol", "start_time", "end_time",
-        "export_time", "supplied_directional_counters", "exporter_semantics",
-    })
+    fields = present_fields or frozenset(
+        {
+            "flow_id_basis",
+            "endpoints",
+            "protocol",
+            "start_time",
+            "end_time",
+            "export_time",
+            "supplied_directional_counters",
+            "exporter_semantics",
+        }
+    )
     return NetworkObservationEnvelope(
         observation_id=observation_id or f"flow-{second}",
         schema_version="1.1",
@@ -113,10 +136,12 @@ def flow(
         present_fields=frozenset(fields),
         typed_payload=payload,
         visibility=VisibilityProfile(
-            available=frozenset({
-                VisibilityCapability.FLOW_FACTS,
-                VisibilityCapability.FORWARD_FACTS,
-            }),
+            available=frozenset(
+                {
+                    VisibilityCapability.FLOW_FACTS,
+                    VisibilityCapability.FORWARD_FACTS,
+                }
+            ),
             unavailable=frozenset({VisibilityCapability.REVERSE_FACTS}),
         ),
         identity=ObservationIdentity(
@@ -163,7 +188,10 @@ async def replay(
         controls.append(event)
 
     supervisor = RuntimeSupervisor(
-        {LANE: plugin}, {LANE: governance()}, writer, shard_count=2,
+        {LANE: plugin},
+        {LANE: governance()},
+        writer,
+        shard_count=2,
         control_sink=controls_writer,
         reorder_policies={LANE: EventTimeReorderPolicy(20, 200)},
     )
@@ -173,16 +201,16 @@ async def replay(
         for item in arrival:
             plans.append(await supervisor.ingest_observation(item))
         await supervisor.dispatchers[LANE].queue.join()
-        await supervisor.advance_watermark(
-            LANE, NOW + timedelta(seconds=watermark_second)
-        )
+        await supervisor.advance_watermark(LANE, NOW + timedelta(seconds=watermark_second))
         key = plugin.state_key(arrival[-1]) if arrival else None
         entry = (
             supervisor.state_stores[LANE].read(
-                plugin.manifest().plugin_id, key,
+                plugin.manifest().plugin_id,
+                key,
                 NOW + timedelta(seconds=watermark_second),
             )
-            if key is not None else None
+            if key is not None
+            else None
         )
         return plugin, tuple(results), tuple(controls), entry, tuple(plans)
     finally:
@@ -243,9 +271,7 @@ def test_manifest_identity_scope_and_runtime_capacity_are_explicit():
     [
         roles()[1:],
         (roles()[0], roles()[2]),
-        roles() + (RoleAssignment(
-            "client-b", "client_id", IdentityBasis.POLICY_DECLARED_ROLE
-        ),),
+        roles() + (RoleAssignment("client-b", "client_id", IdentityBasis.POLICY_DECLARED_ROLE),),
         (),
     ],
 )
@@ -280,7 +306,9 @@ async def test_readiness_state_measurement_support_and_prior_state_version():
         (flow(0), flow(60), flow(120)), watermark_second=121
     )
     assert [type(item) for item in results] == [
-        InsufficientEvidence, InsufficientEvidence, ReviewFinding,
+        InsufficientEvidence,
+        InsufficientEvidence,
+        ReviewFinding,
     ]
     assert [item.status_snapshot.readiness for item in results] == [
         EvidenceReadiness.INSUFFICIENT_HISTORY,
@@ -309,11 +337,14 @@ async def test_history_is_bounded_and_oldest_support_is_dropped():
     bounded = config(minimum_history_events=2, max_retained_events_per_pair=3)
     plugin, results, _, entry, _ = await replay(
         tuple(flow(second) for second in (0, 10, 20, 30)),
-        configuration=bounded, watermark_second=31,
+        configuration=bounded,
+        watermark_second=31,
     )
     assert entry is not None and isinstance(entry.payload, C2R1State)
     assert [event.observation_id for event in entry.payload.events] == [
-        "flow-10", "flow-20", "flow-30",
+        "flow-10",
+        "flow-20",
+        "flow-30",
     ]
     final = results[-1]
     assert final.source_observation_ids == ("flow-30", "flow-10", "flow-20")
@@ -333,8 +364,10 @@ async def test_reference_engine_parity_and_reordered_arrival_are_identical():
     )
     final = ordered_results[-1].evidence.to_value()["measurements"]
     assert final == {
-        "event_count": 3, "history_span_seconds": 120.0,
-        "interval_count": 2, "iat_median_seconds": 60.0,
+        "event_count": 3,
+        "history_span_seconds": 120.0,
+        "interval_count": 2,
+        "iat_median_seconds": 60.0,
         "iat_mad_seconds": 0.0,
     }
 
@@ -351,7 +384,10 @@ async def test_late_event_never_reaches_r1_state_and_watermark_equality_is_admit
         controls.append(event)
 
     supervisor = RuntimeSupervisor(
-        {LANE: plugin}, {LANE: governance()}, writer, shard_count=1,
+        {LANE: plugin},
+        {LANE: governance()},
+        writer,
+        shard_count=1,
         control_sink=control_writer,
         reorder_policies={LANE: EventTimeReorderPolicy(10, 100)},
     )
@@ -384,7 +420,10 @@ async def test_expiry_resets_history_without_hidden_count():
         results.append(result)
 
     supervisor = RuntimeSupervisor(
-        {LANE: plugin}, {LANE: governance()}, writer, shard_count=1,
+        {LANE: plugin},
+        {LANE: governance()},
+        writer,
+        shard_count=1,
         reorder_policies={LANE: EventTimeReorderPolicy(10, 100)},
     )
     supervisor.start_all()
@@ -421,7 +460,11 @@ async def test_degraded_quality_is_preserved_and_measurement_remains_descriptive
     evidence = ready.evidence.to_value()
     assert evidence["capture_quality"]["sampling"] == "DEGRADED"
     assert set(evidence["hard_negative_alternatives"]) == {
-        "monitoring", "updater polling", "telemetry", "health checks", "RMM",
+        "monitoring",
+        "updater polling",
+        "telemetry",
+        "health checks",
+        "RMM",
         "API automation",
     }
     serialized = ready.evidence.canonical_json.lower()
@@ -430,9 +473,7 @@ async def test_degraded_quality_is_preserved_and_measurement_remains_descriptive
 
 @pytest.mark.asyncio
 async def test_config_hash_and_structured_evidence_round_trip_sqlite_v3(tmp_path):
-    plugin, results, _, _, _ = await replay(
-        (flow(0), flow(10), flow(20)), watermark_second=21
-    )
+    plugin, results, _, _, _ = await replay((flow(0), flow(10), flow(20)), watermark_second=21)
     ready = results[-1]
     writer = SqliteWriter(tmp_path / "c2-r1.db", SCHEMA)
     writer.connect()
@@ -471,7 +512,10 @@ async def test_c2_r1_and_transfer_results_remain_independent():
         results.append((result, target))
 
     supervisor = RuntimeSupervisor(
-        scoped_plugins, scoped_governance, writer, shard_count=1,
+        scoped_plugins,
+        scoped_governance,
+        writer,
+        shard_count=1,
         reorder_policies={LANE: EventTimeReorderPolicy(10, 100)},
     )
     supervisor.start_all()
@@ -485,7 +529,8 @@ async def test_c2_r1_and_transfer_results_remain_independent():
         assert sum(target == LANE for _, target in results) == 3
         assert sum(target == "unusual_transfer.m1" for _, target in results) == 3
         assert {result.mechanism_id for result, _ in results} == {
-            "C2-M1", "CAT6-EX-M1",
+            "C2-M1",
+            "CAT6-EX-M1",
         }
     finally:
         await supervisor.stop_all()

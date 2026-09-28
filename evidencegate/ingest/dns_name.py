@@ -1,4 +1,5 @@
 """Shared factual DNS name representation for clear-DNS observations."""
+
 from dataclasses import dataclass
 
 

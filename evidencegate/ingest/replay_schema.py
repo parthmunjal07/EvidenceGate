@@ -1,4 +1,5 @@
 """Strict versioned schema for passive typed-NDJSON replay bundles."""
+
 from __future__ import annotations
 
 import json
@@ -10,12 +11,22 @@ from pathlib import Path
 from typing import Any, Mapping, Union, get_args, get_origin, get_type_hints
 
 from evidencegate.domain.enums import (
-    DirectionBasis, Finality, IdentityBasis, ObservationType, QualityState,
-    SourceKind, TimestampSemantics, VisibilityCapability, WireDirection,
+    DirectionBasis,
+    Finality,
+    IdentityBasis,
+    ObservationType,
+    QualityState,
+    SourceKind,
+    TimestampSemantics,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import RoleAssignment, VisibilityProfile
 from evidencegate.domain.payloads import (
-    DNSObservation, FlowObservation, PacketObservation, QUICObservation,
+    DNSObservation,
+    FlowObservation,
+    PacketObservation,
+    QUICObservation,
     TLSObservation,
 )
 from evidencegate.domain.quality import EvidenceQuality
@@ -36,9 +47,7 @@ class ReplayValidationError(ValueError):
         self.position = position
         self.error_type = error_type
         self.detail = detail
-        super().__init__(
-            f"replay source {source_id!r} at {position!r}: {error_type}: {detail}"
-        )
+        super().__init__(f"replay source {source_id!r} at {position!r}: {error_type}: {detail}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,7 +71,8 @@ class ReplaySourceRecord(RawSourceRecord):
         if self.wire_direction is not None and not isinstance(self.wire_direction, WireDirection):
             raise TypeError("record wire_direction must be WireDirection or None")
         object.__setattr__(
-            self, "canonicalization_options",
+            self,
+            "canonicalization_options",
             MappingProxyType(dict(self.canonicalization_options or {})),
         )
 
@@ -133,8 +143,7 @@ def _typed(value: object, annotation: object, name: str) -> object:
             return tuple(_typed(item, args[0], f"{name}[]") for item in value)
         if len(value) != len(args):
             raise ValueError(f"{name} must contain {len(args)} items")
-        return tuple(_typed(item, item_type, f"{name}[]")
-                     for item, item_type in zip(value, args))
+        return tuple(_typed(item, item_type, f"{name}[]") for item, item_type in zip(value, args))
     if origin is dict:
         if not isinstance(value, dict):
             raise TypeError(f"{name} must be an object")
@@ -179,11 +188,15 @@ def _visibility(value: object) -> VisibilityProfile:
         return VisibilityProfile()
     if not isinstance(value, dict) or set(value) - {"available", "unavailable", "degraded"}:
         raise ValueError("visibility must contain only available/unavailable/degraded")
-    return VisibilityProfile(**{
-        name: frozenset(_enum(VisibilityCapability, item, f"visibility.{name}")
-                        for item in value.get(name, []))
-        for name in ("available", "unavailable", "degraded")
-    })
+    return VisibilityProfile(
+        **{
+            name: frozenset(
+                _enum(VisibilityCapability, item, f"visibility.{name}")
+                for item in value.get(name, [])
+            )
+            for name in ("available", "unavailable", "degraded")
+        }
+    )
 
 
 def _quality(value: object) -> EvidenceQuality:
@@ -192,25 +205,38 @@ def _quality(value: object) -> EvidenceQuality:
     names = {"packet_loss", "sampling", "parser", "capture_gap"}
     if not isinstance(value, dict) or set(value) - names:
         raise ValueError("quality contains unknown fields")
-    return EvidenceQuality(**{
-        name: _enum(QualityState, value.get(name, "UNKNOWN"), f"quality.{name}")
-        for name in names
-    })
+    return EvidenceQuality(
+        **{
+            name: _enum(QualityState, value.get(name, "UNKNOWN"), f"quality.{name}")
+            for name in names
+        }
+    )
 
 
 def parse_manifest(path: Path) -> ReplayManifest:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ReplayValidationError("<unknown>", "manifest.json", type(exc).__name__, str(exc)) from exc
+        raise ReplayValidationError(
+            "<unknown>", "manifest.json", type(exc).__name__, str(exc)
+        ) from exc
     required = {
-        "schema_version", "source_id", "source_kind", "input_observation_contract",
-        "timestamp_semantics", "direction_basis", "wire_direction", "visibility",
-        "quality", "event_time_order",
+        "schema_version",
+        "source_id",
+        "source_kind",
+        "input_observation_contract",
+        "timestamp_semantics",
+        "direction_basis",
+        "wire_direction",
+        "visibility",
+        "quality",
+        "event_time_order",
     }
     allowed = required | {"record_count", "capture_start", "capture_end"}
     if not isinstance(value, dict):
-        raise ReplayValidationError("<unknown>", "manifest.json", "SchemaError", "manifest must be an object")
+        raise ReplayValidationError(
+            "<unknown>", "manifest.json", "SchemaError", "manifest must be an object"
+        )
     source_id = value.get("source_id", "<unknown>")
     try:
         missing, unknown = required - set(value), set(value) - allowed
@@ -227,42 +253,64 @@ def parse_manifest(path: Path) -> ReplayManifest:
         if value["source_kind"] != SourceKind.DERIVED.value:
             raise ValueError("typed replay source_kind must be DERIVED")
         count = value.get("record_count")
-        if count is not None and (isinstance(count, bool) or not isinstance(count, int) or count < 0):
+        if count is not None and (
+            isinstance(count, bool) or not isinstance(count, int) or count < 0
+        ):
             raise ValueError("record_count must be a non-negative integer")
         manifest = SourceManifest(
-            source_id=source_id, source_kind=SourceKind.DERIVED,
-            capture_start=(parse_datetime(value["capture_start"], "capture_start")
-                           if value.get("capture_start") is not None else None),
-            capture_end=(parse_datetime(value["capture_end"], "capture_end")
-                         if value.get("capture_end") is not None else None),
-            timestamp_semantics=_enum(TimestampSemantics, value["timestamp_semantics"], "timestamp_semantics"),
+            source_id=source_id,
+            source_kind=SourceKind.DERIVED,
+            capture_start=(
+                parse_datetime(value["capture_start"], "capture_start")
+                if value.get("capture_start") is not None
+                else None
+            ),
+            capture_end=(
+                parse_datetime(value["capture_end"], "capture_end")
+                if value.get("capture_end") is not None
+                else None
+            ),
+            timestamp_semantics=_enum(
+                TimestampSemantics, value["timestamp_semantics"], "timestamp_semantics"
+            ),
             input_observation_contract=INPUT_CONTRACT,
             direction_basis=_enum(DirectionBasis, value["direction_basis"], "direction_basis"),
             wire_direction=_enum(WireDirection, value["wire_direction"], "wire_direction"),
-            visibility=_visibility(value["visibility"]), quality=_quality(value["quality"]),
+            visibility=_visibility(value["visibility"]),
+            quality=_quality(value["quality"]),
         )
-        if manifest.capture_start and manifest.capture_end and manifest.capture_end < manifest.capture_start:
+        if (
+            manifest.capture_start
+            and manifest.capture_end
+            and manifest.capture_end < manifest.capture_start
+        ):
             raise ValueError("capture_end cannot precede capture_start")
         return ReplayManifest(value["schema_version"], manifest, value["event_time_order"], count)
     except (TypeError, ValueError) as exc:
-        raise ReplayValidationError(str(source_id), "manifest.json", type(exc).__name__, str(exc)) from exc
+        raise ReplayValidationError(
+            str(source_id), "manifest.json", type(exc).__name__, str(exc)
+        ) from exc
 
 
 def parse_record_line(text: str, *, source_id: str, line_number: int) -> ReplaySourceRecord:
     try:
         value = json.loads(text)
         required = {
-            "schema_version", "position", "timestamp", "finality", "observation_type",
-            "payload", "declared_observed_fields", "role_assignments",
+            "schema_version",
+            "position",
+            "timestamp",
+            "finality",
+            "observation_type",
+            "payload",
+            "declared_observed_fields",
+            "role_assignments",
             "canonicalization_options",
         }
         if not isinstance(value, dict):
             raise TypeError("record must be an object")
         allowed = required | {"wire_direction"}
         if missing := required - set(value):
-            raise ValueError(
-                f"missing={sorted(missing)} unknown={sorted(set(value) - allowed)}"
-            )
+            raise ValueError(f"missing={sorted(missing)} unknown={sorted(set(value) - allowed)}")
         if unknown := set(value) - allowed:
             raise ValueError(f"missing=[] unknown={sorted(unknown)}")
         if value["schema_version"] != RECORD_SCHEMA_VERSION:
@@ -292,10 +340,13 @@ def parse_record_line(text: str, *, source_id: str, line_number: int) -> ReplayS
                 raise ValueError(f"role_assignments[{index}].identifier must be non-empty")
             if not isinstance(role["role"], str) or not role["role"]:
                 raise ValueError(f"role_assignments[{index}].role must be non-empty")
-            roles.append(RoleAssignment(
-                role["identifier"], role["role"],
-                _enum(IdentityBasis, role["basis"], "role basis"),
-            ))
+            roles.append(
+                RoleAssignment(
+                    role["identifier"],
+                    role["role"],
+                    _enum(IdentityBasis, role["basis"], "role basis"),
+                )
+            )
         options = value["canonicalization_options"]
         if not isinstance(options, dict):
             raise TypeError("canonicalization_options must be an object")
@@ -303,13 +354,21 @@ def parse_record_line(text: str, *, source_id: str, line_number: int) -> ReplayS
         if unknown_options or any(not isinstance(item, bool) for item in options.values()):
             raise ValueError(f"invalid canonicalization options: {sorted(unknown_options)}")
         return ReplaySourceRecord(
-            raw_data=payload, timestamp=parse_datetime(value["timestamp"], "timestamp"),
-            position=position, finality=_enum(Finality, value["finality"], "finality"),
+            raw_data=payload,
+            timestamp=parse_datetime(value["timestamp"], "timestamp"),
+            position=position,
+            finality=_enum(Finality, value["finality"], "finality"),
             observation_type=observation_type,
-            declared_observed_fields=tuple(declared), role_assignments=tuple(roles),
+            declared_observed_fields=tuple(declared),
+            role_assignments=tuple(roles),
             canonicalization_options=dict(options),
-            wire_direction=(_enum(WireDirection, value["wire_direction"], "wire_direction")
-                            if "wire_direction" in value else None),
+            wire_direction=(
+                _enum(WireDirection, value["wire_direction"], "wire_direction")
+                if "wire_direction" in value
+                else None
+            ),
         )
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        raise ReplayValidationError(source_id, f"line {line_number}", type(exc).__name__, str(exc)) from exc
+        raise ReplayValidationError(
+            source_id, f"line {line_number}", type(exc).__name__, str(exc)
+        ) from exc

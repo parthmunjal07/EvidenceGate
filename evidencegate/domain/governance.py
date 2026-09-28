@@ -18,6 +18,7 @@ class LaneGovernance:
     INSUFFICIENT_HISTORY / STATE_EVICTED are not ingest-admission reasons;
     they are EvaluationReadiness states that run after factual state update.
     """
+
     analytic_lane: str
     scientific_status: ScientificStatus
     scientific_phase: str

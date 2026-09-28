@@ -1,4 +1,5 @@
 """M12 durable API, bounded live stream, replay, and dashboard contracts."""
+
 from __future__ import annotations
 
 import asyncio
@@ -15,7 +16,10 @@ import pytest
 from evidencegate.api.app import create_app, sse_encode
 from evidencegate.api.models import ResultNotification, StreamGap
 from evidencegate.domain.enums import (
-    EvidenceReadiness, IntegrationStatus, ResultType, ScientificStatus,
+    EvidenceReadiness,
+    IntegrationStatus,
+    ResultType,
+    ScientificStatus,
 )
 from evidencegate.domain.events import VisibilityProfile
 from evidencegate.domain.quality import EvidenceQuality
@@ -27,27 +31,47 @@ BASE = datetime(2026, 9, 22, tzinfo=timezone.utc)
 
 
 def make_result(
-    suffix: str, *, at: datetime | None = None, lane: str = "dns_tunnelling.t1",
-    mechanism: str = "DNS-T1", source: str = "source-a",
+    suffix: str,
+    *,
+    at: datetime | None = None,
+    lane: str = "dns_tunnelling.t1",
+    mechanism: str = "DNS-T1",
+    source: str = "source-a",
 ) -> ReviewFinding:
     result = ReviewFinding(
-        result_id="", schema_version="3.0", result_type=ResultType.REVIEW_FINDING,
-        created_time=at or BASE, lane_id=lane, plugin_id=f"provider.{lane}",
-        plugin_version="1.0", analytic_version="1.0", governance_version="gov-1",
-        entity_reference=f"entity-{suffix}", taxonomy=("Network", "Evidence", suffix),
+        result_id="",
+        schema_version="3.0",
+        result_type=ResultType.REVIEW_FINDING,
+        created_time=at or BASE,
+        lane_id=lane,
+        plugin_id=f"provider.{lane}",
+        plugin_version="1.0",
+        analytic_version="1.0",
+        governance_version="gov-1",
+        entity_reference=f"entity-{suffix}",
+        taxonomy=("Network", "Evidence", suffix),
         status_snapshot=ResultStatusSnapshot(
             ScientificStatus.EVIDENCE_CONSTRUCTION,
-            IntegrationStatus.BASELINE_IMPLEMENTED, "gov-1",
-            EvidenceReadiness.READY, False,
+            IntegrationStatus.BASELINE_IMPLEMENTED,
+            "gov-1",
+            EvidenceReadiness.READY,
+            False,
         ),
-        claim_ceiling="FACTUAL_EVIDENCE_ONLY", evidence_items=(f"item-{suffix}",),
-        missing_prerequisites=(), governing_ids=("decision-1",),
-        quality_refs=("quality-1",), provenance_refs=("fixture:bounded",),
+        claim_ceiling="FACTUAL_EVIDENCE_ONLY",
+        evidence_items=(f"item-{suffix}",),
+        missing_prerequisites=(),
+        governing_ids=("decision-1",),
+        quality_refs=("quality-1",),
+        provenance_refs=("fixture:bounded",),
         mechanism_id=mechanism,
         evidence=EvidencePayload.from_value({"measurement": suffix}),
-        source_observation_ids=(f"observation-{suffix}",), source_ids=(source,),
-        quality_snapshot=EvidenceQuality(), visibility_snapshot=VisibilityProfile(),
-        state_version=1, config_hash="config-1", parser_refs=("parser-1",),
+        source_observation_ids=(f"observation-{suffix}",),
+        source_ids=(source,),
+        quality_snapshot=EvidenceQuality(),
+        visibility_snapshot=VisibilityProfile(),
+        state_version=1,
+        config_hash="config-1",
+        parser_refs=("parser-1",),
         model_refs=(),
     )
     return dataclasses.replace(result, result_id=result_id_for(result))
@@ -58,7 +82,8 @@ async def client_for(database: Path, **kwargs):
     app = create_app(database, **kwargs)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test",
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
         ) as client:
             yield client, app.state.service
 
@@ -67,35 +92,65 @@ async def client_for(database: Path, **kwargs):
 async def test_empty_database_health_runtime_and_openapi(tmp_path):
     async with client_for(tmp_path / "empty.db") as (client, _service):
         assert (await client.get("/health")).json() == {
-            "status": "ok", "database": "connected",
+            "status": "ok",
+            "database": "connected",
         }
         assert (await client.get("/results")).json() == {
-            "results": [], "next_cursor": None, "sync_cursor": None,
+            "results": [],
+            "next_cursor": None,
+            "sync_cursor": None,
         }
         runtime = (await client.get("/runtime")).json()
         assert runtime["default_target_count"] == 16
         assert runtime["database_status"] == "connected"
         assert runtime["active_lane_ids"] == [
-            "ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim",
-            "ddos.source_diversity", "ddos.icmp_demand", "ddos.fragment_demand",
-            "ddos.connection_churn", "c2.r1", "dga.m1",
-            "dns_tunnelling.t1", "encrypted_session.enc_a", "recon.h",
-            "recon.v", "recon.2d", "recon.tcp", "unusual_transfer.m1",
+            "ddos.syn_state",
+            "ddos.udp_demand",
+            "ddos.reflection_victim",
+            "ddos.source_diversity",
+            "ddos.icmp_demand",
+            "ddos.fragment_demand",
+            "ddos.connection_churn",
+            "c2.r1",
+            "dga.m1",
+            "dns_tunnelling.t1",
+            "encrypted_session.enc_a",
+            "recon.h",
+            "recon.v",
+            "recon.2d",
+            "recon.tcp",
+            "unusual_transfer.m1",
         ]
         assert runtime["alert_policy_active"] is True
         assert runtime["alert_policy_version"] == "SIH_ALERT_POLICY_V1"
         dga = next(item for item in runtime["targets"] if item["lane_id"] == "dga.m1")
         assert dga == {
-            "lane_id": "dga.m1", "mechanism_id": "DGA-A1-M1",
+            "lane_id": "dga.m1",
+            "mechanism_id": "DGA-A1-M1",
             "implementation": "ACTIVE_LEXICAL_MODEL_LANE",
         }
         dga_family = next(item for item in runtime["family_status"] if item["family"] == "DGA")
         if runtime["dga_model_readiness"] == "VERIFIED_READY":
             assert dga_family["status"] == "ACTIVE M1 LEXICAL MODEL EVIDENCE"
         else:
-            assert dga_family["status"].startswith("ACTIVE LANE") and "MODEL UNAVAILABLE" in dga_family["status"]
+            assert (
+                dga_family["status"].startswith("ACTIVE LANE")
+                and "MODEL UNAVAILABLE" in dga_family["status"]
+            )
         schema = (await client.get("/openapi.json")).json()
-        assert {"/health", "/results", "/results/{result_id}", "/alerts", "/family-evidence", "/investigations", "/events", "/replay", "/replay/status", "/runtime", "/runtime/trace"} <= set(schema["paths"])
+        assert {
+            "/health",
+            "/results",
+            "/results/{result_id}",
+            "/alerts",
+            "/family-evidence",
+            "/investigations",
+            "/events",
+            "/replay",
+            "/replay/status",
+            "/runtime",
+            "/runtime/trace",
+        } <= set(schema["paths"])
         dashboard = await client.get("/")
         assert dashboard.status_code == 200
         assert '<div id="root"></div>' in dashboard.text
@@ -140,30 +195,55 @@ async def test_results_serialization_pagination_filters_and_sync_cursor(tmp_path
     async with client_for(tmp_path / "query.db") as (client, service):
         values = (
             make_result("one", at=BASE, source="source-a"),
-            make_result("two", at=BASE + timedelta(seconds=1), lane="c2.r1", mechanism="C2-M1", source="source-b"),
+            make_result(
+                "two",
+                at=BASE + timedelta(seconds=1),
+                lane="c2.r1",
+                mechanism="C2-M1",
+                source="source-b",
+            ),
             make_result("three", at=BASE + timedelta(seconds=2), source="source-a"),
         )
         for value in values:
             await service.persist_and_publish(value)
 
         first = (await client.get("/results", params={"limit": 2})).json()
-        assert [item["result_id"] for item in first["results"]] == [values[2].result_id, values[1].result_id]
+        assert [item["result_id"] for item in first["results"]] == [
+            values[2].result_id,
+            values[1].result_id,
+        ]
         assert first["next_cursor"] and first["sync_cursor"].startswith("after.")
-        second = (await client.get("/results", params={"limit": 2, "cursor": first["next_cursor"]})).json()
+        second = (
+            await client.get("/results", params={"limit": 2, "cursor": first["next_cursor"]})
+        ).json()
         assert [item["result_id"] for item in second["results"]] == [values[0].result_id]
 
         by_lane = (await client.get("/results", params={"lane": "c2.r1"})).json()["results"]
         assert [item["result_id"] for item in by_lane] == [values[1].result_id]
-        by_mechanism = (await client.get("/results", params={"mechanism_id": "DNS-T1"})).json()["results"]
-        assert {item["result_id"] for item in by_mechanism} == {values[0].result_id, values[2].result_id}
-        by_source = (await client.get("/results", params={"source_id": "source-b"})).json()["results"]
+        by_mechanism = (await client.get("/results", params={"mechanism_id": "DNS-T1"})).json()[
+            "results"
+        ]
+        assert {item["result_id"] for item in by_mechanism} == {
+            values[0].result_id,
+            values[2].result_id,
+        }
+        by_source = (await client.get("/results", params={"source_id": "source-b"})).json()[
+            "results"
+        ]
         assert [item["result_id"] for item in by_source] == [values[1].result_id]
-        by_type = (await client.get("/results", params={"result_type": "REVIEW_FINDING"})).json()["results"]
+        by_type = (await client.get("/results", params={"result_type": "REVIEW_FINDING"})).json()[
+            "results"
+        ]
         assert len(by_type) == 3
-        by_time = (await client.get("/results", params={
-            "created-after": (BASE + timedelta(milliseconds=500)).isoformat(),
-            "created-before": (BASE + timedelta(seconds=1, milliseconds=500)).isoformat(),
-        })).json()["results"]
+        by_time = (
+            await client.get(
+                "/results",
+                params={
+                    "created-after": (BASE + timedelta(milliseconds=500)).isoformat(),
+                    "created-before": (BASE + timedelta(seconds=1, milliseconds=500)).isoformat(),
+                },
+            )
+        ).json()["results"]
         assert [item["result_id"] for item in by_time] == [values[1].result_id]
 
         body = first["results"][0]
@@ -171,7 +251,9 @@ async def test_results_serialization_pagination_filters_and_sync_cursor(tmp_path
         assert body["source_observation_ids"] == ["observation-three"]
         assert body["provenance_refs"] == ["fixture:bounded"]
         assert "confidence" not in body and "severity" not in body
-        assert (await client.get(f"/results/{values[0].result_id}")).json()["result_id"] == values[0].result_id
+        assert (await client.get(f"/results/{values[0].result_id}")).json()["result_id"] == values[
+            0
+        ].result_id
 
         newer = make_result("four", at=BASE + timedelta(seconds=3))
         middle = make_result("five", at=BASE + timedelta(seconds=4))
@@ -179,14 +261,29 @@ async def test_results_serialization_pagination_filters_and_sync_cursor(tmp_path
         await service.persist_and_publish(newer)
         await service.persist_and_publish(middle)
         await service.persist_and_publish(newest)
-        continuation = (await client.get("/results", params={
-            "cursor": first["sync_cursor"], "limit": 2,
-        })).json()
-        assert [item["result_id"] for item in continuation["results"]] == [newer.result_id, middle.result_id]
+        continuation = (
+            await client.get(
+                "/results",
+                params={
+                    "cursor": first["sync_cursor"],
+                    "limit": 2,
+                },
+            )
+        ).json()
+        assert [item["result_id"] for item in continuation["results"]] == [
+            newer.result_id,
+            middle.result_id,
+        ]
         assert continuation["next_cursor"] is not None
-        final_page = (await client.get("/results", params={
-            "cursor": continuation["next_cursor"], "limit": 2,
-        })).json()
+        final_page = (
+            await client.get(
+                "/results",
+                params={
+                    "cursor": continuation["next_cursor"],
+                    "limit": 2,
+                },
+            )
+        ).json()
         assert [item["result_id"] for item in final_page["results"]] == [newest.result_id]
         assert final_page["next_cursor"] is None
         assert final_page["sync_cursor"].startswith("after.")
@@ -196,8 +293,11 @@ async def test_results_serialization_pagination_filters_and_sync_cursor(tmp_path
 async def test_results_validation_is_typed_and_bounded(tmp_path):
     async with client_for(tmp_path / "errors.db") as (client, _service):
         for params in (
-            {"cursor": "not-a-cursor"}, {"limit": 0}, {"limit": 501},
-            {"lane": "not.registered"}, {"result_type": "NOT_A_RESULT"},
+            {"cursor": "not-a-cursor"},
+            {"limit": 0},
+            {"limit": 501},
+            {"lane": "not.registered"},
+            {"result_type": "NOT_A_RESULT"},
             {"created-after": "not-a-time"},
         ):
             response = await client.get("/results", params=params)
@@ -275,15 +375,28 @@ async def test_slow_client_gap_does_not_affect_sqlite_and_rest_resync(tmp_path):
 @pytest.mark.asyncio
 async def test_allowlist_rejects_paths_and_mixed_replay_is_zero_to_many(tmp_path):
     async with client_for(tmp_path / "mixed.db") as (client, service):
-        arbitrary = await client.post("/replay", json={"scenario": "C:/private/capture", "speed": 0})
+        arbitrary = await client.post(
+            "/replay", json={"scenario": "C:/private/capture", "speed": 0}
+        )
         assert arbitrary.status_code == 422
-        extra_path = await client.post("/replay", json={
-            "scenario": "mixed_ddos_recon", "speed": 0, "path": "C:/private/capture",
-        })
+        extra_path = await client.post(
+            "/replay",
+            json={
+                "scenario": "mixed_ddos_recon",
+                "speed": 0,
+                "path": "C:/private/capture",
+            },
+        )
         assert extra_path.status_code == 422
-        assert (await client.post("/replay", json={
-            "scenario": "mixed_ddos_recon", "speed": -1,
-        })).status_code == 422
+        assert (
+            await client.post(
+                "/replay",
+                json={
+                    "scenario": "mixed_ddos_recon",
+                    "speed": -1,
+                },
+            )
+        ).status_code == 422
 
         subscription = service.broadcaster.subscribe()
         started = await client.post("/replay", json={"scenario": "mixed_ddos_recon", "speed": 0})
@@ -302,17 +415,21 @@ async def test_allowlist_rejects_paths_and_mixed_replay_is_zero_to_many(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_dga_demo_runs_real_model_persists_rest_and_publishes(tmp_path, monkeypatch):
+async def test_dga_demo_persists_verified_or_unavailable_model_contract(tmp_path, monkeypatch):
     model = Path("artifacts/dga/local/DGA_M1_R1_SERIALIZED_MODEL.joblib").resolve()
     monkeypatch.setenv("EVIDENCEGATE_DGA_MODEL", str(model))
     async with client_for(tmp_path / "dga-demo.db") as (client, service):
         runtime = (await client.get("/runtime")).json()
-        assert runtime["dga_model_readiness"] == "VERIFIED_READY"
+        expected_readiness = "VERIFIED_READY" if model.is_file() else "ARTIFACT_MISSING"
+        assert runtime["dga_model_readiness"] == expected_readiness
         dga_family = next(item for item in runtime["family_status"] if item["family"] == "DGA")
         if runtime["dga_model_readiness"] == "VERIFIED_READY":
             assert dga_family["status"] == "ACTIVE M1 LEXICAL MODEL EVIDENCE"
         else:
-            assert dga_family["status"].startswith("ACTIVE LANE") and "MODEL UNAVAILABLE" in dga_family["status"]
+            assert (
+                dga_family["status"].startswith("ACTIVE LANE")
+                and "MODEL UNAVAILABLE" in dga_family["status"]
+            )
         subscription = service.broadcaster.subscribe()
         response = await client.post("/replay", json={"scenario": "dga_lexical", "speed": 0})
         assert response.status_code == 202
@@ -324,15 +441,40 @@ async def test_dga_demo_runs_real_model_persists_rest_and_publishes(tmp_path, mo
         dga = next(item for item in results if item["mechanism_id"] == "DGA-A1-M1")
         dga_results = [item for item in results if item["mechanism_id"] == "DGA-A1-M1"]
         assert len(dga_results) == 6
-        recorded = json.loads(Path("evidencegate/demo_data/dga_dns_v2/model_measurements.json").read_text(encoding="utf-8"))
-        expected_by_input = {row["model_input_domain"]: row["dga_labelled_lexical_resemblance_score"] for row in recorded["rows"]}
-        actual_by_input = {item["evidence"]["representation"]["model_input"]: item["evidence"]["dga_labelled_lexical_resemblance_score"] for item in dga_results}
+        if not model.is_file():
+            assert all(item["result_type"] == "ANALYTIC_UNAVAILABLE" for item in dga_results)
+            assert all(
+                "dga_labelled_lexical_resemblance_score" not in item["evidence"]
+                for item in dga_results
+            )
+            return
+        recorded = json.loads(
+            Path("evidencegate/demo_data/dga_dns_v2/model_measurements.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        expected_by_input = {
+            row["model_input_domain"]: row["dga_labelled_lexical_resemblance_score"]
+            for row in recorded["rows"]
+        }
+        actual_by_input = {
+            item["evidence"]["representation"]["model_input"]: item["evidence"][
+                "dga_labelled_lexical_resemblance_score"
+            ]
+            for item in dga_results
+        }
         assert actual_by_input == expected_by_input
         assert dga["result_type"] == "REVIEW_FINDING"
         assert isinstance(dga["evidence"]["dga_labelled_lexical_resemblance_score"], float)
         assert "C3-DEC-DGA-M1-R1-PROMOTION-V1" in dga["governing_ids"]
-        assert "sha256:39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df" in dga["model_refs"]
-        assert all("drive:" not in ref.lower() and "drive.google.com" not in ref.lower() for ref in dga["model_refs"])
+        assert (
+            "sha256:39da209d2cfd869dd284e10b8a07adc04826c95146712cc6854a69b9873890df"
+            in dga["model_refs"]
+        )
+        assert all(
+            "drive:" not in ref.lower() and "drive.google.com" not in ref.lower()
+            for ref in dga["model_refs"]
+        )
         assert dga["config_hash"] and dga["source_observation_ids"]
         assert dga["visibility_snapshot"]["available"]
         assert dga["quality_snapshot"]["parser"] == "CLEAR"
@@ -362,6 +504,7 @@ async def test_only_one_replay_runs_and_runtime_reports_replaying(tmp_path):
 )
 async def test_family_replays_display_real_results(tmp_path, scenario, family, mechanism):
     import os
+
     previous = os.environ.get("EVIDENCEGATE_DEV_SCENARIOS")
     os.environ["EVIDENCEGATE_DEV_SCENARIOS"] = "1"
     try:
@@ -370,17 +513,28 @@ async def test_family_replays_display_real_results(tmp_path, scenario, family, m
             assert response.status_code == 202
             status = await service.wait_for_replay()
             assert status.state == "COMPLETED" and status.results_persisted > 0
-            results = (await client.get("/results", params={"mechanism_id": mechanism})).json()["results"]
+            results = (await client.get("/results", params={"mechanism_id": mechanism})).json()[
+                "results"
+            ]
             assert results and {item["family"] for item in results} == {family}
             assert {item["mechanism_id"] for item in results} == {mechanism}
             if scenario == "c2_recurrence":
                 assert {item["result_type"] for item in results} == {
-                    "INSUFFICIENT_EVIDENCE", "REVIEW_FINDING",
+                    "INSUFFICIENT_EVIDENCE",
+                    "REVIEW_FINDING",
                 }
-                filtered = (await client.get("/results", params={
-                    "mechanism_id": mechanism, "result_type": "INSUFFICIENT_EVIDENCE",
-                })).json()["results"]
-                assert filtered and {item["result_type"] for item in filtered} == {"INSUFFICIENT_EVIDENCE"}
+                filtered = (
+                    await client.get(
+                        "/results",
+                        params={
+                            "mechanism_id": mechanism,
+                            "result_type": "INSUFFICIENT_EVIDENCE",
+                        },
+                    )
+                ).json()["results"]
+                assert filtered and {item["result_type"] for item in filtered} == {
+                    "INSUFFICIENT_EVIDENCE"
+                }
     finally:
         if previous is None:
             os.environ.pop("EVIDENCEGATE_DEV_SCENARIOS", None)

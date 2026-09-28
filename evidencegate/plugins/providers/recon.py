@@ -3,6 +3,7 @@
 These mechanisms describe captured activity only. They do not infer intent,
 authorization, actor identity, compromise, or a family-level score.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,15 +13,27 @@ from typing import Any, Sequence
 
 from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.domain.enums import (
-    AnalyticFamily, AvailabilityBasis, EvidenceReadiness, Finality, GapAction,
-    IntegrationStatus, ObservationType, OfficialPsCategory, QualityState,
-    ResultType, VisibilityCapability, WireDirection,
+    AnalyticFamily,
+    AvailabilityBasis,
+    EvidenceReadiness,
+    Finality,
+    GapAction,
+    IntegrationStatus,
+    ObservationType,
+    OfficialPsCategory,
+    QualityState,
+    ResultType,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.quality import QualityGap
 from evidencegate.registry.manifest import PluginManifest, StateResourcePolicy
 from evidencegate.registry.plugin import (
-    PluginProcessOutcome, PluginStateSnapshot, StateKey, StateTransitionRequest,
+    PluginProcessOutcome,
+    PluginStateSnapshot,
+    StateKey,
+    StateTransitionRequest,
 )
 from evidencegate.results.types import ResultDraft
 from evidencegate.runtime.state_contract import StateOperation
@@ -38,9 +51,17 @@ CLAIM_CEILING = (
 )
 
 HARD_NEGATIVE_ALTERNATIVES = (
-    "service discovery", "monitoring", "health checks", "asset inventory",
-    "load balancers", "software deployment", "legitimate multi-service clients",
-    "retry storms", "distributed administration", "NAT", "CDN behavior",
+    "service discovery",
+    "monitoring",
+    "health checks",
+    "asset inventory",
+    "load balancers",
+    "software deployment",
+    "legitimate multi-service clients",
+    "retry storms",
+    "distributed administration",
+    "NAT",
+    "CDN behavior",
     "authorized vulnerability scanning",
 )
 
@@ -90,8 +111,10 @@ class ReconTcpState:
 def _quality_states(observation: NetworkObservation) -> tuple[str, str, str, str]:
     quality = observation.quality
     return (
-        quality.packet_loss.value, quality.sampling.value,
-        quality.parser.value, quality.capture_gap.value,
+        quality.packet_loss.value,
+        quality.sampling.value,
+        quality.parser.value,
+        quality.capture_gap.value,
     )
 
 
@@ -103,12 +126,8 @@ def _quality_evidence(events: tuple[ReconAttemptEvent, ...]) -> dict[str, object
     }
     return {
         "states_observed": states,
-        "degraded": any(
-            QualityState.DEGRADED.value in values for values in states.values()
-        ),
-        "unknown_present": any(
-            QualityState.UNKNOWN.value in values for values in states.values()
-        ),
+        "degraded": any(QualityState.DEGRADED.value in values for values in states.values()),
+        "unknown_present": any(QualityState.UNKNOWN.value in values for values in states.values()),
         "count_interpretation": "OBSERVED_LOWER_BOUND",
     }
 
@@ -120,7 +139,10 @@ class _ReconPluginBase:
     state_key_declaration: str
 
     def __init__(
-        self, config: ReconConfig, *, max_state_entries: int,
+        self,
+        config: ReconConfig,
+        *,
+        max_state_entries: int,
         governing_decision_ids: tuple[str, ...] = (),
     ) -> None:
         if not isinstance(config, ReconConfig):
@@ -131,7 +153,8 @@ class _ReconPluginBase:
             raise ValueError("max_state_entries must be greater than zero")
         self.config = config
         self._manifest = PluginManifest(
-            plugin_id=self.plugin_id, plugin_version="0.1.0",
+            plugin_id=self.plugin_id,
+            plugin_version="0.1.0",
             analytic_version="recon-measurement-0.1.0",
             taxonomy=("Network", "Reconnaissance", self.taxonomy_leaf),
             accepted_observation_types=(ObservationType.PACKET,),
@@ -143,28 +166,36 @@ class _ReconPluginBase:
                 "explicit TCP protocol fact in the canonical packet field",
             ),
             required_fields=(
-                "protocol", "src_address", "dst_address", "src_port", "dst_port", "flags",
+                "protocol",
+                "src_address",
+                "dst_address",
+                "src_port",
+                "dst_port",
+                "flags",
             ),
             required_observation_contracts=(),
             required_visibility_capabilities=frozenset({VisibilityCapability.PACKET_FACTS}),
-            required_quality=(), allowed_finality=tuple(Finality),
+            required_quality=(),
+            allowed_finality=tuple(Finality),
             allowed_availability_basis=tuple(AvailabilityBasis),
             state_key_declaration=self.state_key_declaration,
             scientific_history_duration=(
-                "configured bounded horizons: "
-                + ",".join(str(item) for item in config.horizons)
+                "configured bounded horizons: " + ",".join(str(item) for item in config.horizons)
             ),
             resource_retention_duration=str(config.state_ttl),
             gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
             allowed_result_types=(
-                ResultType.REVIEW_FINDING, ResultType.INSUFFICIENT_EVIDENCE,
+                ResultType.REVIEW_FINDING,
+                ResultType.INSUFFICIENT_EVIDENCE,
                 ResultType.QUALITY_DEGRADED,
             ),
             integration_status=IntegrationStatus.BASELINE_IMPLEMENTED,
-            profiling_hooks_enabled=False, governing_claim_ids=(),
+            profiling_hooks_enabled=False,
+            governing_claim_ids=(),
             governing_decision_ids=governing_decision_ids,
             official_ps_category=OfficialPsCategory.RECONNAISSANCE_AND_PORT_SCANNING,
-            analytic_family=AnalyticFamily.RECON, mechanism_id=self.mechanism_id,
+            analytic_family=AnalyticFamily.RECON,
+            mechanism_id=self.mechanism_id,
             state_resource_policy=StateResourcePolicy(
                 max_entries=max_state_entries, max_ttl=config.state_ttl
             ),
@@ -193,7 +224,12 @@ class _ReconPluginBase:
         if observation.observation_type is not ObservationType.PACKET:
             return None
         required = {
-            "protocol", "src_address", "dst_address", "src_port", "dst_port", "flags",
+            "protocol",
+            "src_address",
+            "dst_address",
+            "src_port",
+            "dst_port",
+            "flags",
         }
         if not required.issubset(observation.present_fields):
             return None
@@ -230,7 +266,8 @@ class _ReconPluginBase:
         flags = self._flag_set(observation)
         return (
             observation.wire_direction is WireDirection.FORWARD
-            and "SYN" in flags and "ACK" not in flags
+            and "SYN" in flags
+            and "ACK" not in flags
         )
 
     async def on_quality_gap(
@@ -238,9 +275,7 @@ class _ReconPluginBase:
     ) -> Sequence[ResultDraft]:
         return ()
 
-    async def on_watermark(
-        self, watermark: datetime, context: Any
-    ) -> PluginProcessOutcome:
+    async def on_watermark(self, watermark: datetime, context: Any) -> PluginProcessOutcome:
         return PluginProcessOutcome()
 
     async def on_expire(
@@ -253,9 +288,7 @@ class _ReconBreadthPlugin(_ReconPluginBase):
     def route(self, observation: NetworkObservation) -> bool:
         return self._is_forward_attempt(observation)
 
-    def _key_parts(
-        self, scope: tuple[str, str, int, int, str]
-    ) -> tuple[object, ...]:
+    def _key_parts(self, scope: tuple[str, str, int, int, str]) -> tuple[object, ...]:
         raise NotImplementedError
 
     def state_key(self, observation: NetworkObservation) -> StateKey | None:
@@ -264,15 +297,17 @@ class _ReconBreadthPlugin(_ReconPluginBase):
         scope = self._packet_scope(observation)
         if scope is None:
             return None
-        return StateKey(json.dumps(
-            self._key_parts(scope), ensure_ascii=False, separators=(",", ":")
-        ))
+        return StateKey(
+            json.dumps(self._key_parts(scope), ensure_ascii=False, separators=(",", ":"))
+        )
 
     def _measurement(self, events: tuple[ReconAttemptEvent, ...]) -> dict[str, int]:
         raise NotImplementedError
 
     async def process(
-        self, observation: NetworkObservation, context: Any,
+        self,
+        observation: NetworkObservation,
+        context: Any,
         state: PluginStateSnapshot | None,
     ) -> PluginProcessOutcome:
         key, scope = self.state_key(observation), self._packet_scope(observation)
@@ -285,7 +320,10 @@ class _ReconBreadthPlugin(_ReconPluginBase):
         prior = () if state is None else state.payload.events
         prior_dropped = 0 if state is None else state.payload.capacity_dropped_event_count
         current = ReconAttemptEvent(
-            observation.event_time, observation.observation_id, scope[1], scope[3],
+            observation.event_time,
+            observation.observation_id,
+            scope[1],
+            scope[3],
             _quality_states(observation),
         )
         oldest = observation.event_time - self.config.horizons[-1]
@@ -299,17 +337,24 @@ class _ReconBreadthPlugin(_ReconPluginBase):
         for horizon in self.config.horizons:
             boundary = observation.event_time - horizon
             events = tuple(event for event in retained if event.event_time >= boundary)
-            horizons.append({
-                "horizon_seconds": horizon.total_seconds(), **self._measurement(events),
-            })
+            horizons.append(
+                {
+                    "horizon_seconds": horizon.total_seconds(),
+                    **self._measurement(events),
+                }
+            )
         draft = ResultDraft(
-            ResultType.REVIEW_FINDING, entity_reference=str(key), evidence_items=(),
+            ResultType.REVIEW_FINDING,
+            entity_reference=str(key),
+            evidence_items=(),
             missing_prerequisites=(),
             evidence_interval=(retained[0].event_time, retained[-1].event_time),
             evidence={
                 "evidence_kind": "OBSERVED_TCP_SCAN_ACTIVITY_MEASUREMENT",
-                "mechanism": self.mechanism_id, "protocol": scope[4],
-                "configured_horizons": horizons, "measurements": horizons[-1],
+                "mechanism": self.mechanism_id,
+                "protocol": scope[4],
+                "configured_horizons": horizons,
+                "measurements": horizons[-1],
                 "quality": _quality_evidence(retained),
                 "state_capacity": {
                     "retained_event_count": len(retained),
@@ -321,18 +366,18 @@ class _ReconBreadthPlugin(_ReconPluginBase):
                 "hard_negative_alternatives": HARD_NEGATIVE_ALTERNATIVES,
             },
             source_observation_ids=tuple(
-                event.observation_id for event in retained
+                event.observation_id
+                for event in retained
                 if event.observation_id != observation.observation_id
             ),
         )
         return PluginProcessOutcome(
             result_drafts=(draft,),
             state_transition=StateTransitionRequest(
-                key=key, expected_version=None if state is None else state.version,
+                key=key,
+                expected_version=None if state is None else state.version,
                 operation=StateOperation.UPSERT,
-                payload=ReconBreadthState(
-                    retained, self.config.canonical_hash, dropped
-                ),
+                payload=ReconBreadthState(retained, self.config.canonical_hash, dropped),
                 ttl=self.config.state_ttl,
             ),
             evaluation_readiness=EvaluationReadinessDecision(EvidenceReadiness.READY, None),
@@ -341,6 +386,7 @@ class _ReconBreadthPlugin(_ReconPluginBase):
 
 class ReconHPlugin(_ReconBreadthPlugin):
     """RECON-H: horizontal target-host breadth per initiator/service/protocol."""
+
     plugin_id, mechanism_id = "provider.recon.h", "RECON-H"
     taxonomy_leaf = "Horizontal Host Breadth"
     state_key_declaration = "trusted initiator x target service x protocol"
@@ -349,11 +395,15 @@ class ReconHPlugin(_ReconBreadthPlugin):
         return scope[0], scope[3], scope[4]
 
     def _measurement(self, events: tuple[ReconAttemptEvent, ...]) -> dict[str, int]:
-        return {"distinct_hosts": len({e.target_host for e in events}), "attempt_count": len(events)}
+        return {
+            "distinct_hosts": len({e.target_host for e in events}),
+            "attempt_count": len(events),
+        }
 
 
 class ReconVPlugin(_ReconBreadthPlugin):
     """RECON-V: vertical target-port breadth per initiator/target/protocol."""
+
     plugin_id, mechanism_id = "provider.recon.v", "RECON-V"
     taxonomy_leaf = "Vertical Port Breadth"
     state_key_declaration = "trusted initiator x trusted target x protocol"
@@ -362,11 +412,15 @@ class ReconVPlugin(_ReconBreadthPlugin):
         return scope[0], scope[1], scope[4]
 
     def _measurement(self, events: tuple[ReconAttemptEvent, ...]) -> dict[str, int]:
-        return {"distinct_ports": len({e.target_port for e in events}), "attempt_count": len(events)}
+        return {
+            "distinct_ports": len({e.target_port for e in events}),
+            "attempt_count": len(events),
+        }
 
 
 class Recon2DPlugin(_ReconBreadthPlugin):
     """RECON-2D: independent host-by-port exploration geometry."""
+
     plugin_id, mechanism_id = "provider.recon.2d", "RECON-2D"
     taxonomy_leaf = "Host Port Geometry"
     state_key_declaration = "trusted initiator x protocol"
@@ -385,6 +439,7 @@ class Recon2DPlugin(_ReconBreadthPlugin):
 
 class ReconTcpPlugin(_ReconPluginBase):
     """RECON-TCP: captured TCP attempt/response facts without port-state claims."""
+
     plugin_id, mechanism_id = "provider.recon.tcp", "RECON-TCP"
     taxonomy_leaf = "TCP Activity Evidence"
     state_key_declaration = (
@@ -416,7 +471,9 @@ class ReconTcpPlugin(_ReconPluginBase):
         return StateKey(json.dumps(scope, ensure_ascii=False, separators=(",", ":")))
 
     async def process(
-        self, observation: NetworkObservation, context: Any,
+        self,
+        observation: NetworkObservation,
+        context: Any,
         state: PluginStateSnapshot | None,
     ) -> PluginProcessOutcome:
         key, fact = self.state_key(observation), self._fact(observation)
@@ -430,7 +487,8 @@ class ReconTcpPlugin(_ReconPluginBase):
         has_attempt = any(item.fact == "INITIATING_SYN_OBSERVED" for item in prior)
         if not has_attempt and fact != "INITIATING_SYN_OBSERVED":
             draft = ResultDraft(
-                ResultType.INSUFFICIENT_EVIDENCE, entity_reference=str(key),
+                ResultType.INSUFFICIENT_EVIDENCE,
+                entity_reference=str(key),
                 evidence_items=(),
                 missing_prerequisites=("prior captured initiating SYN",),
                 evidence={
@@ -447,18 +505,26 @@ class ReconTcpPlugin(_ReconPluginBase):
                 ),
             )
         current = ReconTcpEvent(observation.event_time, observation.observation_id, fact)
-        retained = tuple(sorted(prior + (current,), key=lambda item: (item.event_time, item.observation_id)))
+        retained = tuple(
+            sorted(prior + (current,), key=lambda item: (item.event_time, item.observation_id))
+        )
         overflow = max(0, len(retained) - self.config.max_events_per_key)
         if overflow:
             retained = retained[overflow:]
         dropped = (0 if state is None else state.payload.capacity_dropped_event_count) + overflow
         facts = tuple(item.fact for item in retained)
-        first_syn_ack = next((i for i, value in enumerate(facts) if value == "SYN_ACK_RESPONSE_OBSERVED"), None)
-        ack_count = 0 if first_syn_ack is None else sum(
-            value == "FORWARD_ACK_OBSERVED" for value in facts[first_syn_ack + 1:]
+        first_syn_ack = next(
+            (i for i, value in enumerate(facts) if value == "SYN_ACK_RESPONSE_OBSERVED"), None
+        )
+        ack_count = (
+            0
+            if first_syn_ack is None
+            else sum(value == "FORWARD_ACK_OBSERVED" for value in facts[first_syn_ack + 1 :])
         )
         draft = ResultDraft(
-            ResultType.REVIEW_FINDING, entity_reference=str(key), evidence_items=(),
+            ResultType.REVIEW_FINDING,
+            entity_reference=str(key),
+            evidence_items=(),
             missing_prerequisites=(),
             evidence_interval=(retained[0].event_time, retained[-1].event_time),
             evidence={
@@ -484,14 +550,16 @@ class ReconTcpPlugin(_ReconPluginBase):
                 "hard_negative_alternatives": HARD_NEGATIVE_ALTERNATIVES,
             },
             source_observation_ids=tuple(
-                item.observation_id for item in retained
+                item.observation_id
+                for item in retained
                 if item.observation_id != observation.observation_id
             ),
         )
         return PluginProcessOutcome(
             result_drafts=(draft,),
             state_transition=StateTransitionRequest(
-                key=key, expected_version=None if state is None else state.version,
+                key=key,
+                expected_version=None if state is None else state.version,
                 operation=StateOperation.UPSERT,
                 payload=ReconTcpState(retained, self.config.canonical_hash, dropped),
                 ttl=self.config.state_ttl,

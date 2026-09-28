@@ -14,17 +14,26 @@ export function checkReleaseCompatibility(
   alreadyAttempted: boolean,
   currentUrl: string,
 ): ReleaseCheck {
-  const developmentRelease = frontendRelease === "dev" || backendRelease === "dev";
-  const releaseMismatch = !developmentRelease && Boolean(frontendRelease && backendRelease && frontendRelease !== backendRelease);
+  const developmentRelease =
+    frontendRelease === "dev" || backendRelease === "dev";
+  const releaseMismatch =
+    !developmentRelease &&
+    Boolean(
+      frontendRelease && backendRelease && frontendRelease !== backendRelease,
+    );
   if (releaseMismatch && !alreadyAttempted) {
     const url = new URL(currentUrl);
     url.searchParams.set("eg_release", backendRelease);
     return { state: "reload", url: url.toString() };
   }
-  if (backendApiContract && backendApiContract !== EXPECTED_API_CONTRACT_VERSION) {
+  if (
+    backendApiContract &&
+    backendApiContract !== EXPECTED_API_CONTRACT_VERSION
+  ) {
     return { state: "incompatible" };
   }
-  return !developmentRelease && (releaseMismatch || !frontendRelease || !backendRelease)
+  return !developmentRelease &&
+    (releaseMismatch || !frontendRelease || !backendRelease)
     ? { state: "warning" }
     : { state: "compatible" };
 }

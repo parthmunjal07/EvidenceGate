@@ -47,7 +47,9 @@ export function filterResults(results: ResultDto[], filters: ResultFilters) {
           .join(" ")
           .toLowerCase()
           .includes(term)) &&
-      (!filters.family || normalizeFamilyName(result.family) === normalizeFamilyName(filters.family)) &&
+      (!filters.family ||
+        normalizeFamilyName(result.family) ===
+          normalizeFamilyName(filters.family)) &&
       (!filters.resultType || result.result_type === filters.resultType),
   );
 }

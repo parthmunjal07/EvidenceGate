@@ -13,7 +13,7 @@ def test_package_structure():
     import evidencegate.api
     import evidencegate.metrics
     import evidencegate.ui
-    
+
     # Asserting that the modules are loaded correctly
     assert evidencegate.domain is not None
     assert evidencegate.plugins is not None

@@ -1,146 +1,500 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import App from "./App";
 
-const replay = { state: "IDLE", scenario: null, source_type: null, records_read: 0, observations_emitted: 0, results_persisted: 0, elapsed_wall_seconds: 0, started_at: null, finished_at: null, error: null };
+const replay = {
+  state: "IDLE",
+  scenario: null,
+  source_type: null,
+  records_read: 0,
+  observations_emitted: 0,
+  results_persisted: 0,
+  elapsed_wall_seconds: 0,
+  started_at: null,
+  finished_at: null,
+  error: null,
+};
 const runtime = {
-  release_id: "dev", source_sha: "dev", build_sha: "dev",
-  state: "ONLINE", default_target_count: 16, active_lane_ids: ["ddos.reflection_victim", "dga.m1"],
-  targets: [{ lane_id: "ddos.reflection_victim", mechanism_id: "DDOS-CV-B0", implementation: "ACTIVE_FACTUAL_MECHANISM" }, { lane_id: "dga.m1", mechanism_id: "DGA-A1-M1", implementation: "ACTIVE_LEXICAL_MODEL_LANE" }],
-  family_status: [{ family: "ddos", status: "ACTIVE" }], database_status: "connected", durable_result_count: 1, live_subscriber_count: 0, replay,
-  scenarios: [{ id: "mixed_ddos_recon", label: "DDoS and reconnaissance", family: "DDoS / Reconnaissance", source_type: "NDJSON", asset_version:"mixed_ddos_recon_v2",demo_title:"DDoS + Recon fan-out",demo_purpose:"Controlled packet episode",source_label:"Controlled observations",episode_summary:[],expected_records:12,expected_observations:12,expected_routes:60,expected_results:65,expected_family_views:17,expected_relations:8,expected_zero_route_observations:2,max_trace_events:500 }, { id: "raw_pcap_ddos_recon", label: "Recorded DDoS traffic", family: "DDoS / Reconnaissance", source_type: "PCAP",asset_version:"raw_pcap_ddos_recon_v2",demo_title:"Recorded PCAP",source_label:"Recorded PCAP",episode_summary:[],expected_records:18,expected_observations:18,expected_routes:71,expected_results:58,expected_family_views:15,expected_relations:8,expected_zero_route_observations:5,max_trace_events:500 }, { id: "internal_fixture", label: "Internal fixture", family: "Test", source_type: "NDJSON" }],
-  supported_sources: ["TYPED_NDJSON_REPLAY", "PCAP"], dga_model_readiness: "ARTIFACT_MISSING", dga_model_failure_reason: "ARTIFACT_MISSING", alert_projection_available: true, alert_policy_active: true, alert_policy_version: "SIH_ALERT_POLICY_V1",
+  release_id: "dev",
+  source_sha: "dev",
+  build_sha: "dev",
+  state: "ONLINE",
+  default_target_count: 16,
+  active_lane_ids: ["ddos.reflection_victim", "dga.m1"],
+  targets: [
+    {
+      lane_id: "ddos.reflection_victim",
+      mechanism_id: "DDOS-CV-B0",
+      implementation: "ACTIVE_FACTUAL_MECHANISM",
+    },
+    {
+      lane_id: "dga.m1",
+      mechanism_id: "DGA-A1-M1",
+      implementation: "ACTIVE_LEXICAL_MODEL_LANE",
+    },
+  ],
+  family_status: [{ family: "ddos", status: "ACTIVE" }],
+  database_status: "connected",
+  durable_result_count: 1,
+  live_subscriber_count: 0,
+  replay,
+  scenarios: [
+    {
+      id: "mixed_ddos_recon",
+      label: "DDoS and reconnaissance",
+      family: "DDoS / Reconnaissance",
+      source_type: "NDJSON",
+      asset_version: "mixed_ddos_recon_v2",
+      demo_title: "DDoS + Recon fan-out",
+      demo_purpose: "Controlled packet episode",
+      source_label: "Controlled observations",
+      episode_summary: [],
+      expected_records: 12,
+      expected_observations: 12,
+      expected_routes: 60,
+      expected_results: 65,
+      expected_family_views: 17,
+      expected_relations: 8,
+      expected_zero_route_observations: 2,
+      max_trace_events: 500,
+    },
+    {
+      id: "raw_pcap_ddos_recon",
+      label: "Recorded DDoS traffic",
+      family: "DDoS / Reconnaissance",
+      source_type: "PCAP",
+      asset_version: "raw_pcap_ddos_recon_v2",
+      demo_title: "Recorded PCAP",
+      source_label: "Recorded PCAP",
+      episode_summary: [],
+      expected_records: 18,
+      expected_observations: 18,
+      expected_routes: 71,
+      expected_results: 58,
+      expected_family_views: 15,
+      expected_relations: 8,
+      expected_zero_route_observations: 5,
+      max_trace_events: 500,
+    },
+    {
+      id: "internal_fixture",
+      label: "Internal fixture",
+      family: "Test",
+      source_type: "NDJSON",
+    },
+  ],
+  supported_sources: ["TYPED_NDJSON_REPLAY", "PCAP"],
+  dga_model_readiness: "ARTIFACT_MISSING",
+  dga_model_failure_reason: "ARTIFACT_MISSING",
+  alert_projection_available: true,
+  alert_policy_active: true,
+  alert_policy_version: "SIH_ALERT_POLICY_V1",
 };
 const alert = {
-  alert_id: "alert-1", schema_version: "1", policy_version: "SIH_ALERT_POLICY_V1", timestamp: "2026-09-25T00:00:00Z", entity_or_flow_reference: "192.0.2.10", threat_class: "DOS", mechanism_id: "DDOS-CV-B0", result_type: "REVIEW_FINDING", severity: "REVIEW", confidence_score: null, confidence_basis: "OBSERVED_EVIDENCE", confidence_statement: "Observed evidence",
-  supporting_evidence: { structured: { bytes_c2s_per_second: 409.6 }, evidence_items: [], source_observation_ids: ["obs-1"] }, source_result_ids: ["result-1"], visibility: { available: ["PACKET_FACTS"], unavailable: [], degraded: [] }, quality: { packet_loss: "UNKNOWN", sampling: "UNKNOWN", parser: "UNKNOWN", capture_gap: "UNKNOWN" }, claim_ceiling: "RESPONSE_SHAPED_TRAFFIC_ONLY;NO_AMPLIFICATION_RATIO;NO_SPOOFING_CONFIRMED;NO_DDOS_CONFIRMED;NO_ATTACKER_IDENTITY", model_refs: [], governing_ids: [], provenance_refs: [], quality_refs: [], parser_refs: [],
+  alert_id: "alert-1",
+  schema_version: "1",
+  policy_version: "SIH_ALERT_POLICY_V1",
+  timestamp: "2026-09-25T00:00:00Z",
+  entity_or_flow_reference: "192.0.2.10",
+  threat_class: "DOS",
+  mechanism_id: "DDOS-CV-B0",
+  result_type: "REVIEW_FINDING",
+  severity: "REVIEW",
+  confidence_score: null,
+  confidence_basis: "OBSERVED_EVIDENCE",
+  confidence_statement: "Observed evidence",
+  supporting_evidence: {
+    structured: { bytes_c2s_per_second: 409.6 },
+    evidence_items: [],
+    source_observation_ids: ["obs-1"],
+  },
+  source_result_ids: ["result-1"],
+  visibility: { available: ["PACKET_FACTS"], unavailable: [], degraded: [] },
+  quality: {
+    packet_loss: "UNKNOWN",
+    sampling: "UNKNOWN",
+    parser: "UNKNOWN",
+    capture_gap: "UNKNOWN",
+  },
+  claim_ceiling:
+    "RESPONSE_SHAPED_TRAFFIC_ONLY;NO_AMPLIFICATION_RATIO;NO_SPOOFING_CONFIRMED;NO_DDOS_CONFIRMED;NO_ATTACKER_IDENTITY",
+  model_refs: [],
+  governing_ids: [],
+  provenance_refs: [],
+  quality_refs: [],
+  parser_refs: [],
 };
-const alerts = { policy_version: "SIH_ALERT_POLICY_V1", policy_status: "ACTIVE", meaning_of_alert: "ANALYST_ATTENTION_RECORD", alerts: [alert], status_items: [] };
-const familyView = { family_view_id: "family-1", family: "DDoS", time_start: "2026-09-25T00:00:00Z", time_end: "2026-09-25T00:00:00Z", entity_references: ["192.0.2.10"], source_result_ids: ["result-1"], source_observation_ids: ["obs-1"], findings: [{ source_result_id: "result-1", title: "Reflection-shaped traffic", statements: ["Response-shaped traffic was observed.", "state:provider.ddos.example:[\"192.0.2.10\"]"], result_type: "REVIEW_FINDING" }, { source_result_id: "result-2", title: "Reflection-shaped traffic", statements: ["Initiating TCP attempts were measured."], result_type: "REVIEW_FINDING" }], limitations: ["This evidence does not confirm an attack."], missing_evidence: ["Reverse TCP state was not visible."], visibility_summary: [], quality_summary: ["parser:CLEAR", "parser:UNKNOWN"] };
-const resultDto = { result_id: "result-1", schema_version: "3", result_type: "REVIEW_FINDING", created_time: "2026-09-25T00:00:00Z", lane_id: "ddos.reflection_victim", family: "DDoS", plugin_id: "ddos", plugin_version: "1", analytic_version: "1", governance_version: "1", entity_reference: "192.0.2.10", taxonomy: ["DOS", "DDoS", "evidence"], mechanism_id: "DDOS-CV-B0", status_snapshot: { scientific_status: "EVIDENCE_CONSTRUCTION", integration_status: "BASELINE_IMPLEMENTED", governance_version: "1", readiness: "READY", quality_degraded: false }, claim_ceiling: "RESPONSE_SHAPED_TRAFFIC_ONLY;NO_DDOS_CONFIRMED", evidence: { evidence_kind: "RESPONSE_SHAPED_TRAFFIC" }, evidence_items: [], missing_prerequisites: [], source_observation_ids: ["obs-1"], source_ids: [], quality_snapshot: { packet_loss: "CLEAR", sampling: "CLEAR", parser: "CLEAR", capture_gap: "CLEAR" }, visibility_snapshot: { available: ["PACKET_FACTS"], unavailable: [], degraded: [] }, state_version: null, config_hash: null, parser_refs: [], model_refs: [], governing_ids: [], quality_refs: [], provenance_refs: [], evidence_interval: null, reason_code: null };
+const alerts = {
+  policy_version: "SIH_ALERT_POLICY_V1",
+  policy_status: "ACTIVE",
+  meaning_of_alert: "ANALYST_ATTENTION_RECORD",
+  alerts: [alert],
+  status_items: [],
+};
+const familyView = {
+  family_view_id: "family-1",
+  family: "DDoS",
+  time_start: "2026-09-25T00:00:00Z",
+  time_end: "2026-09-25T00:00:00Z",
+  entity_references: ["192.0.2.10"],
+  source_result_ids: ["result-1"],
+  source_observation_ids: ["obs-1"],
+  findings: [
+    {
+      source_result_id: "result-1",
+      title: "Reflection-shaped traffic",
+      statements: [
+        "Response-shaped traffic was observed.",
+        'state:provider.ddos.example:["192.0.2.10"]',
+      ],
+      result_type: "REVIEW_FINDING",
+    },
+    {
+      source_result_id: "result-2",
+      title: "Reflection-shaped traffic",
+      statements: ["Initiating TCP attempts were measured."],
+      result_type: "REVIEW_FINDING",
+    },
+  ],
+  limitations: ["This evidence does not confirm an attack."],
+  missing_evidence: ["Reverse TCP state was not visible."],
+  visibility_summary: [],
+  quality_summary: ["parser:CLEAR", "parser:UNKNOWN"],
+};
+const resultDto = {
+  result_id: "result-1",
+  schema_version: "3",
+  result_type: "REVIEW_FINDING",
+  created_time: "2026-09-25T00:00:00Z",
+  lane_id: "ddos.reflection_victim",
+  family: "DDoS",
+  plugin_id: "ddos",
+  plugin_version: "1",
+  analytic_version: "1",
+  governance_version: "1",
+  entity_reference: "192.0.2.10",
+  taxonomy: ["DOS", "DDoS", "evidence"],
+  mechanism_id: "DDOS-CV-B0",
+  status_snapshot: {
+    scientific_status: "EVIDENCE_CONSTRUCTION",
+    integration_status: "BASELINE_IMPLEMENTED",
+    governance_version: "1",
+    readiness: "READY",
+    quality_degraded: false,
+  },
+  claim_ceiling: "RESPONSE_SHAPED_TRAFFIC_ONLY;NO_DDOS_CONFIRMED",
+  evidence: { evidence_kind: "RESPONSE_SHAPED_TRAFFIC" },
+  evidence_items: [],
+  missing_prerequisites: [],
+  source_observation_ids: ["obs-1"],
+  source_ids: [],
+  quality_snapshot: {
+    packet_loss: "CLEAR",
+    sampling: "CLEAR",
+    parser: "CLEAR",
+    capture_gap: "CLEAR",
+  },
+  visibility_snapshot: {
+    available: ["PACKET_FACTS"],
+    unavailable: [],
+    degraded: [],
+  },
+  state_version: null,
+  config_hash: null,
+  parser_refs: [],
+  model_refs: [],
+  governing_ids: [],
+  quality_refs: [],
+  provenance_refs: [],
+  evidence_interval: null,
+  reason_code: null,
+};
 class MockEventSource {
   static current: MockEventSource | null = null;
   listeners = new Map<string, (event: Event) => void>();
-  constructor() { MockEventSource.current = this; }
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject) { if (typeof listener === "function") this.listeners.set(type, listener); }
-  emit(type: string, data = "{}") { this.listeners.get(type)?.(new MessageEvent(type, { data })); }
+  constructor() {
+    MockEventSource.current = this;
+  }
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+    if (typeof listener === "function") this.listeners.set(type, listener);
+  }
+  emit(type: string, data = "{}") {
+    this.listeners.get(type)?.(new MessageEvent(type, { data }));
+  }
   close() {}
 }
 function mockBackend(runtimeResponse = runtime) {
   vi.stubGlobal("EventSource", MockEventSource);
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = new URL(String(input), window.location.href);
-    const body = url.pathname === "/health" ? { status: "ok", database: "connected" } : url.pathname === "/runtime" ? runtimeResponse : url.pathname === "/alerts" ? alerts : url.pathname === "/family-evidence" ? { family_views: [familyView] } : url.pathname === "/investigations" ? { family_views: [familyView], links: [] } : url.pathname.startsWith("/replay") ? replay : url.pathname === "/results/result-1" ? resultDto : { results: [resultDto], next_cursor: null, sync_cursor: url.searchParams.get("cursor") ?? "seed" };
-    void init;
-    return { ok: true, status: 200, json: async () => body } as Response;
-  });
-  vi.stubGlobal("fetch", fetchMock); vi.stubGlobal("scrollTo", vi.fn()); return fetchMock;
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), window.location.href);
+      const body =
+        url.pathname === "/health"
+          ? { status: "ok", database: "connected" }
+          : url.pathname === "/runtime"
+            ? runtimeResponse
+            : url.pathname === "/alerts"
+              ? alerts
+              : url.pathname === "/family-evidence"
+                ? { family_views: [familyView] }
+                : url.pathname === "/investigations"
+                  ? { family_views: [familyView], links: [] }
+                  : url.pathname.startsWith("/replay")
+                    ? replay
+                    : url.pathname === "/results/result-1"
+                      ? resultDto
+                      : {
+                          results: [resultDto],
+                          next_cursor: null,
+                          sync_cursor: url.searchParams.get("cursor") ?? "seed",
+                        };
+      void init;
+      return { ok: true, status: 200, json: async () => body } as Response;
+    },
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("scrollTo", vi.fn());
+  return fetchMock;
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); localStorage.clear(); MockEventSource.current = null; window.history.replaceState(null, "", "/"); });
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  localStorage.clear();
+  MockEventSource.current = null;
+  window.history.replaceState(null, "", "/");
+});
 
 describe("analyst-first console", () => {
   it("uses the final primary navigation and hides the system status page", async () => {
-    mockBackend(); render(<App />);
-    expect(await screen.findByRole("button", { name: "Overview" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Analyst queue/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Evidence" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Traffic Lab" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Investigations" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "System status" })).not.toBeInTheDocument();
+    mockBackend();
+    render(<App />);
+    expect(
+      await screen.findByRole("button", { name: "Overview" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Analyst queue/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Evidence" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Traffic Lab" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Investigations" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "System status" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("SIH_ALERT_POLICY_V1")).not.toBeInTheDocument();
     expect(screen.queryByText("Evidence flow")).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/(?:\u00C3|\u00C2|\u00E2\u2020|\uFFFD)/);
+    expect(document.body.textContent).not.toMatch(
+      /(?:\u00C3|\u00C2|\u00E2\u2020|\uFFFD)/,
+    );
   });
   it("restores a contextual page from a URL hash with query parameters", async () => {
-    window.history.replaceState(null, "", "#/investigations?link_id=investigation-1");
-    mockBackend(); render(<App />);
-    expect(await screen.findByRole("heading", { name: "Investigations" })).toBeInTheDocument();
+    window.history.replaceState(
+      null,
+      "",
+      "#/investigations?link_id=investigation-1",
+    );
+    mockBackend();
+    render(<App />);
+    expect(
+      await screen.findByRole("heading", { name: "Investigations" }),
+    ).toBeInTheDocument();
   });
   it("shows explicit scope and analyst evidence and keeps benchmark details behind a disclosure", async () => {
-    mockBackend(); render(<App />);
+    mockBackend();
+    render(<App />);
     expect(await screen.findByText("Evidence episodes")).toBeInTheDocument();
-    expect(screen.getAllByText("All retained evidence").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("All retained evidence").length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getByText("Evidence by family")).toBeInTheDocument();
     expect(screen.getAllByText("DDoS evidence").length).toBeGreaterThan(0);
     expect(screen.getByText("Needs review")).toBeInTheDocument();
-    expect(screen.getByText("What the sensor could not establish")).toBeInTheDocument();
+    expect(
+      screen.getByText("What the sensor could not establish"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Threat-family posture")).not.toBeInTheDocument();
     expect(screen.queryByText("Limited evidence")).not.toBeInTheDocument();
-    expect(screen.queryByText("Reflection-shaped traffic")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Reflection-shaped traffic"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("DDOS-CV-B0")).not.toBeInTheDocument();
     expect(screen.queryByText("result-1")).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Evidence scope" })).toHaveValue("all");
-    const zoneControl = screen.getByRole("combobox", { name: "Evidence time display zone" });
+    expect(
+      screen.getByRole("combobox", { name: "Evidence scope" }),
+    ).toHaveValue("all");
+    const zoneControl = screen.getByRole("combobox", {
+      name: "Evidence time display zone",
+    });
     expect(zoneControl).toHaveValue("local");
     fireEvent.change(zoneControl, { target: { value: "utc" } });
     expect(zoneControl).toHaveValue("utc");
     expect(localStorage.getItem("evidencegate.time-zone")).toBe("utc");
-    await waitFor(() => expect(document.body.textContent).toContain("00:00:00 UTC"));
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("00:00:00 UTC"),
+    );
     fireEvent.click(screen.getByText("System & benchmark details"));
-    expect(screen.getByText(/Controlled development benchmark/)).toBeInTheDocument();
-    expect(screen.getByText("Benchmark measurements").closest("details")).not.toHaveAttribute("open");
+    expect(
+      screen.getByText(/Controlled development benchmark/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Benchmark measurements").closest("details"),
+    ).not.toHaveAttribute("open");
   });
   it("shows runtime status without a global capability issue badge and exposes diagnostics on demand", async () => {
     vi.stubEnv("VITE_EVIDENCEGATE_DEV_UI", "true");
-    mockBackend(); render(<App />);
+    mockBackend();
+    render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Online" }));
-    expect(screen.getByRole("dialog", { name: "System health" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "System health" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("DGA model")).not.toBeInTheDocument();
     expect(screen.queryByText(/capability issue/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Technical details/ }));
-    expect(screen.getByRole("dialog", { name: "Technical details" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Technical details" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/DDOS-CV-B0/)).toBeInTheDocument();
     expect(screen.getByText("SIH_ALERT_POLICY_V1")).toBeInTheDocument();
   });
   it("coalesces SSE Result bursts into one paged REST sync instead of one detail request per Result", async () => {
-    const fetchMock = mockBackend(); render(<App />);
-    expect(await screen.findByRole("button", { name: "Overview" })).toBeInTheDocument();
-    const resultCallCount = () => fetchMock.mock.calls.filter(([input]) => new URL(String(input), window.location.href).pathname === "/results").length;
+    const fetchMock = mockBackend();
+    render(<App />);
+    expect(
+      await screen.findByRole("button", { name: "Overview" }),
+    ).toBeInTheDocument();
+    const resultCallCount = () =>
+      fetchMock.mock.calls.filter(
+        ([input]) =>
+          new URL(String(input), window.location.href).pathname === "/results",
+      ).length;
     await waitFor(() => expect(resultCallCount()).toBeGreaterThan(0));
     const beforeResults = resultCallCount();
-    for (let index = 0; index < 20; index += 1) MockEventSource.current?.emit("result", JSON.stringify({ result_id: `result-${index}`, cursor: `cursor-${index}` }));
+    for (let index = 0; index < 20; index += 1)
+      MockEventSource.current?.emit(
+        "result",
+        JSON.stringify({
+          result_id: `result-${index}`,
+          cursor: `cursor-${index}`,
+        }),
+      );
     await waitFor(() => expect(resultCallCount()).toBe(beforeResults + 1));
-    expect(fetchMock.mock.calls.some(([input]) => /\/results\//.test(new URL(String(input), window.location.href).pathname))).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        /\/results\//.test(
+          new URL(String(input), window.location.href).pathname,
+        ),
+      ),
+    ).toBe(false);
   });
   it("shows family evidence and an analyst-first card without technical details or IDs", async () => {
-    mockBackend(); render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: /Analyst queue/i }));
-    fireEvent.click(await screen.findByRole("button", { name: /Open evidence/ }));
-    expect(screen.getByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
-    expect((await screen.findAllByText("DDoS evidence")).length).toBeGreaterThan(0);
+    mockBackend();
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Analyst queue/i }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Open evidence/ }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Family evidence episode" }),
+    ).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("DDoS evidence")).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("2 independent findings")).toBeInTheDocument();
     expect(screen.getByText("1 source Result retained")).toBeInTheDocument();
-    expect(screen.getAllByText("Reflection-shaped traffic")[0]?.closest("details")).not.toHaveAttribute("open");
+    expect(
+      screen.getAllByText("Reflection-shaped traffic")[0]?.closest("details"),
+    ).not.toHaveAttribute("open");
     fireEvent.click(screen.getAllByText("Reflection-shaped traffic")[0]!);
     expect(screen.getAllByRole("button", { name: /Review/ })).toHaveLength(2);
     expect(screen.queryByText(/state:provider/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Target Target 192.0.2.10")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Evidence gaps" })).toBeInTheDocument();
-    expect(screen.getByText("Reverse TCP state was not visible.")).toBeInTheDocument();
-    expect(screen.getByText("This evidence does not confirm an attack.")).toBeInTheDocument();
-    expect(screen.getByText("Visibility and quality").closest("details")).not.toHaveAttribute("open");
-    expect(screen.queryByText("Developer source lineage")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Target Target 192.0.2.10"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Evidence gaps" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Reverse TCP state was not visible."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("This evidence does not confirm an attack."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Visibility and quality").closest("details"),
+    ).not.toHaveAttribute("open");
+    expect(
+      screen.queryByText("Developer source lineage"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("result-1")).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: /Review/ })[0]!);
-    expect(await screen.findByRole("button", { name: /Back to family evidence/ })).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Back to family evidence/ }));
-    expect(screen.queryByRole("button", { name: /Back to family evidence/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /Back to family evidence/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Family evidence episode" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Back to family evidence/ }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Back to family evidence/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Family evidence episode" }),
+    ).toBeInTheDocument();
   });
   it("opens the dedicated factual investigation experience", async () => {
-    const fetchMock = mockBackend(); render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Investigations" }));
-    expect(await screen.findByText(/Chronology of separate family evidence connected by exact shared source observations/)).toBeInTheDocument();
-    expect(screen.getByText("No exact shared-observation links are currently indexed.")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/investigations"))).toBe(true);
+    const fetchMock = mockBackend();
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Investigations" }),
+    );
+    expect(
+      await screen.findByText(
+        /Chronology of separate family evidence connected by exact shared source observations/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "No exact shared-observation links are currently indexed.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/investigations"),
+      ),
+    ).toBe(true);
   });
   it("keeps Traffic lab factual and moves the trace into an on-demand modal", async () => {
-    const fetchMock = mockBackend(); render(<App />);
+    const fetchMock = mockBackend();
+    render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Traffic Lab" }));
-    expect(screen.getByText(/Watch recorded or controlled passive observations become independent evidence/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Choose a demo scenario" })).toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: /Demo playback/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Watch recorded or controlled passive observations become independent evidence/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Choose a demo scenario" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: /Demo playback/ }),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Run demo" })).toHaveLength(2);
     expect(screen.getByText("Recommended demo")).toBeInTheDocument();
     expect(screen.queryByText("Internal fixture")).not.toBeInTheDocument();
@@ -148,24 +502,60 @@ describe("analyst-first console", () => {
     expect(screen.queryByText("Visual pace")).not.toBeInTheDocument();
     expect(screen.queryByText("Processing trace")).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Run demo" })[0]!);
-    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input) === "/replay")).toBe(true));
-    expect(JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input) === "/replay")?.[1]?.body))).toEqual({ scenario: "mixed_ddos_recon", speed: 0 });
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) => String(input) === "/replay"),
+      ).toBe(true),
+    );
+    expect(
+      JSON.parse(
+        String(
+          fetchMock.mock.calls.find(
+            ([input]) => String(input) === "/replay",
+          )?.[1]?.body,
+        ),
+      ),
+    ).toEqual({ scenario: "mixed_ddos_recon", speed: 0 });
   });
   it("opens family evidence from a Result and returns to that Result without losing selection", async () => {
-    mockBackend(); render(<App />);
+    mockBackend();
+    render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Evidence" }));
-    fireEvent.click((await screen.findByText("Reflection-shaped traffic")).closest("tr")!);
-    fireEvent.click(screen.getByRole("button", { name: /open ddos family evidence/i }));
-    expect(await screen.findByRole("dialog", { name: "Family evidence episode" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /back to source result/i })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /back to source result/i }));
-    expect(await screen.findByRole("heading", { name: "Evidence" })).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Evidence record" })).toBeInTheDocument();
+    fireEvent.click(
+      (await screen.findByText("Reflection-shaped traffic")).closest("tr")!,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /open ddos family evidence/i }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Family evidence episode" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /back to source result/i }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /back to source result/i }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Evidence" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Evidence record" }),
+    ).toBeInTheDocument();
   });
   it("does not block Traffic Lab when source revisions differ but releases match", async () => {
-    mockBackend({ ...runtime, source_sha: "stale-backend-source", build_sha: "stale-backend-source" }); render(<App />);
+    mockBackend({
+      ...runtime,
+      source_sha: "stale-backend-source",
+      build_sha: "stale-backend-source",
+    });
+    render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Traffic Lab" }));
-    expect(await screen.findByRole("heading", { name: "Choose a demo scenario" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /update incomplete/i })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Choose a demo scenario" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /update incomplete/i }),
+    ).not.toBeInTheDocument();
   });
 });

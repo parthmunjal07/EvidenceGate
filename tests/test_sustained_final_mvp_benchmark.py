@@ -1,11 +1,17 @@
 """Contract tests for the sustained offered-rate harness."""
+
 from __future__ import annotations
 
 import pytest
 
 from scripts.benchmark_sustained_final_mvp import (
-    MIX_COUNTS, backlog_assessment, choose_candidate, load_workload_templates,
-    latency_stability, percentiles_seconds, repeated_observation,
+    MIX_COUNTS,
+    backlog_assessment,
+    choose_candidate,
+    load_workload_templates,
+    latency_stability,
+    percentiles_seconds,
+    repeated_observation,
 )
 
 
@@ -36,10 +42,7 @@ def test_metrics_and_candidate_rule_require_repetition_and_margin():
     ]
     assert backlog_assessment(samples, 0)["stable"] is True
     assert latency_stability([0.1] * 4 + [0.12] * 4)["stable"] is True
-    runs = [
-        {"rate_requested_obs_s": rate, "sustainable": True}
-        for rate in (100, 200, 200, 200)
-    ]
+    runs = [{"rate_requested_obs_s": rate, "sustainable": True} for rate in (100, 200, 200, 200)]
     assert choose_candidate(runs) == (200, 100)
     runs[-1]["sustainable"] = False
     assert choose_candidate(runs) == (None, None)

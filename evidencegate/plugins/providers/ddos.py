@@ -1,4 +1,5 @@
 """Category-1 DDoS shell and factual DDOS-A-B0 TCP attempt state."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
@@ -8,15 +9,28 @@ from typing import Any, Sequence
 
 from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.domain.enums import (
-    AnalyticFamily, AvailabilityBasis, CapabilityState, EvidenceReadiness,
-    Finality, GapAction, IntegrationStatus, ObservationType, OfficialPsCategory,
-    QualityState, ResultType, VisibilityCapability, WireDirection,
+    AnalyticFamily,
+    AvailabilityBasis,
+    CapabilityState,
+    EvidenceReadiness,
+    Finality,
+    GapAction,
+    IntegrationStatus,
+    ObservationType,
+    OfficialPsCategory,
+    QualityState,
+    ResultType,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.quality import QualityGap
 from evidencegate.registry.manifest import PluginManifest, StateResourcePolicy
 from evidencegate.registry.plugin import (
-    PluginProcessOutcome, PluginStateSnapshot, StateKey, StateTransitionRequest,
+    PluginProcessOutcome,
+    PluginStateSnapshot,
+    StateKey,
+    StateTransitionRequest,
 )
 from evidencegate.results.types import ResultDraft
 from evidencegate.runtime.state_contract import StateOperation
@@ -24,13 +38,17 @@ from evidencegate.runtime.state_contract import StateOperation
 from .common import ProviderShellPlugin
 from .ddos_config import DdosASynConfig
 
+
 class DdosShellPlugin(ProviderShellPlugin):
     plugin_id = "provider.ddos.shell"
     category = OfficialPsCategory.DDOS
     family = AnalyticFamily.DDOS
     taxonomy = ("Network", "DDoS", "Provider Shell")
     accepted_types = (ObservationType.PACKET, ObservationType.FLOW)
-    capabilities_by_type = {ObservationType.PACKET: frozenset({VisibilityCapability.PACKET_FACTS}), ObservationType.FLOW: frozenset({VisibilityCapability.FLOW_FACTS})}
+    capabilities_by_type = {
+        ObservationType.PACKET: frozenset({VisibilityCapability.PACKET_FACTS}),
+        ObservationType.FLOW: frozenset({VisibilityCapability.FLOW_FACTS}),
+    }
 
 
 DDOS_A_CLAIM_CEILING = (
@@ -71,14 +89,23 @@ class DdosASynPlugin:
 
     RECOGNIZED_FLAGS = frozenset({"SYN", "ACK", "RST"})
     HARD_NEGATIVE_ALTERNATIVES = (
-        "flash crowd", "authorized load/performance test",
-        "retry/reconnection storm", "scanner burst", "outage recovery",
-        "misconfiguration", "NAT/load-balancer behavior",
-        "asymmetric routing", "packet loss", "capture overload",
+        "flash crowd",
+        "authorized load/performance test",
+        "retry/reconnection storm",
+        "scanner burst",
+        "outage recovery",
+        "misconfiguration",
+        "NAT/load-balancer behavior",
+        "asymmetric routing",
+        "packet loss",
+        "capture overload",
     )
 
     def __init__(
-        self, config: DdosASynConfig, *, max_state_entries: int,
+        self,
+        config: DdosASynConfig,
+        *,
+        max_state_entries: int,
         governing_decision_ids: tuple[str, ...] = (),
     ) -> None:
         if not isinstance(config, DdosASynConfig):
@@ -101,26 +128,27 @@ class DdosASynPlugin:
                 "explicit canonical TCP protocol and supported canonical flags",
             ),
             required_fields=(
-                "protocol", "src_address", "dst_address", "src_port",
-                "dst_port", "flags",
+                "protocol",
+                "src_address",
+                "dst_address",
+                "src_port",
+                "dst_port",
+                "flags",
             ),
             required_observation_contracts=(),
-            required_visibility_capabilities=frozenset(
-                {VisibilityCapability.PACKET_FACTS}
-            ),
+            required_visibility_capabilities=frozenset({VisibilityCapability.PACKET_FACTS}),
             required_quality=(),
             allowed_finality=tuple(Finality),
             allowed_availability_basis=tuple(AvailabilityBasis),
-            state_key_declaration=(
-                "target x service x normalized visible tuple x protocol"
-            ),
+            state_key_declaration=("target x service x normalized visible tuple x protocol"),
             scientific_history_duration=(
                 "transition or watermark expiry; no minimum observation count"
             ),
             resource_retention_duration=str(config.syn_state_ttl),
             gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
             allowed_result_types=(
-                ResultType.REVIEW_FINDING, ResultType.INSUFFICIENT_EVIDENCE,
+                ResultType.REVIEW_FINDING,
+                ResultType.INSUFFICIENT_EVIDENCE,
                 ResultType.QUALITY_DEGRADED,
             ),
             integration_status=IntegrationStatus.BASELINE_IMPLEMENTED,
@@ -139,13 +167,9 @@ class DdosASynPlugin:
     def manifest(self) -> PluginManifest:
         return self._manifest
 
-    def _identity_scope(
-        self, observation: NetworkObservation
-    ) -> tuple[str, str] | None:
+    def _identity_scope(self, observation: NetworkObservation) -> tuple[str, str] | None:
         resolved: list[str] = []
-        for label in (
-            self.config.target_role_label, self.config.service_role_label
-        ):
+        for label in (self.config.target_role_label, self.config.service_role_label):
             matches = tuple(
                 assignment.identifier
                 for assignment in observation.identity.role_assignments
@@ -162,14 +186,20 @@ class DdosASynPlugin:
     ) -> tuple[tuple[str, int], tuple[str, int]] | None:
         payload = observation.typed_payload
         values = (
-            payload.src_address, payload.src_port,
-            payload.dst_address, payload.dst_port,
+            payload.src_address,
+            payload.src_port,
+            payload.dst_address,
+            payload.dst_port,
         )
         if (
-            not isinstance(values[0], str) or not values[0]
-            or isinstance(values[1], bool) or not isinstance(values[1], int)
-            or not isinstance(values[2], str) or not values[2]
-            or isinstance(values[3], bool) or not isinstance(values[3], int)
+            not isinstance(values[0], str)
+            or not values[0]
+            or isinstance(values[1], bool)
+            or not isinstance(values[1], int)
+            or not isinstance(values[2], str)
+            or not values[2]
+            or isinstance(values[3], bool)
+            or not isinstance(values[3], int)
         ):
             return None
         endpoints = ((values[0], values[1]), (values[2], values[3]))
@@ -178,7 +208,8 @@ class DdosASynPlugin:
     def _flags(self, observation: NetworkObservation) -> frozenset[str] | None:
         flags = observation.typed_payload.flags
         if (
-            not isinstance(flags, list) or not flags
+            not isinstance(flags, list)
+            or not flags
             or any(not isinstance(flag, str) for flag in flags)
         ):
             return None
@@ -209,10 +240,13 @@ class DdosASynPlugin:
             return None
         target_ref, service_ref = self._identity_scope(observation)  # type: ignore[misc]
         visible_tuple = self._normalized_tuple(observation)
-        return StateKey(json.dumps(
-            [target_ref, service_ref, observation.typed_payload.protocol, visible_tuple],
-            ensure_ascii=False, separators=(",", ":"),
-        ))
+        return StateKey(
+            json.dumps(
+                [target_ref, service_ref, observation.typed_payload.protocol, visible_tuple],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
 
     @staticmethod
     def _quality(observation: NetworkObservation) -> tuple[tuple[str, str], ...]:
@@ -254,8 +288,10 @@ class DdosASynPlugin:
     @staticmethod
     def _observation_degraded(observation: NetworkObservation) -> bool:
         return QualityState.DEGRADED in (
-            observation.quality.packet_loss, observation.quality.sampling,
-            observation.quality.parser, observation.quality.capture_gap,
+            observation.quality.packet_loss,
+            observation.quality.sampling,
+            observation.quality.parser,
+            observation.quality.capture_gap,
         )
 
     @staticmethod
@@ -270,28 +306,45 @@ class DdosASynPlugin:
             return None
         if set(facts) - {"seq", "ack"}:
             return None
-        if any(
-            isinstance(value, bool) or not isinstance(value, int)
-            for value in facts.values()
-        ):
+        if any(isinstance(value, bool) or not isinstance(value, int) for value in facts.values()):
             return None
         return json.dumps(
-            [normalized_tuple, observation.wire_direction.value,
-             sorted(flags), facts.get("seq"), facts.get("ack")],
-            ensure_ascii=False, separators=(",", ":"),
+            [
+                normalized_tuple,
+                observation.wire_direction.value,
+                sorted(flags),
+                facts.get("seq"),
+                facts.get("ack"),
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
         )
 
     @staticmethod
     def _supporting_ids(state: DdosASynState) -> tuple[str, ...]:
-        return tuple(dict.fromkeys(item for item in (
-            state.initiating_syn_observation_id, state.synack_observation_id,
-            state.ack_observation_id, state.rst_observation_id,
-        ) if item))
+        return tuple(
+            dict.fromkeys(
+                item
+                for item in (
+                    state.initiating_syn_observation_id,
+                    state.synack_observation_id,
+                    state.ack_observation_id,
+                    state.rst_observation_id,
+                )
+                if item
+            )
+        )
 
     def _evidence(
-        self, state: DdosASynState, *, state_before: str, state_after: str,
-        evidence_kind: str, direction: str | None,
-        missing_evidence: tuple[str, ...] = (), statement: str | None = None,
+        self,
+        state: DdosASynState,
+        *,
+        state_before: str,
+        state_after: str,
+        evidence_kind: str,
+        direction: str | None,
+        missing_evidence: tuple[str, ...] = (),
+        statement: str | None = None,
         dedupe_status: str | None = None,
     ) -> dict[str, object]:
         value: dict[str, object] = {
@@ -311,10 +364,8 @@ class DdosASynPlugin:
             "observed_rst": state.rst_observation_id is not None,
             "raw_syn_observations": state.raw_syn_observations,
             "recognized_retransmissions": state.recognized_retransmissions,
-            "retransmission_deduplication_status": dedupe_status or (
-                "AVAILABLE" if state.retransmission_deduplication_available
-                else "UNAVAILABLE"
-            ),
+            "retransmission_deduplication_status": dedupe_status
+            or ("AVAILABLE" if state.retransmission_deduplication_available else "UNAVAILABLE"),
             "source_visibility": dict(state.source_visibility),
             "wire_direction": direction,
             "capture_quality": dict(state.capture_quality),
@@ -331,8 +382,13 @@ class DdosASynPlugin:
         return value
 
     def _draft(
-        self, result_type: ResultType, key: StateKey, state: DdosASynState,
-        evidence: dict[str, object], *, missing: tuple[str, ...] = (),
+        self,
+        result_type: ResultType,
+        key: StateKey,
+        state: DdosASynState,
+        evidence: dict[str, object],
+        *,
+        missing: tuple[str, ...] = (),
         supporting_ids: tuple[str, ...] = (),
     ) -> ResultDraft:
         return ResultDraft(
@@ -346,12 +402,12 @@ class DdosASynPlugin:
         )
 
     def _pending(self, reason: str) -> EvaluationReadinessDecision:
-        return EvaluationReadinessDecision(
-            EvidenceReadiness.TERMINAL_EVIDENCE_PENDING, reason
-        )
+        return EvaluationReadinessDecision(EvidenceReadiness.TERMINAL_EVIDENCE_PENDING, reason)
 
     async def process(
-        self, observation: NetworkObservation, context: Any,
+        self,
+        observation: NetworkObservation,
+        context: Any,
         state: PluginStateSnapshot | None,
     ) -> PluginProcessOutcome:
         key = self.state_key(observation)
@@ -368,7 +424,9 @@ class DdosASynPlugin:
 
         direction = observation.wire_direction
         is_synack = flags == frozenset({"SYN", "ACK"}) and direction is WireDirection.REVERSE
-        is_initial_syn = "SYN" in flags and "ACK" not in flags and direction is WireDirection.FORWARD
+        is_initial_syn = (
+            "SYN" in flags and "ACK" not in flags and direction is WireDirection.FORWARD
+        )
         is_final_ack = "ACK" in flags and "SYN" not in flags and direction is WireDirection.FORWARD
         is_rst = "RST" in flags
 
@@ -383,35 +441,45 @@ class DdosASynPlugin:
                 )
             )
             next_state = DdosASynState(
-                phase="SYN_SEEN", target_ref=target_ref, service_ref=service_ref,
+                phase="SYN_SEEN",
+                target_ref=target_ref,
+                service_ref=service_ref,
                 normalized_tuple=visible_tuple,
                 first_seen_time=observation.event_time,
                 last_seen_time=observation.event_time,
                 initiating_syn_observation_id=observation.observation_id,
-                synack_observation_id=None, ack_observation_id=None,
-                rst_observation_id=None, raw_syn_observations=1,
+                synack_observation_id=None,
+                ack_observation_id=None,
+                rst_observation_id=None,
+                raw_syn_observations=1,
                 recognized_retransmissions=0,
                 retransmission_deduplication_available=signature is not None,
                 reverse_visibility_available_at_start=both_visible,
                 source_visibility=self._visibility(observation),
                 capture_quality=self._quality(observation),
-                quality_degraded=(self._observation_degraded(observation)
-                                  or bool(context.get("quality_degraded", False))),
+                quality_degraded=(
+                    self._observation_degraded(observation)
+                    or bool(context.get("quality_degraded", False))
+                ),
                 midstream_or_unknown_history=False,
                 initial_syn_signature=signature,
                 config_hash=self.config.canonical_hash,
             )
             evidence = self._evidence(
-                next_state, state_before="UNKNOWN", state_after="SYN_SEEN",
-                evidence_kind="SYN_ARRIVAL_FACT", direction=direction.value,
+                next_state,
+                state_before="UNKNOWN",
+                state_after="SYN_SEEN",
+                evidence_kind="SYN_ARRIVAL_FACT",
+                direction=direction.value,
                 statement="Initiating TCP SYN was observed.",
             )
             return PluginProcessOutcome(
-                result_drafts=(self._draft(
-                    ResultType.REVIEW_FINDING, key, next_state, evidence
-                ),),
+                result_drafts=(self._draft(ResultType.REVIEW_FINDING, key, next_state, evidence),),
                 state_transition=StateTransitionRequest(
-                    key, None, StateOperation.UPSERT, next_state,
+                    key,
+                    None,
+                    StateOperation.UPSERT,
+                    next_state,
                     self.config.syn_state_ttl,
                 ),
                 evaluation_readiness=self._pending(
@@ -422,13 +490,17 @@ class DdosASynPlugin:
         if prior is None:
             target_ref, service_ref = scope
             transient = DdosASynState(
-                phase="UNKNOWN", target_ref=target_ref, service_ref=service_ref,
+                phase="UNKNOWN",
+                target_ref=target_ref,
+                service_ref=service_ref,
                 normalized_tuple=visible_tuple,
                 first_seen_time=observation.event_time,
                 last_seen_time=observation.event_time,
                 initiating_syn_observation_id="",
-                synack_observation_id=None, ack_observation_id=None,
-                rst_observation_id=None, raw_syn_observations=0,
+                synack_observation_id=None,
+                ack_observation_id=None,
+                rst_observation_id=None,
+                raw_syn_observations=0,
                 recognized_retransmissions=0,
                 retransmission_deduplication_available=False,
                 reverse_visibility_available_at_start=False,
@@ -440,7 +512,9 @@ class DdosASynPlugin:
                 config_hash=self.config.canonical_hash,
             )
             evidence = self._evidence(
-                transient, state_before="UNKNOWN", state_after="UNKNOWN",
+                transient,
+                state_before="UNKNOWN",
+                state_after="UNKNOWN",
                 evidence_kind="TCP_STATE_HISTORY_INSUFFICIENT",
                 direction=direction.value,
                 missing_evidence=("initiating SYN / prior history",),
@@ -450,10 +524,15 @@ class DdosASynPlugin:
                 ),
             )
             return PluginProcessOutcome(
-                result_drafts=(self._draft(
-                    ResultType.INSUFFICIENT_EVIDENCE, key, transient, evidence,
-                    missing=("initiating SYN / prior history",),
-                ),),
+                result_drafts=(
+                    self._draft(
+                        ResultType.INSUFFICIENT_EVIDENCE,
+                        key,
+                        transient,
+                        evidence,
+                        missing=("initiating SYN / prior history",),
+                    ),
+                ),
                 evaluation_readiness=EvaluationReadinessDecision(
                     EvidenceReadiness.ABSTAINING,
                     "history/midstream prerequisite missing",
@@ -461,32 +540,38 @@ class DdosASynPlugin:
             )
 
         degraded = (
-            prior.quality_degraded or self._observation_degraded(observation)
+            prior.quality_degraded
+            or self._observation_degraded(observation)
             or bool(context.get("quality_degraded", False))
         )
         if is_rst:
             terminal = replace(
-                prior, phase="RST_SEEN", last_seen_time=observation.event_time,
+                prior,
+                phase="RST_SEEN",
+                last_seen_time=observation.event_time,
                 rst_observation_id=observation.observation_id,
-                capture_quality=self._merge_quality(
-                    prior.capture_quality, observation
-                ),
+                capture_quality=self._merge_quality(prior.capture_quality, observation),
                 quality_degraded=degraded,
             )
             evidence = self._evidence(
-                terminal, state_before=prior.phase, state_after="RST_SEEN",
+                terminal,
+                state_before=prior.phase,
+                state_after="RST_SEEN",
                 evidence_kind="CAPTURED_TCP_RESET_FACT",
                 direction=direction.value,
                 statement="Captured TCP reset was observed.",
             )
             return PluginProcessOutcome(
-                result_drafts=(self._draft(
-                    ResultType.REVIEW_FINDING, key, terminal, evidence,
-                    supporting_ids=self._supporting_ids(prior),
-                ),),
-                state_transition=StateTransitionRequest(
-                    key, state.version, StateOperation.DELETE
+                result_drafts=(
+                    self._draft(
+                        ResultType.REVIEW_FINDING,
+                        key,
+                        terminal,
+                        evidence,
+                        supporting_ids=self._supporting_ids(prior),
+                    ),
                 ),
+                state_transition=StateTransitionRequest(key, state.version, StateOperation.DELETE),
                 evaluation_readiness=EvaluationReadinessDecision(
                     EvidenceReadiness.READY, "captured reset terminal fact observed"
                 ),
@@ -503,38 +588,41 @@ class DdosASynPlugin:
                 prior,
                 last_seen_time=observation.event_time,
                 raw_syn_observations=prior.raw_syn_observations + 1,
-                recognized_retransmissions=(
-                    prior.recognized_retransmissions + int(recognized)
-                ),
+                recognized_retransmissions=(prior.recognized_retransmissions + int(recognized)),
                 retransmission_deduplication_available=(
-                    prior.retransmission_deduplication_available
-                    and signature is not None
+                    prior.retransmission_deduplication_available and signature is not None
                 ),
-                capture_quality=self._merge_quality(
-                    prior.capture_quality, observation
-                ),
+                capture_quality=self._merge_quality(prior.capture_quality, observation),
                 quality_degraded=degraded,
             )
             status = (
-                "AVAILABLE_RETRANSMISSION_RECOGNIZED" if recognized
-                else "AVAILABLE_NO_EXACT_MATCH" if signature is not None
+                "AVAILABLE_RETRANSMISSION_RECOGNIZED"
+                if recognized
+                else "AVAILABLE_NO_EXACT_MATCH"
+                if signature is not None
                 else "UNAVAILABLE"
             )
             evidence = self._evidence(
-                updated, state_before=prior.phase, state_after=prior.phase,
-                evidence_kind="SYN_ARRIVAL_FACT", direction=direction.value,
+                updated,
+                state_before=prior.phase,
+                state_after=prior.phase,
+                evidence_kind="SYN_ARRIVAL_FACT",
+                direction=direction.value,
                 statement="Additional initiating TCP SYN observation was retained.",
                 dedupe_status=status,
             )
             elapsed = observation.event_time - prior.first_seen_time
-            remaining = max(
-                self.config.syn_state_ttl - elapsed, timedelta(microseconds=1)
-            )
+            remaining = max(self.config.syn_state_ttl - elapsed, timedelta(microseconds=1))
             return PluginProcessOutcome(
-                result_drafts=(self._draft(
-                    ResultType.REVIEW_FINDING, key, updated, evidence,
-                    supporting_ids=self._supporting_ids(prior),
-                ),),
+                result_drafts=(
+                    self._draft(
+                        ResultType.REVIEW_FINDING,
+                        key,
+                        updated,
+                        evidence,
+                        supporting_ids=self._supporting_ids(prior),
+                    ),
+                ),
                 state_transition=StateTransitionRequest(
                     key, state.version, StateOperation.UPSERT, updated, remaining
                 ),
@@ -545,60 +633,67 @@ class DdosASynPlugin:
 
         if is_synack and prior.phase == "SYN_SEEN":
             updated = replace(
-                prior, phase="SYNACK_SEEN",
+                prior,
+                phase="SYNACK_SEEN",
                 last_seen_time=observation.event_time,
                 synack_observation_id=observation.observation_id,
-                capture_quality=self._merge_quality(
-                    prior.capture_quality, observation
-                ),
+                capture_quality=self._merge_quality(prior.capture_quality, observation),
                 quality_degraded=degraded,
             )
             evidence = self._evidence(
-                updated, state_before="SYN_SEEN", state_after="SYNACK_SEEN",
+                updated,
+                state_before="SYN_SEEN",
+                state_after="SYNACK_SEEN",
                 evidence_kind="CAPTURED_SYNACK_TRANSITION_FACT",
                 direction=direction.value,
                 statement="Captured response to the visible initiating SYN was observed.",
             )
             elapsed = observation.event_time - prior.first_seen_time
-            remaining = max(
-                self.config.syn_state_ttl - elapsed, timedelta(microseconds=1)
-            )
+            remaining = max(self.config.syn_state_ttl - elapsed, timedelta(microseconds=1))
             return PluginProcessOutcome(
-                result_drafts=(self._draft(
-                    ResultType.REVIEW_FINDING, key, updated, evidence,
-                    supporting_ids=self._supporting_ids(prior),
-                ),),
+                result_drafts=(
+                    self._draft(
+                        ResultType.REVIEW_FINDING,
+                        key,
+                        updated,
+                        evidence,
+                        supporting_ids=self._supporting_ids(prior),
+                    ),
+                ),
                 state_transition=StateTransitionRequest(
                     key, state.version, StateOperation.UPSERT, updated, remaining
                 ),
-                evaluation_readiness=self._pending(
-                    "awaiting final ACK, reset, or state expiry"
-                ),
+                evaluation_readiness=self._pending("awaiting final ACK, reset, or state expiry"),
             )
 
         if is_final_ack and prior.phase == "SYNACK_SEEN":
             terminal = replace(
-                prior, phase="ACK_SEEN", last_seen_time=observation.event_time,
+                prior,
+                phase="ACK_SEEN",
+                last_seen_time=observation.event_time,
                 ack_observation_id=observation.observation_id,
-                capture_quality=self._merge_quality(
-                    prior.capture_quality, observation
-                ),
+                capture_quality=self._merge_quality(prior.capture_quality, observation),
                 quality_degraded=degraded,
             )
             evidence = self._evidence(
-                terminal, state_before="SYNACK_SEEN", state_after="ACK_SEEN",
+                terminal,
+                state_before="SYNACK_SEEN",
+                state_after="ACK_SEEN",
                 evidence_kind="CAPTURED_TCP_HANDSHAKE_PROGRESSION_FACT",
                 direction=direction.value,
                 statement="Captured three-way TCP handshake progression observed.",
             )
             return PluginProcessOutcome(
-                result_drafts=(self._draft(
-                    ResultType.REVIEW_FINDING, key, terminal, evidence,
-                    supporting_ids=self._supporting_ids(prior),
-                ),),
-                state_transition=StateTransitionRequest(
-                    key, state.version, StateOperation.DELETE
+                result_drafts=(
+                    self._draft(
+                        ResultType.REVIEW_FINDING,
+                        key,
+                        terminal,
+                        evidence,
+                        supporting_ids=self._supporting_ids(prior),
+                    ),
                 ),
+                state_transition=StateTransitionRequest(key, state.version, StateOperation.DELETE),
                 evaluation_readiness=EvaluationReadinessDecision(
                     EvidenceReadiness.READY,
                     "captured handshake progression terminal fact observed",
@@ -606,21 +701,26 @@ class DdosASynPlugin:
             )
 
         evidence = self._evidence(
-            prior, state_before=prior.phase, state_after=prior.phase,
+            prior,
+            state_before=prior.phase,
+            state_after=prior.phase,
             evidence_kind="TCP_STATE_TRANSITION_INSUFFICIENT",
             direction=direction.value,
             missing_evidence=("required prior phase and declared packet direction",),
             statement="Observed flags do not establish the required next TCP state transition.",
         )
         return PluginProcessOutcome(
-            result_drafts=(self._draft(
-                ResultType.INSUFFICIENT_EVIDENCE, key, prior, evidence,
-                missing=("required prior phase and declared packet direction",),
-                supporting_ids=self._supporting_ids(prior),
-            ),),
-            evaluation_readiness=self._pending(
-                "required state transition was not established"
+            result_drafts=(
+                self._draft(
+                    ResultType.INSUFFICIENT_EVIDENCE,
+                    key,
+                    prior,
+                    evidence,
+                    missing=("required prior phase and declared packet direction",),
+                    supporting_ids=self._supporting_ids(prior),
+                ),
             ),
+            evaluation_readiness=self._pending("required state transition was not established"),
         )
 
     async def on_expire(
@@ -658,19 +758,29 @@ class DdosASynPlugin:
                 "state within the controlled POC state horizon."
             )
         evidence = self._evidence(
-            value, state_before=value.phase, state_after="EXPIRED",
-            evidence_kind=kind, direction=None, missing_evidence=missing,
+            value,
+            state_before=value.phase,
+            state_after="EXPIRED",
+            evidence_kind=kind,
+            direction=None,
+            missing_evidence=missing,
             statement=statement,
         )
         evidence["runtime_or_state_quality_degraded"] = degraded
-        return PluginProcessOutcome(result_drafts=(self._draft(
-            result_type, key, value, evidence, missing=missing,
-            supporting_ids=supporting,
-        ),))
+        return PluginProcessOutcome(
+            result_drafts=(
+                self._draft(
+                    result_type,
+                    key,
+                    value,
+                    evidence,
+                    missing=missing,
+                    supporting_ids=supporting,
+                ),
+            )
+        )
 
-    async def on_watermark(
-        self, watermark: datetime, context: Any
-    ) -> PluginProcessOutcome:
+    async def on_watermark(self, watermark: datetime, context: Any) -> PluginProcessOutcome:
         return PluginProcessOutcome()
 
     async def on_quality_gap(

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Replay passive typed-NDJSON or raw-PCAP through the EvidenceGate runtime."""
+
 from __future__ import annotations
 
 import argparse
@@ -22,8 +23,9 @@ async def main() -> None:
     source.add_argument("--pcap", type=Path, help="offline classic-PCAP capture")
     parser.add_argument("--manifest", type=Path, help="trusted sidecar for --pcap")
     parser.add_argument("--database", type=Path, default=Path("evidencegate.db"))
-    parser.add_argument("--speed", type=float, default=0,
-                        help="0 = as fast as possible; 1 = event-time speed")
+    parser.add_argument(
+        "--speed", type=float, default=0, help="0 = as fast as possible; 1 = event-time speed"
+    )
     parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args()
     if args.pcap is not None and args.manifest is None:
@@ -53,7 +55,9 @@ async def main() -> None:
 
     registration = build_mvp_runtime_registration(datetime.now(timezone.utc))
     supervisor = RuntimeSupervisor(
-        registration.plugins, registration.governances, write_result,
+        registration.plugins,
+        registration.governances,
+        write_result,
         reorder_policies=registration.reorder_policies,
     )
     try:
@@ -64,7 +68,9 @@ async def main() -> None:
                 else NdjsonReplaySource(args.bundle)
             )
             summary = await ReplayRunner(
-                input_source, supervisor, speed=args.speed,
+                input_source,
+                supervisor,
+                speed=args.speed,
             ).run()
         except ReplayValidationError as exc:
             parser.error(str(exc))

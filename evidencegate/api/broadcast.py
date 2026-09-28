@@ -1,4 +1,5 @@
 """Bounded, independent in-process result notification subscribers."""
+
 from __future__ import annotations
 
 import asyncio

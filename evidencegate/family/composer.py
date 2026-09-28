@@ -3,6 +3,7 @@
 Family views are analyst presentation contracts. They never rewrite Results,
 combine claims, or calculate family-level scores.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -16,23 +17,40 @@ from evidencegate.results.types import Result
 
 
 OFFICIAL_FAMILIES = (
-    "DDoS", "C2 / Beaconing", "DGA + DNS", "Encrypted Sessions",
-    "Reconnaissance", "Data Transfer",
+    "DDoS",
+    "C2 / Beaconing",
+    "DGA + DNS",
+    "Encrypted Sessions",
+    "Reconnaissance",
+    "Data Transfer",
 )
 
 FAMILY_BY_LANE = {
-    **{lane: "DDoS" for lane in (
-        "ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim",
-        "ddos.source_diversity", "ddos.icmp_demand", "ddos.fragment_demand",
-        "ddos.connection_churn",
-    )},
+    **{
+        lane: "DDoS"
+        for lane in (
+            "ddos.syn_state",
+            "ddos.udp_demand",
+            "ddos.reflection_victim",
+            "ddos.source_diversity",
+            "ddos.icmp_demand",
+            "ddos.fragment_demand",
+            "ddos.connection_churn",
+        )
+    },
     "c2.r1": "C2 / Beaconing",
     "dga.m1": "DGA + DNS",
     "dns_tunnelling.t1": "DGA + DNS",
     "encrypted_session.enc_a": "Encrypted Sessions",
-    **{lane: "Reconnaissance" for lane in (
-        "recon.h", "recon.v", "recon.2d", "recon.tcp",
-    )},
+    **{
+        lane: "Reconnaissance"
+        for lane in (
+            "recon.h",
+            "recon.v",
+            "recon.2d",
+            "recon.tcp",
+        )
+    },
     "unusual_transfer.m1": "Data Transfer",
 }
 
@@ -51,11 +69,13 @@ _LIMITATIONS = {
     "NO_SPOOFING_CONFIRMED": "This evidence does not establish source spoofing.",
 }
 
-_FINDING_RESULT_TYPES = frozenset({
-    ResultType.THREAT_ALERT,
-    ResultType.REVIEW_FINDING,
-    ResultType.INSUFFICIENT_EVIDENCE,
-})
+_FINDING_RESULT_TYPES = frozenset(
+    {
+        ResultType.THREAT_ALERT,
+        ResultType.REVIEW_FINDING,
+        ResultType.INSUFFICIENT_EVIDENCE,
+    }
+)
 
 _STATUS_LIMITATION_TEMPLATES = {
     ResultType.ANALYTIC_UNAVAILABLE: "{title} was unavailable and did not produce an observed finding.",
@@ -103,8 +123,11 @@ class InvestigationLink:
     shared_source_observation_ids: tuple[str, ...]
     source_result_ids: tuple[str, ...]
     claim_guard: tuple[str, ...] = (
-        "FOR_JOINT_INVESTIGATION_ONLY", "NO_CAUSALITY", "NO_COMMON_ATTACKER",
-        "NO_ATTACK_CHAIN_CONFIRMATION", "NO_MALICIOUSNESS_PROBABILITY",
+        "FOR_JOINT_INVESTIGATION_ONLY",
+        "NO_CAUSALITY",
+        "NO_COMMON_ATTACKER",
+        "NO_ATTACK_CHAIN_CONFIRMATION",
+        "NO_MALICIOUSNESS_PROBABILITY",
     )
 
 
@@ -132,7 +155,9 @@ def _display_title(result: Result) -> str:
 
 
 def _result_statements(result: Result) -> tuple[str, ...]:
-    return tuple(dict.fromkeys(str(item).strip() for item in result.evidence_items if str(item).strip()))
+    return tuple(
+        dict.fromkeys(str(item).strip() for item in result.evidence_items if str(item).strip())
+    )
 
 
 def _limitations(results: Iterable[Result]) -> tuple[str, ...]:
@@ -156,7 +181,11 @@ def _missing_evidence(results: Iterable[Result]) -> tuple[str, ...]:
             label = _MISSING_LABELS.get(normalized)
             if label is None:
                 readable = value.replace("_", " ").strip()
-                label = readable[0].upper() + readable[1:] + " was not available." if readable else "Required evidence was not available."
+                label = (
+                    readable[0].upper() + readable[1:] + " was not available."
+                    if readable
+                    else "Required evidence was not available."
+                )
             labels.append(label)
     return tuple(dict.fromkeys(labels))
 
@@ -192,42 +221,72 @@ def compose_family_evidence(results: Iterable[Result]) -> tuple[FamilyEvidenceVi
                         if related_id not in component_ids:
                             component_ids.add(related_id)
                             frontier.append(related_id)
-            component = sorted((remaining.pop(item) for item in component_ids), key=lambda r: (r.created_time, r.result_id))
-            times = [value for result in component for value in ((result.evidence_interval or (result.created_time, result.created_time)))]
+            component = sorted(
+                (remaining.pop(item) for item in component_ids),
+                key=lambda r: (r.created_time, r.result_id),
+            )
+            times = [
+                value
+                for result in component
+                for value in (
+                    result.evidence_interval or (result.created_time, result.created_time)
+                )
+            ]
             missing = _missing_evidence(component)
             visibility_values: set[str] = set()
             quality_values: set[str] = set()
             for result in component:
                 visibility_values.update(
-                    f"{key}:{value}" for key, values in (
+                    f"{key}:{value}"
+                    for key, values in (
                         ("available", result.visibility_snapshot.available),
                         ("unavailable", result.visibility_snapshot.unavailable),
                         ("degraded", result.visibility_snapshot.degraded),
-                    ) for value in values
+                    )
+                    for value in values
                 )
-                quality_values.update((
-                    f"packet_loss:{result.quality_snapshot.packet_loss.value}",
-                    f"sampling:{result.quality_snapshot.sampling.value}",
-                    f"parser:{result.quality_snapshot.parser.value}",
-                    f"capture_gap:{result.quality_snapshot.capture_gap.value}",
-                ))
-            views.append(FamilyEvidenceView(
-                family_view_id=_view_id(family, component), family=family,
-                time_start=min(times), time_end=max(times),
-                entity_references=tuple(sorted({result.entity_reference for result in component})),
-                source_result_ids=tuple(result.result_id for result in component),
-                source_observation_ids=tuple(sorted({
-                    item for result in component for item in result.source_observation_ids
-                })),
-                findings=tuple(FamilyFinding(
-                    source_result_id=result.result_id, title=_display_title(result),
-                    statements=_result_statements(result), result_type=result.result_type.value,
-                ) for result in component if result.result_type in _FINDING_RESULT_TYPES),
-                limitations=_limitations(component), missing_evidence=missing,
-                visibility_summary=tuple(sorted(visibility_values)),
-                quality_summary=tuple(sorted(quality_values)),
-            ))
-    return tuple(sorted(views, key=lambda view: (view.time_start, view.family, view.family_view_id)))
+                quality_values.update(
+                    (
+                        f"packet_loss:{result.quality_snapshot.packet_loss.value}",
+                        f"sampling:{result.quality_snapshot.sampling.value}",
+                        f"parser:{result.quality_snapshot.parser.value}",
+                        f"capture_gap:{result.quality_snapshot.capture_gap.value}",
+                    )
+                )
+            views.append(
+                FamilyEvidenceView(
+                    family_view_id=_view_id(family, component),
+                    family=family,
+                    time_start=min(times),
+                    time_end=max(times),
+                    entity_references=tuple(
+                        sorted({result.entity_reference for result in component})
+                    ),
+                    source_result_ids=tuple(result.result_id for result in component),
+                    source_observation_ids=tuple(
+                        sorted(
+                            {item for result in component for item in result.source_observation_ids}
+                        )
+                    ),
+                    findings=tuple(
+                        FamilyFinding(
+                            source_result_id=result.result_id,
+                            title=_display_title(result),
+                            statements=_result_statements(result),
+                            result_type=result.result_type.value,
+                        )
+                        for result in component
+                        if result.result_type in _FINDING_RESULT_TYPES
+                    ),
+                    limitations=_limitations(component),
+                    missing_evidence=missing,
+                    visibility_summary=tuple(sorted(visibility_values)),
+                    quality_summary=tuple(sorted(quality_values)),
+                )
+            )
+    return tuple(
+        sorted(views, key=lambda view: (view.time_start, view.family, view.family_view_id))
+    )
 
 
 def index_investigations(views: Iterable[FamilyEvidenceView]) -> tuple[InvestigationLink, ...]:
@@ -243,7 +302,7 @@ def index_investigations(views: Iterable[FamilyEvidenceView]) -> tuple[Investiga
         ordered = sorted(unique)
         # This enumerates candidates only within a factual observation bucket.
         for left_index, left_id in enumerate(ordered):
-            for right_id in ordered[left_index + 1:]:
+            for right_id in ordered[left_index + 1 :]:
                 if by_id[left_id].family != by_id[right_id].family:
                     shared[(left_id, right_id)].add(observation_id)
     links = []
@@ -251,11 +310,14 @@ def index_investigations(views: Iterable[FamilyEvidenceView]) -> tuple[Investiga
         left, right = by_id[left_id], by_id[right_id]
         result_ids = tuple(sorted(set(left.source_result_ids) | set(right.source_result_ids)))
         link_seed = "\0".join((left_id, right_id, *sorted(observation_ids)))
-        links.append(InvestigationLink(
-            link_id="investigation-" + hashlib.sha256(link_seed.encode()).hexdigest()[:20],
-            left_family_view_id=left_id, right_family_view_id=right_id,
-            relation_types=("SHARED_SOURCE_OBSERVATION",),
-            shared_source_observation_ids=tuple(sorted(observation_ids)),
-            source_result_ids=result_ids,
-        ))
+        links.append(
+            InvestigationLink(
+                link_id="investigation-" + hashlib.sha256(link_seed.encode()).hexdigest()[:20],
+                left_family_view_id=left_id,
+                right_family_view_id=right_id,
+                relation_types=("SHARED_SOURCE_OBSERVATION",),
+                shared_source_observation_ids=tuple(sorted(observation_ids)),
+                source_result_ids=result_ids,
+            )
+        )
     return tuple(links)

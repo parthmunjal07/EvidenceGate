@@ -5,6 +5,7 @@ from evidencegate.domain.enums import CapabilityState, ObservationType, RouteRea
 from evidencegate.registry.manifest import PluginManifest
 from evidencegate.registry.plugin import AnalyticPlugin
 
+
 class LaneTarget(str):
     pass
 
@@ -12,6 +13,7 @@ class LaneTarget(str):
 @dataclass(frozen=True, slots=True)
 class RouteDecision:
     """The independent, explainable compatibility result for one lane."""
+
     target: LaneTarget
     selected: bool
     reasons: tuple[RouteReason, ...]
@@ -22,15 +24,18 @@ class RouteDecision:
 @dataclass(frozen=True, slots=True)
 class RoutingPlan:
     """In-memory, deterministic routing result for one observation."""
+
     observation_id: str
     selected_targets: tuple[LaneTarget, ...]
     decisions: tuple[RouteDecision, ...]
 
+
 class RelevanceRouter:
     """
-    At registration, compile ObservationType -> candidate lanes. 
+    At registration, compile ObservationType -> candidate lanes.
     For an observation, invoke only each candidate's pure, bounded route() predicate.
     """
+
     def __init__(self, plugins: Dict[LaneTarget, AnalyticPlugin]):
         self._plugins = dict(plugins)
         self._manifests: Dict[LaneTarget, PluginManifest] = {}
@@ -66,12 +71,19 @@ class RelevanceRouter:
                     selected_targets.append(lane_target)
                     decisions.append(RouteDecision(lane_target, True, (RouteReason.SELECTED,)))
                 else:
-                    decisions.append(RouteDecision(lane_target, False, (RouteReason.PREDICATE_FALSE,)))
+                    decisions.append(
+                        RouteDecision(lane_target, False, (RouteReason.PREDICATE_FALSE,))
+                    )
             except Exception as exc:
-                decisions.append(RouteDecision(
-                    lane_target, False, (RouteReason.PREDICATE_ERROR,),
-                    type(exc).__name__, str(exc)[:500],
-                ))
+                decisions.append(
+                    RouteDecision(
+                        lane_target,
+                        False,
+                        (RouteReason.PREDICATE_ERROR,),
+                        type(exc).__name__,
+                        str(exc)[:500],
+                    )
+                )
         return RoutingPlan(observation.observation_id, tuple(selected_targets), tuple(decisions))
 
     @staticmethod
@@ -93,8 +105,10 @@ class RelevanceRouter:
             reasons.append(RouteReason.REQUIRED_CAPABILITY_UNAVAILABLE)
         if manifest.allowed_finality and observation.finality not in manifest.allowed_finality:
             reasons.append(RouteReason.FINALITY_UNSUPPORTED)
-        if (manifest.allowed_availability_basis
-                and observation.availability_basis not in manifest.allowed_availability_basis):
+        if (
+            manifest.allowed_availability_basis
+            and observation.availability_basis not in manifest.allowed_availability_basis
+        ):
             reasons.append(RouteReason.AVAILABILITY_UNSUPPORTED)
         return reasons
 

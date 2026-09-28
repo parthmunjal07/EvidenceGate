@@ -1,4 +1,5 @@
 """Best-effort adapter for presentation-only runtime telemetry."""
+
 from __future__ import annotations
 
 from typing import Callable

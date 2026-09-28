@@ -9,10 +9,11 @@ allowed_result_types is now tuple[ResultType, ...] (enum values), so we
 compare result.result_type (a ResultType enum) directly against the tuple,
 never against string representations.
 """
+
 from evidencegate.results.types import EvidencePayload, Result, ResultStatusSnapshot, ThreatAlert
 from evidencegate.domain.events import VisibilityProfile
 from evidencegate.domain.quality import EvidenceQuality
-from evidencegate.domain.enums import ResultType, ScientificStatus
+from evidencegate.domain.enums import ScientificStatus
 from evidencegate.domain.governance import LaneGovernance
 
 
@@ -32,9 +33,7 @@ class ResultValidator:
     def validate(result: Result, governance: LaneGovernance) -> None:
         # ── Taxonomy and versioning ─────────────────────────────────────────
         if not result.taxonomy or len(result.taxonomy) != 3:
-            raise ValueError(
-                f"Result {result.result_id} missing valid 3-level taxonomy."
-            )
+            raise ValueError(f"Result {result.result_id} missing valid 3-level taxonomy.")
         if not result.schema_version:
             raise ValueError(f"Result {result.result_id} missing schema version.")
         if not result.lane_id:
@@ -42,9 +41,7 @@ class ResultValidator:
         if not result.plugin_id:
             raise ValueError(f"Result {result.result_id} missing plugin id.")
         if not result.plugin_version or not result.analytic_version:
-            raise ValueError(
-                f"Result {result.result_id} missing plugin/analytic version."
-            )
+            raise ValueError(f"Result {result.result_id} missing plugin/analytic version.")
         if not result.governance_version:
             raise ValueError(f"Result {result.result_id} missing governance version.")
         if not result.claim_ceiling:
@@ -89,9 +86,7 @@ class ResultValidator:
                     "ThreatAlert cannot be emitted from a scaffold/unavailable lane (IC-08)."
                 )
             if not result.confidence:
-                raise ValueError(
-                    "ThreatAlert must define confidence semantics (contract §8)."
-                )
+                raise ValueError("ThreatAlert must define confidence semantics (contract §8).")
 
         # ── No confidence/severity on non-alert results ─────────────────────
         if not isinstance(result, ThreatAlert):

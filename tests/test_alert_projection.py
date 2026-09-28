@@ -1,4 +1,5 @@
 """Active SIH projection policy and product-surface tests."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -10,19 +11,33 @@ import pytest
 
 from evidencegate.api.app import create_app
 from evidencegate.api.projection import (
-    POLICY_VERSION, ConfidenceBasis, SihAlertProjection, SihStatusProjection,
-    StatusKind, project_result, project_results,
+    POLICY_VERSION,
+    ConfidenceBasis,
+    SihAlertProjection,
+    SihStatusProjection,
+    StatusKind,
+    project_result,
+    project_results,
 )
 from evidencegate.domain.enums import (
-    AnalyticUnavailableReason, EvidenceReadiness, IntegrationStatus, ResultType,
+    AnalyticUnavailableReason,
+    EvidenceReadiness,
+    IntegrationStatus,
+    ResultType,
     ScientificStatus,
 )
 from evidencegate.domain.events import VisibilityProfile
 from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.results.finalizer import result_id_for
 from evidencegate.results.types import (
-    AnalyticUnavailable, EvidencePayload, InsufficientEvidence, PluginStatus,
-    PrerequisiteMissing, QualityDegraded, ResultStatusSnapshot, ReviewFinding,
+    AnalyticUnavailable,
+    EvidencePayload,
+    InsufficientEvidence,
+    PluginStatus,
+    PrerequisiteMissing,
+    QualityDegraded,
+    ResultStatusSnapshot,
+    ReviewFinding,
 )
 
 
@@ -30,33 +45,54 @@ BASE = datetime(2026, 9, 23, tzinfo=timezone.utc)
 
 
 def result_for(
-    lane: str, mechanism: str, *, suffix: str = "one",
-    result_class=ReviewFinding, result_type: ResultType = ResultType.REVIEW_FINDING,
+    lane: str,
+    mechanism: str,
+    *,
+    suffix: str = "one",
+    result_class=ReviewFinding,
+    result_type: ResultType = ResultType.REVIEW_FINDING,
     evidence: dict | None = None,
 ):
     common = dict(
-        result_id="", schema_version="3.0", result_type=result_type,
-        created_time=BASE, lane_id=lane, plugin_id=f"provider.{lane}",
-        plugin_version="1", analytic_version="1", governance_version="gov-1",
-        entity_reference=f"entity:{suffix}", taxonomy=("network", "evidence", suffix),
+        result_id="",
+        schema_version="3.0",
+        result_type=result_type,
+        created_time=BASE,
+        lane_id=lane,
+        plugin_id=f"provider.{lane}",
+        plugin_version="1",
+        analytic_version="1",
+        governance_version="gov-1",
+        entity_reference=f"entity:{suffix}",
+        taxonomy=("network", "evidence", suffix),
         status_snapshot=ResultStatusSnapshot(
             ScientificStatus.EVIDENCE_CONSTRUCTION,
-            IntegrationStatus.BASELINE_IMPLEMENTED, "gov-1",
-            EvidenceReadiness.READY, result_type is ResultType.QUALITY_DEGRADED,
+            IntegrationStatus.BASELINE_IMPLEMENTED,
+            "gov-1",
+            EvidenceReadiness.READY,
+            result_type is ResultType.QUALITY_DEGRADED,
         ),
         claim_ceiling=f"FACTUAL_{suffix.upper()}_ONLY",
-        evidence_items=(f"evidence:{suffix}",), missing_prerequisites=(),
-        governing_ids=("decision-1",), quality_refs=("quality-1",),
-        provenance_refs=("fixture:projection",), mechanism_id=mechanism,
+        evidence_items=(f"evidence:{suffix}",),
+        missing_prerequisites=(),
+        governing_ids=("decision-1",),
+        quality_refs=("quality-1",),
+        provenance_refs=("fixture:projection",),
+        mechanism_id=mechanism,
         evidence=EvidencePayload.from_value(evidence or {"measurement": suffix}),
-        source_observation_ids=("shared-observation",), source_ids=("source-1",),
-        quality_snapshot=EvidenceQuality(), visibility_snapshot=VisibilityProfile(),
-        state_version=1, config_hash="config-1", parser_refs=("parser-1",),
+        source_observation_ids=("shared-observation",),
+        source_ids=("source-1",),
+        quality_snapshot=EvidenceQuality(),
+        visibility_snapshot=VisibilityProfile(),
+        state_version=1,
+        config_hash="config-1",
+        parser_refs=("parser-1",),
         model_refs=("sha256:model",) if lane == "dga.m1" else (),
     )
     if result_class is AnalyticUnavailable:
         result = result_class(
-            **common, reason_code=AnalyticUnavailableReason.IMPLEMENTATION_NOT_READY,
+            **common,
+            reason_code=AnalyticUnavailableReason.IMPLEMENTATION_NOT_READY,
         )
     else:
         result = result_class(**common)
@@ -69,13 +105,26 @@ def result_for(
         ("ddos.udp_demand", "DDOS-A-UDP", "DDOS", ConfidenceBasis.STATISTICAL_SUPPORT),
         ("c2.r1", "C2-M1", "BOTNET_C2_BEACONING", ConfidenceBasis.STATISTICAL_SUPPORT),
         ("dns_tunnelling.t1", "DNS-T1", "DNS_TUNNELLING", ConfidenceBasis.OBSERVED_EVIDENCE),
-        ("encrypted_session.enc_a", "ENC-A", "MALWARE_IN_ENCRYPTED_SESSION", ConfidenceBasis.OBSERVED_EVIDENCE),
+        (
+            "encrypted_session.enc_a",
+            "ENC-A",
+            "MALWARE_IN_ENCRYPTED_SESSION",
+            ConfidenceBasis.OBSERVED_EVIDENCE,
+        ),
         ("recon.h", "RECON-H", "RECONNAISSANCE", ConfidenceBasis.STATISTICAL_SUPPORT),
-        ("unusual_transfer.m1", "CAT6-EX-M1", "DATA_EXFILTRATION", ConfidenceBasis.OBSERVED_EVIDENCE),
+        (
+            "unusual_transfer.m1",
+            "CAT6-EX-M1",
+            "DATA_EXFILTRATION",
+            ConfidenceBasis.OBSERVED_EVIDENCE,
+        ),
     ),
 )
 def test_non_dga_review_projection_has_basis_without_fake_number(
-    lane, mechanism, threat_class, basis,
+    lane,
+    mechanism,
+    threat_class,
+    basis,
 ):
     source = result_for(lane, mechanism)
     before = dataclasses.asdict(source)
@@ -98,7 +147,8 @@ def test_non_dga_review_projection_has_basis_without_fake_number(
 
 def test_dga_model_score_is_labelled_and_not_an_attack_probability():
     source = result_for(
-        "dga.m1", "DGA-A1-M1",
+        "dga.m1",
+        "DGA-A1-M1",
         evidence={"dga_labelled_lexical_resemblance_score": 0.9851716132182514},
     )
     first = project_result(source)[0]
@@ -117,16 +167,38 @@ def test_dga_model_score_is_labelled_and_not_an_attack_probability():
 @pytest.mark.parametrize(
     ("result_class", "result_type", "kind", "priority"),
     (
-        (QualityDegraded, ResultType.QUALITY_DEGRADED, StatusKind.QUALITY_NOTIFICATION, "ATTENTION"),
-        (PrerequisiteMissing, ResultType.PREREQUISITE_MISSING, StatusKind.CAPABILITY_NOTIFICATION, "ATTENTION"),
-        (InsufficientEvidence, ResultType.INSUFFICIENT_EVIDENCE, StatusKind.EVIDENCE_STATUS, "INFO"),
-        (AnalyticUnavailable, ResultType.ANALYTIC_UNAVAILABLE, StatusKind.SYSTEM_CAPABILITY_STATUS, "ATTENTION"),
+        (
+            QualityDegraded,
+            ResultType.QUALITY_DEGRADED,
+            StatusKind.QUALITY_NOTIFICATION,
+            "ATTENTION",
+        ),
+        (
+            PrerequisiteMissing,
+            ResultType.PREREQUISITE_MISSING,
+            StatusKind.CAPABILITY_NOTIFICATION,
+            "ATTENTION",
+        ),
+        (
+            InsufficientEvidence,
+            ResultType.INSUFFICIENT_EVIDENCE,
+            StatusKind.EVIDENCE_STATUS,
+            "INFO",
+        ),
+        (
+            AnalyticUnavailable,
+            ResultType.ANALYTIC_UNAVAILABLE,
+            StatusKind.SYSTEM_CAPABILITY_STATUS,
+            "ATTENTION",
+        ),
         (PluginStatus, ResultType.PLUGIN_STATUS, StatusKind.PLUGIN_STATUS, "INFO"),
     ),
 )
 def test_non_review_results_are_separate_status_items(result_class, result_type, kind, priority):
     source = result_for(
-        "dns_tunnelling.t1", "DNS-T1", result_class=result_class,
+        "dns_tunnelling.t1",
+        "DNS-T1",
+        result_class=result_class,
         result_type=result_type,
     )
     (projected,) = project_result(source)
@@ -144,21 +216,26 @@ def test_non_review_results_are_separate_status_items(result_class, result_type,
 def test_one_observation_can_produce_multiple_unfused_projections():
     dns = result_for("dns_tunnelling.t1", "DNS-T1", suffix="dns")
     dga = result_for(
-        "dga.m1", "DGA-A1-M1", suffix="dga",
+        "dga.m1",
+        "DGA-A1-M1",
+        suffix="dga",
         evidence={"dga_labelled_lexical_resemblance_score": 0.8},
     )
     projected = project_results([dns, dga])
     assert len(projected) == 2
     assert {item.threat_class for item in projected if isinstance(item, SihAlertProjection)} == {
-        "DNS_TUNNELLING", "DGA",
+        "DNS_TUNNELLING",
+        "DGA",
     }
     assert len({item.alert_id for item in projected if isinstance(item, SihAlertProjection)}) == 2
     assert all(len(item.source_result_ids) == 1 for item in projected)
     assert {item.confidence_basis for item in projected} == {
-        ConfidenceBasis.MODEL_SCORE, ConfidenceBasis.OBSERVED_EVIDENCE,
+        ConfidenceBasis.MODEL_SCORE,
+        ConfidenceBasis.OBSERVED_EVIDENCE,
     }
     assert {item.claim_ceiling for item in projected} == {
-        dns.claim_ceiling, dga.claim_ceiling,
+        dns.claim_ceiling,
+        dga.claim_ceiling,
     }
 
 
@@ -167,7 +244,8 @@ async def active_client(database):
     app = create_app(database)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test",
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
         ) as client:
             yield client, app.state.service
 
@@ -176,11 +254,14 @@ async def active_client(database):
 async def test_active_endpoint_is_default_and_refresh_is_deterministic(tmp_path):
     async with active_client(tmp_path / "alerts.db") as (client, service):
         dga = result_for(
-            "dga.m1", "DGA-A1-M1",
+            "dga.m1",
+            "DGA-A1-M1",
             evidence={"dga_labelled_lexical_resemblance_score": 0.9},
         )
         status = result_for(
-            "dga.m1", "DGA-A1-M1", suffix="unavailable",
+            "dga.m1",
+            "DGA-A1-M1",
+            suffix="unavailable",
             result_class=AnalyticUnavailable,
             result_type=ResultType.ANALYTIC_UNAVAILABLE,
         )
@@ -200,7 +281,9 @@ async def test_active_endpoint_is_default_and_refresh_is_deterministic(tmp_path)
         assert len(first["status_items"]) == 1
         assert [item for item in first["alerts"] if item["source_result_ids"] == [dga.result_id]]
         family_response = (await client.get("/family-evidence")).json()
-        dga_dns = next(view for view in family_response["family_views"] if view["family"] == "DGA + DNS")
+        dga_dns = next(
+            view for view in family_response["family_views"] if view["family"] == "DGA + DNS"
+        )
         assert set(dga_dns["source_result_ids"]) == {dga.result_id, dns.result_id, status.result_id}
         assert len(dga_dns["findings"]) == 2
         assert all(item["result_type"] != "ANALYTIC_UNAVAILABLE" for item in dga_dns["findings"])

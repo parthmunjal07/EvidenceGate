@@ -1,4 +1,5 @@
 """Controlled-MVP default activation integration for DDoS and Recon lanes."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -9,7 +10,8 @@ import pytest
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner, validate_bundle
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.registry import (
-    DDOS_RECON_MVP_ACTIVATION_DECISION_ID, build_mvp_runtime_registration,
+    DDOS_RECON_MVP_ACTIVATION_DECISION_ID,
+    build_mvp_runtime_registration,
 )
 from evidencegate.results.types import ThreatAlert
 from evidencegate.runtime.supervisor import RuntimeSupervisor
@@ -37,12 +39,17 @@ async def run_default(bundle: str, database: Path):
         await writer.write_result(result)
 
     supervisor = RuntimeSupervisor(
-        registration.plugins, registration.governances, persist, shard_count=1,
+        registration.plugins,
+        registration.governances,
+        persist,
+        shard_count=1,
         reorder_policies=registration.reorder_policies,
     )
     try:
         summary = await ReplayRunner(
-            NdjsonReplaySource(FIXTURES / bundle), supervisor, clock=lambda: NOW,
+            NdjsonReplaySource(FIXTURES / bundle),
+            supervisor,
+            clock=lambda: NOW,
         ).run()
         stored = [await writer.get_result(result.result_id) for _, result in emitted]
         return summary, emitted, stored, registration
@@ -57,12 +64,16 @@ async def test_default_tcp_zero_to_many_and_sqlite_round_trip(tmp_path):
     )
     assert summary.records_read == summary.observations_emitted == 2
     activated = {
-        lane for lane, _ in emitted
-        if lane.startswith("ddos.") or lane.startswith("recon.")
+        lane for lane, _ in emitted if lane.startswith("ddos.") or lane.startswith("recon.")
     }
     assert activated == {
-        "ddos.syn_state", "ddos.source_diversity", "ddos.connection_churn",
-        "recon.h", "recon.v", "recon.2d", "recon.tcp",
+        "ddos.syn_state",
+        "ddos.source_diversity",
+        "ddos.connection_churn",
+        "recon.h",
+        "recon.v",
+        "recon.2d",
+        "recon.tcp",
     }
     assert stored == [result for _, result in emitted]
     for lane, result in emitted:
@@ -82,11 +93,11 @@ async def test_default_udp_zero_to_many_and_independent_results(tmp_path):
     _, emitted, stored, registration = await run_default(
         "default_activation_udp", tmp_path / "udp.db"
     )
-    activated = [
-        (lane, result) for lane, result in emitted if lane.startswith("ddos.")
-    ]
+    activated = [(lane, result) for lane, result in emitted if lane.startswith("ddos.")]
     assert {lane for lane, _ in activated} == {
-        "ddos.udp_demand", "ddos.reflection_victim", "ddos.source_diversity",
+        "ddos.udp_demand",
+        "ddos.reflection_victim",
+        "ddos.source_diversity",
     }
     assert len({result.result_id for _, result in activated}) == len(activated)
     assert stored == [result for _, result in emitted]
@@ -103,8 +114,12 @@ def test_default_plugin_capacity_values_are_exact():
     plugins = build_mvp_runtime_registration(NOW).plugins
     assert plugins["ddos.syn_state"].manifest().state_resource_policy.max_entries == 1024
     for lane in (
-        "ddos.udp_demand", "ddos.reflection_victim", "ddos.source_diversity",
-        "ddos.icmp_demand", "ddos.fragment_demand", "ddos.connection_churn",
+        "ddos.udp_demand",
+        "ddos.reflection_victim",
+        "ddos.source_diversity",
+        "ddos.icmp_demand",
+        "ddos.fragment_demand",
+        "ddos.connection_churn",
     ):
         assert plugins[lane].manifest().state_resource_policy.max_entries == 512
     assert plugins["ddos.reflection_victim"].max_sources_per_window == 256

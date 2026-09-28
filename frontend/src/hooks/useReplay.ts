@@ -18,7 +18,8 @@ export function useReplay() {
         if (replay.state === "RUNNING") timer = setTimeout(poll, 400);
         else {
           const runtime = await api.runtime(controller.signal);
-          if (!controller.signal.aborted) dispatch({ type: "runtime", value: runtime });
+          if (!controller.signal.aborted)
+            dispatch({ type: "runtime", value: runtime });
         }
       } catch (e) {
         if (!controller.signal.aborted)
@@ -37,10 +38,13 @@ export function useReplay() {
     setBusy(true);
     setError(null);
     try {
-      const replay: ReplayStatusResponse = await api.replay({
-        scenario,
-        speed,
-      }, signal);
+      const replay: ReplayStatusResponse = await api.replay(
+        {
+          scenario,
+          speed,
+        },
+        signal,
+      );
       if (signal?.aborted) return null;
       dispatch({ type: "replay", value: replay });
       return replay;

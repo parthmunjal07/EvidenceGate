@@ -5,33 +5,45 @@ Tests: IC-01 through IC-18
 
 All tests must be real — no assert True, no fabricated pass.
 """
+
 import pytest
 import asyncio
-import os
 import sqlite3
 import dataclasses
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
 
-from evidencegate.domain.events import NetworkObservationEnvelope, RuntimeControlEvent
+from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.payloads import PacketObservation, FlowObservation
 from evidencegate.domain.enums import (
-    AvailabilityBasis, DirectionBasis, Finality, ObservationType, ControlType,
-    ScientificStatus, ResultType, AnalyticUnavailableReason, EvidenceReadiness, IntegrationStatus,
-    SourceKind, TimestampSemantics, VisibilityCapability, WireDirection,
+    AvailabilityBasis,
+    DirectionBasis,
+    Finality,
+    ObservationType,
+    ControlType,
+    ScientificStatus,
+    ResultType,
+    AnalyticUnavailableReason,
+    EvidenceReadiness,
+    IntegrationStatus,
+    SourceKind,
+    TimestampSemantics,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.routing.router import RelevanceRouter
 from evidencegate.admission.evaluator import (
     AdmissionEvaluator,
-    AdmissionDecision,
     IngestAdmissionDecision,
     EvaluationReadinessDecision,
     AdmissionReason,
 )
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.results.types import (
-    ThreatAlert, ResultDraft, AnalyticUnavailable, ReviewFinding, ResultStatusSnapshot,
+    ThreatAlert,
+    AnalyticUnavailable,
+    ReviewFinding,
+    ResultStatusSnapshot,
 )
 from evidencegate.results.validator import ResultValidator
 from evidencegate.results.finalizer import result_id_for
@@ -45,6 +57,7 @@ from evidencegate.metrics.registry import registry as metrics_registry
 
 # ─────────────────────────── Shared Fixtures ──────────────────────────────
 
+
 def _now() -> datetime:
     """UTC-aware now."""
     return datetime.now(tz=timezone.utc)
@@ -55,7 +68,8 @@ def _make_governance(
     ingest_permitted: bool = True,
     scientific_status: ScientificStatus = ScientificStatus.EVIDENCE_CONSTRUCTION,
     allowed_result_types: tuple[ResultType, ...] = (
-        ResultType.REVIEW_FINDING, ResultType.ANALYTIC_UNAVAILABLE,
+        ResultType.REVIEW_FINDING,
+        ResultType.ANALYTIC_UNAVAILABLE,
     ),
 ) -> LaneGovernance:
     return LaneGovernance(
@@ -111,26 +125,30 @@ def test_observation() -> NetworkObservationEnvelope:
 
 # ─────────────────────────── IC-01 ────────────────────────────────────────
 
+
 def test_ic_01_router_typing():
     """IC-01: A control event cannot enter the normal relevance router."""
     import inspect
+
     sig = inspect.signature(RelevanceRouter.route)
     # The type annotation on 'observation' must be NetworkObservationEnvelope
     ann = sig.parameters["observation"].annotation
     assert ann.__name__ == "NetworkObservationEnvelope", (
-        "router.route() must only accept NetworkObservationEnvelope, "
-        "not RuntimeControlEvent"
+        "router.route() must only accept NetworkObservationEnvelope, not RuntimeControlEvent"
     )
 
 
 # ─────────────────────────── IC-02 ────────────────────────────────────────
 
+
 def test_ic_02_routing_zero_to_many(test_observation):
     """IC-02: One observation can be delivered to zero, one, or several lanes."""
     plugin1 = BasicScaffoldPlugin()
+
     class SecondScaffoldPlugin(BasicScaffoldPlugin):
         def manifest(self):
             return dataclasses.replace(super().manifest(), plugin_id="scaffold_02")
+
     router = RelevanceRouter({"lane1": plugin1, "lane2": SecondScaffoldPlugin()})
     targets = router.route(test_observation)
     # Both lanes accept PACKET — should get 2
@@ -140,6 +158,7 @@ def test_ic_02_routing_zero_to_many(test_observation):
 
 
 # ─────────────────────────── IC-03 ────────────────────────────────────────
+
 
 def test_ic_03_admission_unavailable(test_observation):
     """IC-03: Inadmissible observation → typed rejection reason, never benign."""
@@ -157,6 +176,7 @@ def test_ic_03_admission_unavailable(test_observation):
 
 
 # ─────────────────────────── IC-04 ────────────────────────────────────────
+
 
 def test_ic_04_causal_availability():
     """IC-04: Terminal flow causal_available_time >= export_time."""
@@ -178,7 +198,9 @@ def test_ic_04_causal_availability():
     )
 
     record = RawSourceRecord(
-        raw_data=flow_obs, timestamp=event_time, position="1",
+        raw_data=flow_obs,
+        timestamp=event_time,
+        position="1",
         finality=Finality.TERMINAL,
     )
     manifest = SourceManifest(
@@ -200,6 +222,7 @@ def test_ic_04_causal_availability():
 
 # ─────────────────────────── IC-05 ────────────────────────────────────────
 
+
 def test_ic_05_deterministic_sharding():
     """IC-05: Same plugin+key always maps to same shard; concurrent shards can progress."""
     shard1 = compute_shard("pluginA", "10.0.0.1", 4)
@@ -215,24 +238,25 @@ def test_ic_05_deterministic_sharding():
 
 # ─────────────────────────── IC-06 ────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_ic_06_queue_saturation(test_observation):
     """
-    IC-06: Queue saturation must create a QualityGap, update lane health, 
+    IC-06: Queue saturation must create a QualityGap, update lane health,
     deliver to sink, invoke GapAction, reflect in metrics, and not silently drop.
     """
     from evidencegate.runtime.dispatcher import LaneDispatcher
-    from evidencegate.registry.plugin import AnalyticPlugin
-    from evidencegate.domain.enums import OperationalHealth, GapAction
-    
+    from evidencegate.domain.enums import OperationalHealth
+
     plugin = BasicScaffoldPlugin()
     gov = _make_governance()
-    
+
     # Fake gap sink
     sink_gaps = []
+
     async def fake_gap_sink(gap):
         sink_gaps.append(gap)
-        
+
     dispatcher = LaneDispatcher(
         target="lane1",
         plugin=plugin,
@@ -240,52 +264,50 @@ async def test_ic_06_queue_saturation(test_observation):
         shards=[],
         shard_count=1,
         max_size=1,
-        gap_sink=fake_gap_sink
+        gap_sink=fake_gap_sink,
     )
-    
+
     # Fill queue to capacity (1)
     dispatcher.put_nowait(test_observation)
-    
+
     # We must patch the shard dispatch to simulate the QueueFull without running consumer loop
     # Actually, we can just call _handle_queue_saturation directly to simulate the catch block
     await dispatcher._handle_queue_saturation(test_observation)
-    
+
     # 1. Gap is visible through health record
     assert len(dispatcher.health.active_gaps) == 1
     gap = dispatcher.health.active_gaps[0]
     assert "Shard queue full" in gap.reason
     assert "before plugin processing" in gap.reason
-    
+
     # 2. Delivered to sink
     assert len(sink_gaps) == 1
     assert sink_gaps[0] == gap
-    
+
     # 3. GapAction invoked (CONTINUE_WITH_QUALITY_FLAG leaves health as BACKPRESSURED based on health.record_gap)
     # Wait, record_gap sets it to BACKPRESSURED, and CONTINUE_WITH_QUALITY_FLAG does nothing more.
     assert dispatcher.health.health == OperationalHealth.BACKPRESSURED
-    
+
     # 4. Metrics reflection (Assuming gap metric or drop metric exists, not explicitly defined in registry yet for drops, but gap is recorded)
     # 5. No silent loss (asserted by gap existence)
 
 
 # ─────────────────────────── IC-07 ────────────────────────────────────────
 
+
 def test_ic_07_restart_epoch():
     """IC-07: Restart creates new state epoch — no state bleeds across instances."""
     store1 = StateStore()
     now = _now()
-    store1.transition(
-        "test", "k1", None, StateOperation.UPSERT, "v1", now, timedelta(minutes=1)
-    )
+    store1.transition("test", "k1", None, StateOperation.UPSERT, "v1", now, timedelta(minutes=1))
     assert store1.read("test", "k1", now).payload == "v1"
 
     store2 = StateStore()
-    assert store2.read("test", "k1", now) is None, (
-        "New StateStore must start empty (new epoch)"
-    )
+    assert store2.read("test", "k1", now) is None, "New StateStore must start empty (new epoch)"
 
 
 # ─────────────────────────── IC-08 ────────────────────────────────────────
+
 
 def test_ic_08_scaffold_no_threat_alert():
     """IC-08: Scaffold cannot persist ThreatAlert."""
@@ -304,7 +326,13 @@ def test_ic_08_scaffold_no_threat_alert():
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot=ResultStatusSnapshot(ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
+        status_snapshot=ResultStatusSnapshot(
+            ScientificStatus.EVIDENCE_CONSTRUCTION,
+            IntegrationStatus.RUNTIME_SCAFFOLD_READY,
+            "gov",
+            EvidenceReadiness.READY,
+            False,
+        ),
         governance_version="gov",
         claim_ceiling="1",
         quality_refs=("q",),
@@ -320,6 +348,7 @@ def test_ic_08_scaffold_no_threat_alert():
 
 # ─────────────────────────── IC-09 ────────────────────────────────────────
 
+
 def test_ic_09_governance_readonly():
     """IC-09: Governance snapshot is frozen — plugin code cannot mutate it."""
     gov = _make_governance()
@@ -328,6 +357,7 @@ def test_ic_09_governance_readonly():
 
 
 # ─────────────────────────── IC-10 ────────────────────────────────────────
+
 
 def test_ic_10_unavailable_implications():
     """IC-10: AnalyticUnavailable, PrerequisiteMissing, QualityDegraded, ReviewFinding
@@ -343,7 +373,13 @@ def test_ic_10_unavailable_implications():
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot=ResultStatusSnapshot(ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
+        status_snapshot=ResultStatusSnapshot(
+            ScientificStatus.EVIDENCE_CONSTRUCTION,
+            IntegrationStatus.RUNTIME_SCAFFOLD_READY,
+            "gov",
+            EvidenceReadiness.READY,
+            False,
+        ),
         governance_version="gov",
         claim_ceiling="1",
         quality_refs=("q",),
@@ -359,13 +395,16 @@ def test_ic_10_unavailable_implications():
 
 # ─────────────────────────── IC-11 ────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_ic_11_sqlite_idempotence(tmp_path):
     """IC-11: Result rows are append-only; duplicate write is a no-op."""
     db_path = tmp_path / "test.db"
     schema_path = tmp_path / "schema.sql"
 
-    import shutil, pathlib
+    import shutil
+    import pathlib
+
     repo_schema = pathlib.Path("evidencegate/persistence/schema.sql")
     shutil.copy(str(repo_schema), str(schema_path))
 
@@ -383,7 +422,13 @@ async def test_ic_11_sqlite_idempotence(tmp_path):
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot=ResultStatusSnapshot(ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
+        status_snapshot=ResultStatusSnapshot(
+            ScientificStatus.EVIDENCE_CONSTRUCTION,
+            IntegrationStatus.RUNTIME_SCAFFOLD_READY,
+            "gov",
+            EvidenceReadiness.READY,
+            False,
+        ),
         governance_version="gov",
         claim_ceiling="REVIEW_ONLY",
         quality_refs=("q",),
@@ -409,6 +454,7 @@ async def test_ic_11_sqlite_idempotence(tmp_path):
 
 # ─────────────────────────── IC-12 ────────────────────────────────────────
 
+
 def test_ic_12_slow_websocket():
     """IC-12: Slow WebSocket client cannot block the analytic path."""
     queue = asyncio.Queue(maxsize=1)
@@ -420,24 +466,29 @@ def test_ic_12_slow_websocket():
 
 # ─────────────────────────── IC-13 ────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_ic_13_sqlite_wal(tmp_path):
     """
-    IC-13: SQLite version/fix compatibility is checked; required WAL mode is active; 
+    IC-13: SQLite version/fix compatibility is checked; required WAL mode is active;
     concurrent readers work while the writer is active.
     If the exact upstream SQLite fix cannot be verified, mark BLOCKED_WITH_REASON.
     """
     import sqlite3
-    
+
     # Check SQLite version/fix compatibility first
     sqlite_version = sqlite3.sqlite_version_info
     # Python stdlib sqlite3 on Windows often doesn't guarantee the specific upstream concurrent WAL writer fix
     # So we mark this test BLOCKED_WITH_REASON to fulfill the strict contract if we can't prove it.
-    if sqlite_version < (3, 37, 0): # Arbitrary version representing a fix
-        pytest.skip(f"BLOCKED_WITH_REASON: Required upstream SQLite WAL fix not verifiable in {sqlite3.sqlite_version}")
-        
+    if sqlite_version < (3, 37, 0):  # Arbitrary version representing a fix
+        pytest.skip(
+            f"BLOCKED_WITH_REASON: Required upstream SQLite WAL fix not verifiable in {sqlite3.sqlite_version}"
+        )
+
     # We still check WAL mode if not skipped
-    import shutil, pathlib
+    import shutil
+    import pathlib
+
     db_path = tmp_path / "wal_test.db"
     schema_path = tmp_path / "schema.sql"
     shutil.copy(str(pathlib.Path("evidencegate/persistence/schema.sql")), str(schema_path))
@@ -449,28 +500,33 @@ async def test_ic_13_sqlite_wal(tmp_path):
     cursor.execute("PRAGMA journal_mode")
     mode = cursor.fetchone()[0].lower()
     assert mode == "wal", f"Expected WAL mode, got: {mode}"
-    
+
     # Test concurrent reader while writer has uncommitted transaction
     writer._conn.execute("BEGIN")
-    cursor.execute("INSERT INTO results (result_id, result_type, created_time, entity_reference, plugin_version, analytic_version) VALUES ('r1', 'REVIEW_FINDING', '2020-01-01T00:00:00+00:00', 'e', '1', '1')")
-    cursor.execute("INSERT INTO missing_prerequisites (result_id, prerequisite) VALUES ('r1', 'p1')")
-    
+    cursor.execute(
+        "INSERT INTO results (result_id, result_type, created_time, entity_reference, plugin_version, analytic_version) VALUES ('r1', 'REVIEW_FINDING', '2020-01-01T00:00:00+00:00', 'e', '1', '1')"
+    )
+    cursor.execute(
+        "INSERT INTO missing_prerequisites (result_id, prerequisite) VALUES ('r1', 'p1')"
+    )
+
     # Concurrent reader
     reader_conn = sqlite3.connect(db_path)
     reader_cursor = reader_conn.cursor()
     reader_cursor.execute("PRAGMA journal_mode")
     assert reader_cursor.fetchone()[0].lower() == "wal"
-    
+
     # Reader should not block and should see old data (0 rows)
     reader_cursor.execute("SELECT COUNT(*) FROM missing_prerequisites")
     assert reader_cursor.fetchone()[0] == 0, "Concurrent reader should not see uncommitted data"
     reader_conn.close()
-    
+
     writer._conn.execute("ROLLBACK")
     writer.close()
 
 
 # ─────────────────────────── IC-14 ────────────────────────────────────────
+
 
 def test_ic_14_bounded_metrics():
     """IC-14: Metrics expose only bounded labels; no entity identifiers."""
@@ -481,6 +537,7 @@ def test_ic_14_bounded_metrics():
 
 
 # ─────────────────────────── IC-15 ────────────────────────────────────────
+
 
 def test_ic_15_pure_canonicalization():
     """
@@ -501,7 +558,9 @@ def test_ic_15_pure_canonicalization():
         documented_end_state=None,
     )
     rec = RawSourceRecord(
-        raw_data=flow, timestamp=_now(), position="42",
+        raw_data=flow,
+        timestamp=_now(),
+        position="42",
         finality=Finality.TERMINAL,
     )
     manifest = SourceManifest(
@@ -537,6 +596,7 @@ def test_ic_15_pure_canonicalization():
 
 
 # ─────────────────────────── IC-16 ────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_ic_16_ingest_admission_states():
@@ -591,9 +651,7 @@ async def test_ic_16_ingest_admission_states():
     )
 
     # ── Phase 1: Ingest Admission (must admit) ──────────────────────────────
-    admission: IngestAdmissionDecision = AdmissionEvaluator.evaluate(
-        obs, plugin.manifest(), gov
-    )
+    admission: IngestAdmissionDecision = AdmissionEvaluator.evaluate(obs, plugin.manifest(), gov)
     assert admission.admitted, (
         "Observation must be admitted by ingest admission when ingest_permitted=True"
     )
@@ -605,7 +663,8 @@ async def test_ic_16_ingest_admission_states():
     # Simulate state update: first observation → count = 1 → WARMING_UP
     readiness_1 = EvaluationReadinessDecision(EvidenceReadiness.INSUFFICIENT_HISTORY)
     assert readiness_1.readiness in (
-        EvidenceReadiness.WARMING_UP, EvidenceReadiness.INSUFFICIENT_HISTORY
+        EvidenceReadiness.WARMING_UP,
+        EvidenceReadiness.INSUFFICIENT_HISTORY,
     ), (
         f"After 1st observation readiness must be WARMING_UP or INSUFFICIENT_HISTORY, "
         f"got {readiness_1.readiness}"
@@ -648,6 +707,7 @@ async def test_ic_16_ingest_admission_states():
 
 # ─────────────────────────── IC-17 ────────────────────────────────────────
 
+
 def test_ic_17_governance_owns_result_permissions(test_observation):
     """
     IC-17: Governance explicitly owns allowed_result_types.
@@ -655,7 +715,6 @@ def test_ic_17_governance_owns_result_permissions(test_observation):
     A MODEL_VALIDATED lane that only lists REVIEW_FINDING must still reject
     THREAT_ALERT even though MODEL_VALIDATED sounds 'fully ready'.
     """
-    plugin = BasicScaffoldPlugin()
     gov = _make_governance(
         scientific_status=ScientificStatus.MODEL_VALIDATED,
         allowed_result_types=(ResultType.REVIEW_FINDING,),  # THREAT_ALERT not listed
@@ -671,7 +730,13 @@ def test_ic_17_governance_owns_result_permissions(test_observation):
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot=ResultStatusSnapshot(ScientificStatus.MODEL_VALIDATED, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
+        status_snapshot=ResultStatusSnapshot(
+            ScientificStatus.MODEL_VALIDATED,
+            IntegrationStatus.RUNTIME_SCAFFOLD_READY,
+            "gov",
+            EvidenceReadiness.READY,
+            False,
+        ),
         governance_version="gov",
         claim_ceiling="1",
         quality_refs=("q",),
@@ -687,6 +752,7 @@ def test_ic_17_governance_owns_result_permissions(test_observation):
 
 # ─────────────────────────── IC-18 ────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
     """
@@ -698,7 +764,9 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
     2. Verifies that the result row is also absent (complete rollback).
     3. Verifies idempotence on a clean re-write: only 1 row appears.
     """
-    import shutil, pathlib
+    import shutil
+    import pathlib
+
     db_path = tmp_path / "test_atomic.db"
     schema_path = tmp_path / "schema.sql"
     shutil.copy(str(pathlib.Path("evidencegate/persistence/schema.sql")), str(schema_path))
@@ -717,12 +785,18 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
         taxonomy=("A", "B", "C"),
         plugin_version="1",
         analytic_version="1",
-        status_snapshot=ResultStatusSnapshot(ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.RUNTIME_SCAFFOLD_READY, "gov", EvidenceReadiness.READY, False),
+        status_snapshot=ResultStatusSnapshot(
+            ScientificStatus.EVIDENCE_CONSTRUCTION,
+            IntegrationStatus.RUNTIME_SCAFFOLD_READY,
+            "gov",
+            EvidenceReadiness.READY,
+            False,
+        ),
         governance_version="gov",
         claim_ceiling="REVIEW_ONLY",
         quality_refs=("q",),
         provenance_refs=("p_ref",),
-        evidence_items=("mandatory_ev1",),   # mandatory child
+        evidence_items=("mandatory_ev1",),  # mandatory child
         missing_prerequisites=(),
         governing_ids=(),
     )
@@ -750,12 +824,24 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    r.result_id, r.result_type.value, r.created_time.isoformat(),
+                    r.result_id,
+                    r.result_type.value,
+                    r.created_time.isoformat(),
                     r.entity_reference,
-                    r.taxonomy[0], r.taxonomy[1], r.taxonomy[2],
-                    r.plugin_version, r.analytic_version,
-                    "{}", r.claim_ceiling, None, None,
-                    None, None, None, None, None,
+                    r.taxonomy[0],
+                    r.taxonomy[1],
+                    r.taxonomy[2],
+                    r.plugin_version,
+                    r.analytic_version,
+                    "{}",
+                    r.claim_ceiling,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
                 ),
             )
             # Now simulate mandatory child-write failure
@@ -799,43 +885,50 @@ async def test_ic_18_atomic_idempotent_sqlite(tmp_path):
 
 # ─────────────────────────── Additional Required Tests ───────────────────────
 
+
 def test_missing_required_fields(test_observation):
     """Test admission rejection when a required field is missing."""
     plugin = BasicScaffoldPlugin()
     # Mock manifest to require 'missing_field'
     import dataclasses
+
     manifest = dataclasses.replace(plugin.manifest(), required_fields=("missing_field",))
     gov = _make_governance()
-    
+
     decision = AdmissionEvaluator.evaluate(test_observation, manifest, gov)
     assert not decision.admitted
     assert AdmissionReason.PREREQUISITE_MISSING in decision.reasons
+
 
 def test_insufficient_visibility(test_observation):
     """Test admission rejection when a factual capability is not available."""
     plugin = BasicScaffoldPlugin()
     import dataclasses
+
     manifest = dataclasses.replace(
         plugin.manifest(),
         required_visibility_capabilities=frozenset({VisibilityCapability.PACKET_FACTS}),
     )
     gov = _make_governance()
-    
+
     decision = AdmissionEvaluator.evaluate(test_observation, manifest, gov)
     assert not decision.admitted
     assert AdmissionReason.INSUFFICIENT_VISIBILITY in decision.reasons
+
 
 def test_unsupported_finality(test_observation):
     """Test admission rejection when finality is not supported."""
     plugin = BasicScaffoldPlugin()
     import dataclasses
+
     manifest = dataclasses.replace(plugin.manifest(), allowed_finality=(Finality.CURRENT,))
     gov = _make_governance()
-    
+
     # test_observation is terminal
     decision = AdmissionEvaluator.evaluate(test_observation, manifest, gov)
     assert not decision.admitted
     assert AdmissionReason.UNSUPPORTED_FINALITY in decision.reasons
+
 
 @pytest.mark.asyncio
 async def test_unexpected_dispatcher_exception(test_observation):
@@ -845,19 +938,19 @@ async def test_unexpected_dispatcher_exception(test_observation):
     """
     from evidencegate.runtime.dispatcher import LaneDispatcher
     from evidencegate.domain.enums import OperationalHealth
-    
+
     plugin = BasicScaffoldPlugin()
     gov = _make_governance()
     control_events = []
 
     async def capture_control(event):
         control_events.append(event)
-    
+
     # Patch shard dispatch to raise Exception
     class FailingShard:
         def put_nowait(self, obs):
             raise ValueError("Injected runtime failure")
-            
+
     dispatcher = LaneDispatcher(
         target="lane1",
         plugin=plugin,
@@ -866,23 +959,27 @@ async def test_unexpected_dispatcher_exception(test_observation):
         shard_count=1,
         control_sink=capture_control,
     )
-    
+
     dispatcher.put_nowait(test_observation)
-    
-    initial_errors = metrics_registry.processing_errors.labels(lane="lane1", plugin_id=plugin.manifest().plugin_id)._value.get()
-    
+
+    initial_errors = metrics_registry.processing_errors.labels(
+        lane="lane1", plugin_id=plugin.manifest().plugin_id
+    )._value.get()
+
     # Run the consume loop for one item
     # Note: _consume is a while True loop, so we run it using a timeout or step it.
     # Actually, if we just cancel it after it processes one item, it works.
     task = asyncio.create_task(dispatcher._consume())
-    await asyncio.sleep(0.1) # Let the queue get processed
+    await asyncio.sleep(0.1)  # Let the queue get processed
     task.cancel()
-    
+
     # Health should be FAILED
     assert dispatcher.health.health == OperationalHealth.FAILED
-    
+
     # Metric should be incremented
-    final_errors = metrics_registry.processing_errors.labels(lane="lane1", plugin_id=plugin.manifest().plugin_id)._value.get()
+    final_errors = metrics_registry.processing_errors.labels(
+        lane="lane1", plugin_id=plugin.manifest().plugin_id
+    )._value.get()
     assert final_errors == initial_errors + 1
     assert len(control_events) == 1
     assert control_events[0].control_type is ControlType.ERROR

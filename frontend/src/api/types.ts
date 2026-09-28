@@ -200,8 +200,17 @@ export type ObservationPresentationDto = {
     identifier_basis: string;
     role_assignments: { identifier: string; role: string; basis: string }[];
   };
-  visibility: { available: string[]; unavailable: string[]; degraded: string[] };
-  quality: { packet_loss: string; sampling: string; parser: string; capture_gap: string };
+  visibility: {
+    available: string[];
+    unavailable: string[];
+    degraded: string[];
+  };
+  quality: {
+    packet_loss: string;
+    sampling: string;
+    parser: string;
+    capture_gap: string;
+  };
   facts: Record<string, unknown>;
 };
 export type RuntimeTraceResponse = {

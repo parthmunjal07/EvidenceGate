@@ -1,4 +1,5 @@
 """Pure runtime-owned promotion from ``ResultDraft`` to immutable ``Result``."""
+
 from __future__ import annotations
 
 import hashlib
@@ -107,33 +108,35 @@ def canonical_result_content(result: Result) -> str:
         "evidence_interval": result.evidence_interval,
     }
     if result.schema_version != "2.0":
-        content.update({
-            "mechanism_id": result.mechanism_id,
-            "evidence": result.evidence.to_value(),
-            "source_observation_ids": result.source_observation_ids,
-            "source_ids": result.source_ids,
-            "quality_snapshot": {
-                "packet_loss": result.quality_snapshot.packet_loss,
-                "sampling": result.quality_snapshot.sampling,
-                "parser": result.quality_snapshot.parser,
-                "capture_gap": result.quality_snapshot.capture_gap,
-            },
-            "visibility_snapshot": {
-                "available": tuple(sorted(
-                    result.visibility_snapshot.available, key=lambda item: item.value
-                )),
-                "unavailable": tuple(sorted(
-                    result.visibility_snapshot.unavailable, key=lambda item: item.value
-                )),
-                "degraded": tuple(sorted(
-                    result.visibility_snapshot.degraded, key=lambda item: item.value
-                )),
-            },
-            "state_version": result.state_version,
-            "config_hash": result.config_hash,
-            "parser_refs": result.parser_refs,
-            "model_refs": result.model_refs,
-        })
+        content.update(
+            {
+                "mechanism_id": result.mechanism_id,
+                "evidence": result.evidence.to_value(),
+                "source_observation_ids": result.source_observation_ids,
+                "source_ids": result.source_ids,
+                "quality_snapshot": {
+                    "packet_loss": result.quality_snapshot.packet_loss,
+                    "sampling": result.quality_snapshot.sampling,
+                    "parser": result.quality_snapshot.parser,
+                    "capture_gap": result.quality_snapshot.capture_gap,
+                },
+                "visibility_snapshot": {
+                    "available": tuple(
+                        sorted(result.visibility_snapshot.available, key=lambda item: item.value)
+                    ),
+                    "unavailable": tuple(
+                        sorted(result.visibility_snapshot.unavailable, key=lambda item: item.value)
+                    ),
+                    "degraded": tuple(
+                        sorted(result.visibility_snapshot.degraded, key=lambda item: item.value)
+                    ),
+                },
+                "state_version": result.state_version,
+                "config_hash": result.config_hash,
+                "parser_refs": result.parser_refs,
+                "model_refs": result.model_refs,
+            }
+        )
     if isinstance(result, ThreatAlert):
         content["confidence"] = result.confidence
         content["severity"] = result.severity
@@ -145,9 +148,7 @@ def canonical_result_content(result: Result) -> str:
 
 
 def result_id_for(result: Result) -> str:
-    return "result:" + hashlib.sha256(
-        canonical_result_content(result).encode("utf-8")
-    ).hexdigest()
+    return "result:" + hashlib.sha256(canonical_result_content(result).encode("utf-8")).hexdigest()
 
 
 class ResultFinalizer:
@@ -178,7 +179,10 @@ class ResultFinalizer:
             raise ValueError(f"unsupported result type: {draft.result_type!r}")
         if not manifest.mechanism_id or not manifest.mechanism_id.strip():
             raise ValueError("a result-emitting plugin requires a non-empty mechanism_id")
-        if context.causal_result_time.tzinfo is None or context.causal_result_time.utcoffset() is None:
+        if (
+            context.causal_result_time.tzinfo is None
+            or context.causal_result_time.utcoffset() is None
+        ):
             raise ValueError("causal_result_time must be timezone-aware")
         if not isinstance(context.quality_snapshot, EvidenceQuality):
             raise TypeError("quality_snapshot must be EvidenceQuality")
@@ -197,12 +201,15 @@ class ResultFinalizer:
         if draft.result_type is not ResultType.THREAT_ALERT and (
             draft.confidence is not None or draft.severity is not None
         ):
-            raise ValueError(f"Result type {draft.result_type.value} cannot carry confidence/severity.")
+            raise ValueError(
+                f"Result type {draft.result_type.value} cannot carry confidence/severity."
+            )
         if draft.result_type is not ResultType.CORRELATION_FINDING and draft.linked_result_ids:
             raise ValueError("linked_result_ids are only valid for CorrelationFinding")
 
         evidence_items = _ordered_unique(
-            draft.evidence_items + ((context.trigger_reference,) if context.trigger_reference else ())
+            draft.evidence_items
+            + ((context.trigger_reference,) if context.trigger_reference else ())
         )
         governing_ids = _ordered_unique(
             manifest.governing_claim_ids + manifest.governing_decision_ids

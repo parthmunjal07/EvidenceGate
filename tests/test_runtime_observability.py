@@ -7,12 +7,18 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from evidencegate.domain.enums import (
-    AdmissionReason, AvailabilityBasis,
+    AdmissionReason,
+    AvailabilityBasis,
     ControlType,
-    DirectionBasis, Finality, ObservationType,
+    DirectionBasis,
+    Finality,
+    ObservationType,
     OperationalHealth,
     ResultType,
-    ScientificStatus, SourceKind, WireDirection, EvidenceReadiness,
+    ScientificStatus,
+    SourceKind,
+    WireDirection,
+    EvidenceReadiness,
 )
 from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.governance import LaneGovernance
@@ -131,9 +137,7 @@ async def test_admission_rejection_is_emitted_without_processing_or_state() -> N
     assert event.typed_payload["observation_id"] == "runtime-1"
     assert event.typed_payload["plugin_id"] == plugin.manifest().plugin_id
     assert event.typed_payload["governance_version"] == "gov-7"
-    assert event.typed_payload["reasons"] == (
-        AdmissionReason.PREREQUISITE_MISSING,
-    )
+    assert event.typed_payload["reasons"] == (AdmissionReason.PREREQUISITE_MISSING,)
 
 
 @pytest.mark.asyncio
@@ -152,9 +156,7 @@ async def test_dispatcher_exception_emits_error_and_loop_survives() -> None:
         1,
         control_sink=lambda value: collect_into(controls, value),
     )
-    metric = registry.processing_errors.labels(
-        lane="lane1", plugin_id=plugin.manifest().plugin_id
-    )
+    metric = registry.processing_errors.labels(lane="lane1", plugin_id=plugin.manifest().plugin_id)
     before = metric._value.get()
     dispatcher.start()
     try:
@@ -238,13 +240,13 @@ async def test_state_transition_failure_emits_error_without_result_or_mutation()
                         missing_prerequisites=(),
                     ),
                 ),
-                    state_transition=StateTransitionRequest(
-                        key=key,
-                        expected_version=expected,
-                        operation=StateOperation.NO_CHANGE,
-                    ),
-                    evaluation_readiness=EvaluationReadinessDecision(EvidenceReadiness.READY),
-                )
+                state_transition=StateTransitionRequest(
+                    key=key,
+                    expected_version=expected,
+                    operation=StateOperation.NO_CHANGE,
+                ),
+                evaluation_readiness=EvaluationReadinessDecision(EvidenceReadiness.READY),
+            )
 
     plugin = TransitionPlugin()
     store = StateStore()

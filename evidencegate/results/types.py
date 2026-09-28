@@ -1,4 +1,5 @@
 """Immutable result contracts and plugin-owned result drafts."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -40,10 +41,7 @@ def _canonical_evidence_value(value: object) -> object:
     if isinstance(value, dict):
         if any(not isinstance(key, str) for key in value):
             raise TypeError("evidence object keys must be strings")
-        return {
-            key: _canonical_evidence_value(item)
-            for key, item in value.items()
-        }
+        return {key: _canonical_evidence_value(item) for key, item in value.items()}
     raise TypeError(f"unsupported evidence value: {type(value).__name__}")
 
 
@@ -196,6 +194,12 @@ class ResultDraft:
 
 
 Result_T = (
-    ThreatAlert | ReviewFinding | AnalyticUnavailable | PrerequisiteMissing
-    | InsufficientEvidence | QualityDegraded | PluginStatus | CorrelationFinding
+    ThreatAlert
+    | ReviewFinding
+    | AnalyticUnavailable
+    | PrerequisiteMissing
+    | InsufficientEvidence
+    | QualityDegraded
+    | PluginStatus
+    | CorrelationFinding
 )

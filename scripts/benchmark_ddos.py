@@ -1,4 +1,5 @@
 """Controlled DDoS mechanism capacity characterization (not production sizing)."""
+
 from __future__ import annotations
 
 import argparse
@@ -14,11 +15,21 @@ from time import perf_counter
 import tracemalloc
 
 from evidencegate.domain.enums import (
-    AvailabilityBasis, DirectionBasis, Finality, IdentityBasis, ObservationType,
-    ResultType, ScientificStatus, SourceKind, VisibilityCapability, WireDirection,
+    AvailabilityBasis,
+    DirectionBasis,
+    Finality,
+    IdentityBasis,
+    ObservationType,
+    ResultType,
+    ScientificStatus,
+    SourceKind,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import (
-    NetworkObservationEnvelope, ObservationIdentity, RoleAssignment,
+    NetworkObservationEnvelope,
+    ObservationIdentity,
+    RoleAssignment,
     VisibilityProfile,
 )
 from evidencegate.domain.governance import LaneGovernance
@@ -27,14 +38,21 @@ from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.ddos import DDOS_A_CLAIM_CEILING, DdosASynPlugin
 from evidencegate.plugins.providers.ddos_config import (
-    DdosASynConfig, DdosConnectionChurnConfig, DdosFragmentDemandConfig,
-    DdosIcmpDemandConfig, DdosReflectionVictimConfig,
-    DdosSourceDiversityConfig, DdosUdpDemandConfig,
+    DdosASynConfig,
+    DdosConnectionChurnConfig,
+    DdosFragmentDemandConfig,
+    DdosIcmpDemandConfig,
+    DdosReflectionVictimConfig,
+    DdosSourceDiversityConfig,
+    DdosUdpDemandConfig,
 )
 from evidencegate.plugins.providers.ddos_measurements import (
-    DdosConnectionChurnPlugin, DdosFragmentDemandPlugin,
-    DdosIcmpDemandPlugin, DdosReflectionVictimPlugin,
-    DdosSourceDiversityPlugin, DdosUdpDemandPlugin,
+    DdosConnectionChurnPlugin,
+    DdosFragmentDemandPlugin,
+    DdosIcmpDemandPlugin,
+    DdosReflectionVictimPlugin,
+    DdosSourceDiversityPlugin,
+    DdosUdpDemandPlugin,
 )
 from evidencegate.routing.router import LaneTarget
 from evidencegate.runtime.dispatcher import EventTimeReorderPolicy
@@ -56,7 +74,8 @@ def _governance(lane: LaneTarget, plugin) -> LaneGovernance:
         governance_version="ddos-capacity-characterization-v1",
         effective_at=NOW,
         allowed_result_types=(
-            ResultType.REVIEW_FINDING, ResultType.INSUFFICIENT_EVIDENCE,
+            ResultType.REVIEW_FINDING,
+            ResultType.INSUFFICIENT_EVIDENCE,
             ResultType.QUALITY_DEGRADED,
         ),
         ingest_permitted=True,
@@ -68,30 +87,41 @@ def _observation(index: int, *, kind: str, unique_target: bool = False):
     src = f"198.51.{(index // 254) % 254}.{index % 254 + 1}"
     syn = kind in ("syn_state", "connection_churn")
     protocol = 6 if syn else 1 if kind == "icmp_demand" else 17
-    l4 = ({
-        "fact_contract": "DDOS_REFLECTION_FACT_V1",
-        "response_like": True,
-        "protocol_context": "DNS",
-    } if kind == "reflection_victim" else {})
-    fragmentation = ({
-        "fact_contract": "DDOS_FRAGMENT_FACT_V1",
-        "is_fragment": True,
-        "offset": 0,
-        "more_fragments": True,
-    } if kind == "fragment_demand" else None)
+    l4 = (
+        {
+            "fact_contract": "DDOS_REFLECTION_FACT_V1",
+            "response_like": True,
+            "protocol_context": "DNS",
+        }
+        if kind == "reflection_victim"
+        else {}
+    )
+    fragmentation = (
+        {
+            "fact_contract": "DDOS_FRAGMENT_FACT_V1",
+            "is_fragment": True,
+            "offset": 0,
+            "more_fragments": True,
+        }
+        if kind == "fragment_demand"
+        else None
+    )
     payload = PacketObservation(
         lengths={"ip": 60 if syn else 128},
-        observed_l2_facts={}, observed_l3_facts={}, observed_l4_facts=l4,
-        src_address=src, dst_address="10.0.0.2",
+        observed_l2_facts={},
+        observed_l3_facts={},
+        observed_l4_facts=l4,
+        src_address=src,
+        dst_address="10.0.0.2",
         src_port=(None if kind == "icmp_demand" else 10_000 + index),
         dst_port=(None if kind == "icmp_demand" else 443 if syn else 53),
         flags=["SYN"] if syn else None,
         sequence_facts={"seq": index} if syn else None,
-        fragmentation=fragmentation, raw_reference=None, protocol=protocol,
+        fragmentation=fragmentation,
+        raw_reference=None,
+        protocol=protocol,
     )
-    present = {
-        "lengths", "protocol", "src_address", "dst_address"
-    }
+    present = {"lengths", "protocol", "src_address", "dst_address"}
     if kind != "icmp_demand":
         present.update({"src_port", "dst_port"})
     if syn:
@@ -102,29 +132,40 @@ def _observation(index: int, *, kind: str, unique_target: bool = False):
         present.add("fragmentation")
     return NetworkObservationEnvelope(
         observation_id=f"bench-{kind}-{index}",
-        schema_version="1.1", observation_type=ObservationType.PACKET,
-        event_time=NOW, causal_available_time=NOW, ingest_time=NOW,
-        source_id="ddos-capacity", source_kind=SourceKind.DERIVED,
-        source_position=str(index), observation_contract="controlled-capacity-v1",
+        schema_version="1.1",
+        observation_type=ObservationType.PACKET,
+        event_time=NOW,
+        causal_available_time=NOW,
+        ingest_time=NOW,
+        source_id="ddos-capacity",
+        source_kind=SourceKind.DERIVED,
+        source_position=str(index),
+        observation_contract="controlled-capacity-v1",
         wire_direction=WireDirection.FORWARD,
         direction_basis=DirectionBasis.CAPTURE_INTERFACE,
         finality=Finality.CURRENT,
         availability_basis=AvailabilityBasis.IMMEDIATE,
-        provenance_ref=f"prov:capacity:{index}", quality_ref="",
-        present_fields=frozenset(present), typed_payload=payload,
-        visibility=VisibilityProfile(available=frozenset({
-            VisibilityCapability.PACKET_FACTS,
-            VisibilityCapability.FORWARD_FACTS,
-            VisibilityCapability.REVERSE_FACTS,
-        })),
+        provenance_ref=f"prov:capacity:{index}",
+        quality_ref="",
+        present_fields=frozenset(present),
+        typed_payload=payload,
+        visibility=VisibilityProfile(
+            available=frozenset(
+                {
+                    VisibilityCapability.PACKET_FACTS,
+                    VisibilityCapability.FORWARD_FACTS,
+                    VisibilityCapability.REVERSE_FACTS,
+                }
+            )
+        ),
         identity=ObservationIdentity(
             observed_identifiers=(src, "10.0.0.2"),
             identifier_basis=IdentityBasis.OBSERVED_IDENTIFIER,
             role_assignments=(
                 RoleAssignment(target, "target_id", IdentityBasis.SOURCE_DECLARED_ROLE),
                 RoleAssignment(
-                    "tcp/443" if syn else "icmp/1" if kind == "icmp_demand"
-                    else "udp/53", "service_id",
+                    "tcp/443" if syn else "icmp/1" if kind == "icmp_demand" else "udp/53",
+                    "service_id",
                     IdentityBasis.SOURCE_DECLARED_ROLE,
                 ),
             ),
@@ -148,13 +189,15 @@ def _deep_size(value, seen=None) -> int:
     seen.add(identity)
     size = sys.getsizeof(value)
     if isinstance(value, dict):
-        size += sum(_deep_size(key, seen) + _deep_size(item, seen)
-                    for key, item in value.items())
+        size += sum(_deep_size(key, seen) + _deep_size(item, seen) for key, item in value.items())
     elif isinstance(value, (tuple, list, set, frozenset)):
         size += sum(_deep_size(item, seen) for item in value)
     elif hasattr(value, "__slots__"):
-        size += sum(_deep_size(getattr(value, name), seen)
-                    for name in value.__slots__ if hasattr(value, name))
+        size += sum(
+            _deep_size(getattr(value, name), seen)
+            for name in value.__slots__
+            if hasattr(value, name)
+        )
     return size
 
 
@@ -177,8 +220,12 @@ async def _sweep(plugin, lane: LaneTarget, count: int, *, kind: str, database: P
         gaps.append(gap)
 
     supervisor = RuntimeSupervisor(
-        {lane: plugin}, {lane: _governance(lane, plugin)}, result_writer,
-        shard_count=8, control_sink=control_sink, gap_sink=gap_sink,
+        {lane: plugin},
+        {lane: _governance(lane, plugin)},
+        result_writer,
+        shard_count=8,
+        control_sink=control_sink,
+        gap_sink=gap_sink,
         reorder_policies={lane: EventTimeReorderPolicy(4, count + 8)},
     )
     tracemalloc.start()
@@ -189,9 +236,7 @@ async def _sweep(plugin, lane: LaneTarget, count: int, *, kind: str, database: P
         for index in range(count):
             before = perf_counter()
             await supervisor.ingest_observation(
-                _observation(
-                    index, kind=kind, unique_target=(kind != "syn_state")
-                )
+                _observation(index, kind=kind, unique_target=(kind != "syn_state"))
             )
             latencies.append((perf_counter() - before) * 1000)
             if index % 256 == 255:
@@ -209,9 +254,7 @@ async def _sweep(plugin, lane: LaneTarget, count: int, *, kind: str, database: P
         if kind != "syn_state":
             await supervisor.advance_watermark(lane, NOW + timedelta(seconds=1))
         finished = perf_counter()
-        error_count = sum(
-            event.control_type.value == "ERROR" for event in controls
-        )
+        error_count = sum(event.control_type.value == "ERROR" for event in controls)
         return {
             "offered_observations": count,
             "offered_observations_per_second": count / (ingress_finished - started),
@@ -247,13 +290,15 @@ async def _bounded_payload_probe(kind: str, database: Path) -> dict[str, object]
     if kind == "source_diversity":
         plugin = DdosSourceDiversityPlugin(
             DdosSourceDiversityConfig.reference_poc_v1(),
-            max_state_entries=4, max_sources_per_window=limit,
+            max_state_entries=4,
+            max_sources_per_window=limit,
         )
         lane = LaneTarget("ddos.source_diversity")
     else:
         plugin = DdosConnectionChurnPlugin(
             DdosConnectionChurnConfig.reference_poc_v1(),
-            max_state_entries=4, max_attempts_per_window=limit,
+            max_state_entries=4,
+            max_attempts_per_window=limit,
         )
         lane = LaneTarget("ddos.connection_churn")
     writer = SqliteWriter(database, SCHEMA)
@@ -265,26 +310,28 @@ async def _bounded_payload_probe(kind: str, database: Path) -> dict[str, object]
         await writer.write_result(result)
 
     supervisor = RuntimeSupervisor(
-        {lane: plugin}, {lane: _governance(lane, plugin)}, result_writer,
+        {lane: plugin},
+        {lane: _governance(lane, plugin)},
+        result_writer,
         shard_count=1,
         reorder_policies={lane: EventTimeReorderPolicy(limit + 1, limit + 8)},
     )
     supervisor.start_all()
     try:
         for index in range(limit + 1):
-            await supervisor.ingest_observation(
-                _observation(index, kind=kind, unique_target=False)
-            )
+            await supervisor.ingest_observation(_observation(index, kind=kind, unique_target=False))
         await supervisor.dispatchers[lane].queue.join()
         await supervisor.advance_watermark(lane, NOW + timedelta(milliseconds=500))
         state_bytes = _deep_size(supervisor.state_stores[lane]._state)
         entry = next(iter(supervisor.state_stores[lane]._state.values()))
         retained = (
-            len(entry.payload.sources) if kind == "source_diversity"
+            len(entry.payload.sources)
+            if kind == "source_diversity"
             else len(entry.payload.attempts)
         )
         saturated = (
-            entry.payload.source_capacity_reached if kind == "source_diversity"
+            entry.payload.source_capacity_reached
+            if kind == "source_diversity"
             else entry.payload.attempt_capacity_reached
         )
         await supervisor.advance_watermark(lane, NOW + timedelta(seconds=1))
@@ -310,9 +357,7 @@ async def _bounded_payload_probe(kind: str, database: Path) -> dict[str, object]
 
 async def _same_key_reorder_probe() -> dict[str, object]:
     lane = LaneTarget("ddos.syn_state")
-    plugin = DdosASynPlugin(
-        DdosASynConfig.reference_poc_v1(), max_state_entries=1
-    )
+    plugin = DdosASynPlugin(DdosASynConfig.reference_poc_v1(), max_state_entries=1)
     gaps = []
 
     async def writer(result, target):
@@ -322,8 +367,11 @@ async def _same_key_reorder_probe() -> dict[str, object]:
         gaps.append(gap)
 
     supervisor = RuntimeSupervisor(
-        {lane: plugin}, {lane: _governance(lane, plugin)}, writer,
-        shard_count=1, gap_sink=gap_sink,
+        {lane: plugin},
+        {lane: _governance(lane, plugin)},
+        writer,
+        shard_count=1,
+        gap_sink=gap_sink,
         reorder_policies={lane: EventTimeReorderPolicy(16, 32)},
     )
     supervisor.start_all()
@@ -370,46 +418,84 @@ async def characterize(output: Path) -> dict[str, object]:
         replay_supervisor = RuntimeSupervisor(
             {replay_lane: replay_plugin},
             {replay_lane: _governance(replay_lane, replay_plugin)},
-            replay_writer, shard_count=1,
+            replay_writer,
+            shard_count=1,
             reorder_policies={replay_lane: EventTimeReorderPolicy(8, 32)},
         )
         try:
             replay_summary = await ReplayRunner(
                 NdjsonReplaySource("tests/fixtures/replay/ddos_udp_basic"),
-                replay_supervisor, clock=lambda: NOW,
+                replay_supervisor,
+                clock=lambda: NOW,
             ).run()
         finally:
             replay_db.close()
 
         syn_sweeps = []
         for count in (32, 128, 512, 1024, 2048, 4096):
-            plugin = DdosASynPlugin(
-                DdosASynConfig.reference_poc_v1(), max_state_entries=count
+            plugin = DdosASynPlugin(DdosASynConfig.reference_poc_v1(), max_state_entries=count)
+            syn_sweeps.append(
+                {
+                    "active_tuple_count": count,
+                    **await _sweep(
+                        plugin,
+                        LaneTarget("ddos.syn_state"),
+                        count,
+                        kind="syn_state",
+                        database=root / f"syn-{count}.db",
+                    ),
+                }
             )
-            syn_sweeps.append({
-                "active_tuple_count": count,
-                **await _sweep(
-                    plugin, LaneTarget("ddos.syn_state"), count, kind="syn_state",
-                    database=root / f"syn-{count}.db",
-                ),
-            })
 
         constructors = (
-            ("DDOS-B-B0", "udp_demand", lambda limit: DdosUdpDemandPlugin(
-                DdosUdpDemandConfig.reference_poc_v1(), max_state_entries=limit)),
-            ("DDOS-CV-B0", "reflection_victim", lambda limit: DdosReflectionVictimPlugin(
-                DdosReflectionVictimConfig.reference_poc_v1(),
-                max_state_entries=limit, max_sources_per_window=256)),
-            ("DDOS-D-B0", "source_diversity", lambda limit: DdosSourceDiversityPlugin(
-                DdosSourceDiversityConfig.reference_poc_v1(),
-                max_state_entries=limit, max_sources_per_window=256)),
-            ("DDOS-E1-B0", "icmp_demand", lambda limit: DdosIcmpDemandPlugin(
-                DdosIcmpDemandConfig.reference_poc_v1(), max_state_entries=limit)),
-            ("DDOS-E2-B0", "fragment_demand", lambda limit: DdosFragmentDemandPlugin(
-                DdosFragmentDemandConfig.reference_poc_v1(), max_state_entries=limit)),
-            ("DDOS-E3-B0", "connection_churn", lambda limit: DdosConnectionChurnPlugin(
-                DdosConnectionChurnConfig.reference_poc_v1(),
-                max_state_entries=limit, max_attempts_per_window=256)),
+            (
+                "DDOS-B-B0",
+                "udp_demand",
+                lambda limit: DdosUdpDemandPlugin(
+                    DdosUdpDemandConfig.reference_poc_v1(), max_state_entries=limit
+                ),
+            ),
+            (
+                "DDOS-CV-B0",
+                "reflection_victim",
+                lambda limit: DdosReflectionVictimPlugin(
+                    DdosReflectionVictimConfig.reference_poc_v1(),
+                    max_state_entries=limit,
+                    max_sources_per_window=256,
+                ),
+            ),
+            (
+                "DDOS-D-B0",
+                "source_diversity",
+                lambda limit: DdosSourceDiversityPlugin(
+                    DdosSourceDiversityConfig.reference_poc_v1(),
+                    max_state_entries=limit,
+                    max_sources_per_window=256,
+                ),
+            ),
+            (
+                "DDOS-E1-B0",
+                "icmp_demand",
+                lambda limit: DdosIcmpDemandPlugin(
+                    DdosIcmpDemandConfig.reference_poc_v1(), max_state_entries=limit
+                ),
+            ),
+            (
+                "DDOS-E2-B0",
+                "fragment_demand",
+                lambda limit: DdosFragmentDemandPlugin(
+                    DdosFragmentDemandConfig.reference_poc_v1(), max_state_entries=limit
+                ),
+            ),
+            (
+                "DDOS-E3-B0",
+                "connection_churn",
+                lambda limit: DdosConnectionChurnPlugin(
+                    DdosConnectionChurnConfig.reference_poc_v1(),
+                    max_state_entries=limit,
+                    max_attempts_per_window=256,
+                ),
+            ),
         )
         window_sweeps = {}
         for mechanism_id, kind, constructor in constructors:
@@ -417,21 +503,22 @@ async def characterize(output: Path) -> dict[str, object]:
             for count in (32, 128, 512):
                 plugin = constructor(count)
                 lane = LaneTarget(plugin.plugin_id.removeprefix("provider."))
-                rows.append({
-                    "active_window_key_count": count,
-                    **await _sweep(
-                        plugin, lane, count, kind=kind,
-                        database=root / f"{mechanism_id}-{count}.db",
-                    ),
-                })
+                rows.append(
+                    {
+                        "active_window_key_count": count,
+                        **await _sweep(
+                            plugin,
+                            lane,
+                            count,
+                            kind=kind,
+                            database=root / f"{mechanism_id}-{count}.db",
+                        ),
+                    }
+                )
             window_sweeps[mechanism_id] = rows
 
-        source_probe = await _bounded_payload_probe(
-            "source_diversity", root / "source-bound.db"
-        )
-        attempt_probe = await _bounded_payload_probe(
-            "connection_churn", root / "attempt-bound.db"
-        )
+        source_probe = await _bounded_payload_probe("source_diversity", root / "source-bound.db")
+        attempt_probe = await _bounded_payload_probe("connection_churn", root / "attempt-bound.db")
         reorder_probe = await _same_key_reorder_probe()
 
     result = {
@@ -469,16 +556,21 @@ async def characterize(output: Path) -> dict[str, object]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--output", type=Path,
+        "--output",
+        type=Path,
         default=Path("benchmark_results/ddos_mvp_capacity_characterization.json"),
     )
     args = parser.parse_args()
     result = asyncio.run(characterize(args.output))
-    print(json.dumps({
-        "output": str(args.output),
-        "syn_sweeps": len(result["ddos_a_concurrent_state_sweeps"]),
-        "window_mechanisms": len(result["window_state_shape_sweeps"]),
-    }))
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "syn_sweeps": len(result["ddos_a_concurrent_state_sweeps"]),
+                "window_mechanisms": len(result["window_state_shape_sweeps"]),
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

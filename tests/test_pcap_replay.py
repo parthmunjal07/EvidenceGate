@@ -1,8 +1,9 @@
 """Passive raw-PCAP adapter, canonical parity, and product integration tests."""
+
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import dpkt
@@ -11,7 +12,11 @@ from httpx import ASGITransport, AsyncClient
 
 from evidencegate.api.app import create_app
 from evidencegate.domain.enums import (
-    CapabilityState, IdentityBasis, SourceKind, VisibilityCapability, WireDirection,
+    CapabilityState,
+    IdentityBasis,
+    SourceKind,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.ingest.pcap import PcapReplaySource, validate_pcap
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayCanonicalizer, ReplayRunner
@@ -37,7 +42,10 @@ async def canonical(bundle: Path):
         async for record in source.records():
             records.append(record)
             result = ReplayCanonicalizer().canonicalize(
-                record, manifest, f"quality:{manifest.source_id}:{record.position}", NOW,
+                record,
+                manifest,
+                f"quality:{manifest.source_id}:{record.position}",
+                NOW,
             )
             observations.extend(result.observations)
     finally:
@@ -70,8 +78,10 @@ async def test_streaming_packet_iteration_and_packet_facts() -> None:
     assert icmp.typed_payload.protocol == 1
     assert icmp.typed_payload.observed_l4_facts == {"protocol": 1, "type": 8, "code": 0}
     assert fragment.typed_payload.fragmentation == {
-        "fact_contract": "DDOS_FRAGMENT_FACT_V1", "is_fragment": True,
-        "offset": 0, "more_fragments": True,
+        "fact_contract": "DDOS_FRAGMENT_FACT_V1",
+        "is_fragment": True,
+        "offset": 0,
+        "more_fragments": True,
     }
 
 
@@ -81,24 +91,41 @@ async def test_direction_visibility_roles_service_and_retransmission_facts() -> 
     assert observations[0].wire_direction is WireDirection.FORWARD
     assert observations[2].wire_direction is WireDirection.REVERSE
     for observation in observations:
-        assert observation.visibility.state(VisibilityCapability.FORWARD_FACTS) is CapabilityState.AVAILABLE
-        assert observation.visibility.state(VisibilityCapability.REVERSE_FACTS) is CapabilityState.AVAILABLE
-        assert observation.visibility.state(VisibilityCapability.PACKET_FACTS) is CapabilityState.AVAILABLE
+        assert (
+            observation.visibility.state(VisibilityCapability.FORWARD_FACTS)
+            is CapabilityState.AVAILABLE
+        )
+        assert (
+            observation.visibility.state(VisibilityCapability.REVERSE_FACTS)
+            is CapabilityState.AVAILABLE
+        )
+        assert (
+            observation.visibility.state(VisibilityCapability.PACKET_FACTS)
+            is CapabilityState.AVAILABLE
+        )
     roles = observations[0].identity.role_assignments
     assert {(item.identifier, item.role, item.basis) for item in roles} == {
         ("10.0.0.10", "initiator_id", IdentityBasis.POLICY_DECLARED_ROLE),
         ("10.0.1.10", "target_id", IdentityBasis.POLICY_DECLARED_ROLE),
         ("service/https", "service_id", IdentityBasis.POLICY_DECLARED_ROLE),
     }
-    assert observations[0].typed_payload.sequence_facts == observations[1].typed_payload.sequence_facts
+    assert (
+        observations[0].typed_payload.sequence_facts == observations[1].typed_payload.sequence_facts
+    )
 
 
 @pytest.mark.asyncio
 async def test_one_way_visibility_remains_source_fact() -> None:
     _, _, observations = await canonical(ONE_WAY)
     assert all(item.wire_direction is WireDirection.FORWARD for item in observations)
-    assert all(item.visibility.state(VisibilityCapability.FORWARD_FACTS) is CapabilityState.AVAILABLE for item in observations)
-    assert all(item.visibility.state(VisibilityCapability.REVERSE_FACTS) is CapabilityState.UNAVAILABLE for item in observations)
+    assert all(
+        item.visibility.state(VisibilityCapability.FORWARD_FACTS) is CapabilityState.AVAILABLE
+        for item in observations
+    )
+    assert all(
+        item.visibility.state(VisibilityCapability.REVERSE_FACTS) is CapabilityState.UNAVAILABLE
+        for item in observations
+    )
 
 
 @pytest.mark.asyncio
@@ -112,9 +139,16 @@ async def test_no_policy_means_unknown_even_for_private_addresses(tmp_path: Path
     records = source.records()
     try:
         first = await anext(records)
-        observation = ReplayCanonicalizer().canonicalize(
-            first, manifest, "quality:test", NOW,
-        ).observations[0]
+        observation = (
+            ReplayCanonicalizer()
+            .canonicalize(
+                first,
+                manifest,
+                "quality:test",
+                NOW,
+            )
+            .observations[0]
+        )
         assert observation.wire_direction is WireDirection.UNKNOWN
         assert observation.direction_basis.value == "UNKNOWN"
     finally:
@@ -127,7 +161,9 @@ async def test_missing_roles_fail_closed_and_reflection_requires_sidecar() -> No
     manifest, records, observations = await canonical(PCAP)
     registration = build_mvp_runtime_registration(NOW)
     supervisor = RuntimeSupervisor(
-        registration.plugins, registration.governances, lambda *_: None,  # not started
+        registration.plugins,
+        registration.governances,
+        lambda *_: None,  # not started
         reorder_policies=registration.reorder_policies,
     )
     generic_udp = supervisor.router.plan(observations[6])
@@ -136,35 +172,56 @@ async def test_missing_roles_fail_closed_and_reflection_requires_sidecar() -> No
     assert "ddos.reflection_victim" in {str(item) for item in declared_reflection.selected_targets}
 
     no_roles = ReplaySourceRecord(
-        raw_data=records[0].raw_data, timestamp=records[0].timestamp,
-        position=records[0].position, finality=records[0].finality,
+        raw_data=records[0].raw_data,
+        timestamp=records[0].timestamp,
+        position=records[0].position,
+        finality=records[0].finality,
         declared_observed_fields=records[0].declared_observed_fields,
-        role_assignments=(), canonicalization_options={},
+        role_assignments=(),
+        canonicalization_options={},
         wire_direction=WireDirection.FORWARD,
     )
-    observation = ReplayCanonicalizer().canonicalize(
-        no_roles, manifest, "quality:no-roles", NOW,
-    ).observations[0]
+    observation = (
+        ReplayCanonicalizer()
+        .canonicalize(
+            no_roles,
+            manifest,
+            "quality:no-roles",
+            NOW,
+        )
+        .observations[0]
+    )
     assert not supervisor.router.plan(observation).selected_targets
 
 
 @pytest.mark.asyncio
 async def test_pcap_and_typed_record_canonical_and_route_parity() -> None:
     _, _, pcap_observations = await canonical(PCAP)
-    typed_source = NdjsonReplaySource(ROOT / "tests" / "fixtures" / "replay" / "raw_ddos_recon_parity")
+    typed_source = NdjsonReplaySource(
+        ROOT / "tests" / "fixtures" / "replay" / "raw_ddos_recon_parity"
+    )
     typed_manifest = await typed_source.open()
     typed_observations = []
     try:
         async for typed in typed_source.records():
-            typed_observations.extend(ReplayCanonicalizer().canonicalize(
-                typed, typed_manifest, f"quality:typed:{typed.position}", NOW,
-            ).observations)
+            typed_observations.extend(
+                ReplayCanonicalizer()
+                .canonicalize(
+                    typed,
+                    typed_manifest,
+                    f"quality:typed:{typed.position}",
+                    NOW,
+                )
+                .observations
+            )
     finally:
         await typed_source.close()
     assert len(pcap_observations) == len(typed_observations) == 11
     registration = build_mvp_runtime_registration(NOW)
     supervisor = RuntimeSupervisor(
-        registration.plugins, registration.governances, lambda *_: None,
+        registration.plugins,
+        registration.governances,
+        lambda *_: None,
         reorder_policies=registration.reorder_policies,
     )
     for left, right in zip(pcap_observations, typed_observations):
@@ -174,7 +231,10 @@ async def test_pcap_and_typed_record_canonical_and_route_parity() -> None:
         assert left.visibility == right.visibility
         assert left.quality == right.quality
         assert left.identity == right.identity
-        assert supervisor.router.plan(left).selected_targets == supervisor.router.plan(right).selected_targets
+        assert (
+            supervisor.router.plan(left).selected_targets
+            == supervisor.router.plan(right).selected_targets
+        )
 
 
 @pytest.mark.asyncio
@@ -212,19 +272,34 @@ async def test_pcap_runtime_sqlite_zero_to_many_and_restart_durability(tmp_path:
 
     registration = build_mvp_runtime_registration(NOW)
     supervisor = RuntimeSupervisor(
-        registration.plugins, registration.governances, persist,
+        registration.plugins,
+        registration.governances,
+        persist,
         reorder_policies=registration.reorder_policies,
     )
     summary = await ReplayRunner(
         PcapReplaySource(PCAP / "capture.pcap", PCAP / "manifest.json"),
-        supervisor, speed=0,
+        supervisor,
+        speed=0,
     ).run()
     assert summary.records_read == summary.observations_emitted == 11
     assert summary.routed_mechanism_updates > summary.observations_emitted
     lanes = {item.lane_id for item in persisted}
-    assert {"ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim", "ddos.fragment_demand", "recon.h", "recon.v", "recon.2d", "recon.tcp"} <= lanes
+    assert {
+        "ddos.syn_state",
+        "ddos.udp_demand",
+        "ddos.reflection_victim",
+        "ddos.fragment_demand",
+        "recon.h",
+        "recon.v",
+        "recon.2d",
+        "recon.tcp",
+    } <= lanes
     retransmission_results = [item for item in persisted if item.lane_id == "ddos.syn_state"]
-    assert any(item.evidence.to_value().get("recognized_retransmissions") == 1 for item in retransmission_results)
+    assert any(
+        item.evidence.to_value().get("recognized_retransmissions") == 1
+        for item in retransmission_results
+    )
     count = await writer.count_results()
     writer.close()
     restarted = SqliteWriter(database, SCHEMA)
@@ -243,7 +318,9 @@ async def test_allowlisted_pcap_api_status_persistence_and_notifications(tmp_pat
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             runtime = (await client.get("/runtime")).json()
             assert "RAW_PCAP_REPLAY" in runtime["supported_sources"]
-            scenario = next(item for item in runtime["scenarios"] if item["id"] == "raw_pcap_ddos_recon")
+            scenario = next(
+                item for item in runtime["scenarios"] if item["id"] == "raw_pcap_ddos_recon"
+            )
             assert scenario["source_type"] == "PCAP"
             started = await client.post("/replay", json={"scenario": scenario["id"], "speed": 0})
             assert started.status_code == 202
@@ -253,8 +330,12 @@ async def test_allowlisted_pcap_api_status_persistence_and_notifications(tmp_pat
             assert status.results_persisted > 0
             notice = await subscription.get()
             assert notice.event == "result"
-            results = (await client.get("/results", params={"source_id": "judge-controlled-raw-pcap-v2"})).json()
+            results = (
+                await client.get("/results", params={"source_id": "judge-controlled-raw-pcap-v2"})
+            ).json()
             assert results["results"]
-            rejected = await client.post("/replay", json={"scenario": str(PCAP / "capture.pcap"), "speed": 0})
+            rejected = await client.post(
+                "/replay", json={"scenario": str(PCAP / "capture.pcap"), "speed": 0}
+            )
             assert rejected.status_code == 422
         service.broadcaster.unsubscribe(subscription)

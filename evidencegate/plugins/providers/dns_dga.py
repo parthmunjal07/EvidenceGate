@@ -2,8 +2,15 @@ from datetime import datetime
 from typing import Any, Sequence
 
 from evidencegate.domain.enums import (
-    AnalyticFamily, AvailabilityBasis, CapabilityState, Finality, GapAction,
-    IntegrationStatus, ObservationType, OfficialPsCategory, ResultType,
+    AnalyticFamily,
+    AvailabilityBasis,
+    CapabilityState,
+    Finality,
+    GapAction,
+    IntegrationStatus,
+    ObservationType,
+    OfficialPsCategory,
+    ResultType,
     VisibilityCapability,
 )
 from evidencegate.domain.events import NetworkObservation
@@ -13,6 +20,7 @@ from evidencegate.registry.plugin import PluginProcessOutcome, PluginStateSnapsh
 from evidencegate.results.types import ResultDraft
 from .common import ProviderShellPlugin
 
+
 class DgaShellPlugin(ProviderShellPlugin):
     plugin_id = "provider.dga.shell"
     category = OfficialPsCategory.DGA_AND_DNS_TUNNELLING
@@ -21,11 +29,13 @@ class DgaShellPlugin(ProviderShellPlugin):
     accepted_types = (ObservationType.DNS,)
     capabilities_by_type = {ObservationType.DNS: frozenset({VisibilityCapability.CLEAR_DNS_FIELDS})}
 
+
 class DnsT1StructuralPlugin:
     """DNS-T1: one-observation name/message structure, never a tunnel verdict."""
 
     _manifest = PluginManifest(
-        plugin_id="provider.dns_tunnelling.t1", plugin_version="0.1.0",
+        plugin_id="provider.dns_tunnelling.t1",
+        plugin_version="0.1.0",
         analytic_version="dns-t1-0.1.0",
         taxonomy=("Network", "DNS Tunnelling", "DNS Name Structure"),
         accepted_observation_types=(ObservationType.DNS,),
@@ -34,16 +44,21 @@ class DnsT1StructuralPlugin:
         required_fields=("qname_rendered", "qname_canonical", "labels", "representation_version"),
         required_observation_contracts=(),
         required_visibility_capabilities=frozenset({VisibilityCapability.CLEAR_DNS_FIELDS}),
-        required_quality=(), allowed_finality=tuple(Finality),
+        required_quality=(),
+        allowed_finality=tuple(Finality),
         allowed_availability_basis=tuple(AvailabilityBasis),
-        state_key_declaration=None, scientific_history_duration=None,
-        resource_retention_duration=None, gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
+        state_key_declaration=None,
+        scientific_history_duration=None,
+        resource_retention_duration=None,
+        gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
         allowed_result_types=(ResultType.REVIEW_FINDING,),
         integration_status=IntegrationStatus.BASELINE_IMPLEMENTED,
-        profiling_hooks_enabled=False, governing_claim_ids=(),
+        profiling_hooks_enabled=False,
+        governing_claim_ids=(),
         governing_decision_ids=("C3-DEC-20260921-DNS-T1-CANON-V1",),
         official_ps_category=OfficialPsCategory.DGA_AND_DNS_TUNNELLING,
-        analytic_family=AnalyticFamily.DNS_TUNNELLING, mechanism_id="DNS-T1",
+        analytic_family=AnalyticFamily.DNS_TUNNELLING,
+        mechanism_id="DNS-T1",
     )
 
     def manifest(self) -> PluginManifest:
@@ -70,8 +85,9 @@ class DnsT1StructuralPlugin:
             offset = end + 1
         return boundaries
 
-    async def process(self, observation: NetworkObservation, context: Any,
-                      state: PluginStateSnapshot | None) -> PluginProcessOutcome:
+    async def process(
+        self, observation: NetworkObservation, context: Any, state: PluginStateSnapshot | None
+    ) -> PluginProcessOutcome:
         payload = observation.typed_payload
         canonical = payload.qname_canonical
         labels = payload.labels
@@ -102,8 +118,10 @@ class DnsT1StructuralPlugin:
             "leftmost_label_length": len(labels[0]),
             "character_class_counts": character_class_counts,
             "character_class_definition": {
-                "letters": "ASCII a-z", "digits": "ASCII 0-9",
-                "hyphens": "-", "other": "all remaining non-dot characters",
+                "letters": "ASCII a-z",
+                "digits": "ASCII 0-9",
+                "hyphens": "-",
+                "other": "all remaining non-dot characters",
             },
             "character_class_denominator": denominator,
             "character_class_denominator_definition": "canonical characters excluding dot separators",
@@ -112,9 +130,14 @@ class DnsT1StructuralPlugin:
             "alphabet_compatibility_descriptors": {
                 "ignored_characters": [".", "-"],
                 "base32_like_alphabet": "abcdefghijklmnopqrstuvwxyz234567",
-                "base32_like_compatible": bool(comparable) and all(char in "abcdefghijklmnopqrstuvwxyz234567" for char in comparable),
+                "base32_like_compatible": bool(comparable)
+                and all(char in "abcdefghijklmnopqrstuvwxyz234567" for char in comparable),
                 "base64_like_alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
-                "base64_like_compatible": bool(comparable) and all(char in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" for char in comparable),
+                "base64_like_compatible": bool(comparable)
+                and all(
+                    char in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+                    for char in comparable
+                ),
                 "successful_decode_implied": False,
             },
             "visibility": {
@@ -132,24 +155,39 @@ class DnsT1StructuralPlugin:
             "representation_version": payload.representation_version,
         }
         for name in (
-            "raw_qname_ref", "qtype", "qclass", "message_length", "parser_version",
-            "parser_status", "registrable_domain_ref", "transport", "truncation",
+            "raw_qname_ref",
+            "qtype",
+            "qclass",
+            "message_length",
+            "parser_version",
+            "parser_status",
+            "registrable_domain_ref",
+            "transport",
+            "truncation",
         ):
             if name in observation.present_fields:
                 evidence[name] = getattr(payload, name)
-        return PluginProcessOutcome((ResultDraft(
-            result_type=ResultType.REVIEW_FINDING,
-            entity_reference=observation.observation_id,
-            evidence_items=(), missing_prerequisites=(), evidence=evidence,
-        ),))
+        return PluginProcessOutcome(
+            (
+                ResultDraft(
+                    result_type=ResultType.REVIEW_FINDING,
+                    entity_reference=observation.observation_id,
+                    evidence_items=(),
+                    missing_prerequisites=(),
+                    evidence=evidence,
+                ),
+            )
+        )
 
-    async def on_quality_gap(self, gap: QualityGap, context: Any,
-                             state: Any) -> Sequence[ResultDraft]:
+    async def on_quality_gap(
+        self, gap: QualityGap, context: Any, state: Any
+    ) -> Sequence[ResultDraft]:
         return ()
 
     async def on_watermark(self, watermark: datetime, context: Any) -> PluginProcessOutcome:
         return PluginProcessOutcome()
 
-    async def on_expire(self, key: StateKey, context: Any,
-                        state: PluginStateSnapshot) -> PluginProcessOutcome:
+    async def on_expire(
+        self, key: StateKey, context: Any, state: PluginStateSnapshot
+    ) -> PluginProcessOutcome:
         return PluginProcessOutcome()

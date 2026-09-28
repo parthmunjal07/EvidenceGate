@@ -59,15 +59,23 @@ def test_non_string_is_rejected_without_coercion():
 
 def test_builder_preserves_rendered_failure_but_only_marks_successful_derivations_present():
     manifest = SourceManifest(
-        source_id="dns", source_kind=SourceKind.PCAP, capture_start=None, capture_end=None,
+        source_id="dns",
+        source_kind=SourceKind.PCAP,
+        capture_start=None,
+        capture_end=None,
         timestamp_semantics=TimestampSemantics.SOURCE_EVENT_TIME,
-        input_observation_contract="dns_v1", direction_basis=DirectionBasis.CAPTURE_INTERFACE,
+        input_observation_contract="dns_v1",
+        direction_basis=DirectionBasis.CAPTURE_INTERFACE,
         wire_direction=WireDirection.FORWARD,
     )
     base = DNSObservation("flow", True, 1, "Example.COM.", None, None, None, None, "UDP", False)
     builder = DNSCanonicalBuilder()
     valid = builder.canonicalize(
-        RawSourceRecord(base, NOW, 1), manifest, "quality", NOW, {"qname"},
+        RawSourceRecord(base, NOW, 1),
+        manifest,
+        "quality",
+        NOW,
+        {"qname"},
         clear_dns_fields=True,
     )
     assert valid.typed_payload.qname_rendered == "Example.COM."
@@ -76,7 +84,11 @@ def test_builder_preserves_rendered_failure_but_only_marks_successful_derivation
 
     malformed = builder.canonicalize(
         RawSourceRecord(replace(base, qname="foo..example.com"), NOW, 2),
-        manifest, "quality", NOW, {"qname"}, clear_dns_fields=True,
+        manifest,
+        "quality",
+        NOW,
+        {"qname"},
+        clear_dns_fields=True,
     )
     assert malformed.typed_payload.qname_rendered == "foo..example.com"
     assert malformed.typed_payload.canonicalization_failure_reason == "EMPTY_LABEL"
@@ -85,11 +97,19 @@ def test_builder_preserves_rendered_failure_but_only_marks_successful_derivation
 
     with pytest.raises(ValueError, match="observed qname"):
         builder.canonicalize(
-            RawSourceRecord(replace(base, qname=None), NOW, 3), manifest, "quality", NOW,
-            set(), clear_dns_fields=True,
+            RawSourceRecord(replace(base, qname=None), NOW, 3),
+            manifest,
+            "quality",
+            NOW,
+            set(),
+            clear_dns_fields=True,
         )
     with pytest.raises(TypeError, match="parser-rendered string"):
         builder.canonicalize(
-            RawSourceRecord(replace(base, qname=object()), NOW, 4), manifest, "quality", NOW,
-            {"qname"}, clear_dns_fields=True,
+            RawSourceRecord(replace(base, qname=object()), NOW, 4),
+            manifest,
+            "quality",
+            NOW,
+            {"qname"},
+            clear_dns_fields=True,
         )

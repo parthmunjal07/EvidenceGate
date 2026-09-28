@@ -1,20 +1,30 @@
-from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
 
 from evidencegate.domain.enums import (
-    AnalyticFamily, CapabilityState, DirectionBasis, EvidenceReadiness, IntegrationStatus, ObservationType,
-    OfficialPsCategory, QualityState, ResultType, SourceKind, TimestampSemantics,
-    VisibilityCapability, WireDirection,
+    AnalyticFamily,
+    CapabilityState,
+    DirectionBasis,
+    EvidenceReadiness,
+    IntegrationStatus,
+    OfficialPsCategory,
+    QualityState,
+    ResultType,
+    SourceKind,
+    TimestampSemantics,
+    VisibilityCapability,
+    WireDirection,
 )
-from evidencegate.domain.events import VisibilityProfile
 from evidencegate.domain.payloads import DNSObservation
 from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.ingest.builders import DNSCanonicalBuilder
 from evidencegate.ingest.source import RawSourceRecord, SourceManifest
 from evidencegate.persistence.sqlite import SqliteWriter
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry, build_mvp_runtime_registration
+from evidencegate.plugins.providers.registry import (
+    build_mvp_provider_registry,
+    build_mvp_runtime_registration,
+)
 from evidencegate.results.finalizer import ResultEmissionContext, ResultFinalizer
 from evidencegate.results.types import ReviewFinding
 from evidencegate.routing.router import RelevanceRouter
@@ -27,34 +37,68 @@ SCHEMA = "evidencegate/persistence/schema.sql"
 
 
 def canonical_observation(
-    qname="A1.Xn--Exmple-Cua.UNKNOWN.", *, direction=WireDirection.FORWARD,
-    qtype="TXT", qclass="IN", rcode=None, answers=None,
-    parser_status="PARTIAL", quality=EvidenceQuality(parser=QualityState.DEGRADED),
+    qname="A1.Xn--Exmple-Cua.UNKNOWN.",
+    *,
+    direction=WireDirection.FORWARD,
+    qtype="TXT",
+    qclass="IN",
+    rcode=None,
+    answers=None,
+    parser_status="PARTIAL",
+    quality=EvidenceQuality(parser=QualityState.DEGRADED),
 ):
     payload = DNSObservation(
-        flow_reference="flow-1", qr_state_decoded=True, transaction_id=7, qname=qname,
-        qtype=qtype, qclass=qclass, rcode=rcode, answers=answers, transport="UDP",
-        truncation=True, raw_qname_ref="pcap:17:q0", parser_version="dns-parser-2",
-        parser_status=parser_status, message_length=91,
+        flow_reference="flow-1",
+        qr_state_decoded=True,
+        transaction_id=7,
+        qname=qname,
+        qtype=qtype,
+        qclass=qclass,
+        rcode=rcode,
+        answers=answers,
+        transport="UDP",
+        truncation=True,
+        raw_qname_ref="pcap:17:q0",
+        parser_version="dns-parser-2",
+        parser_status=parser_status,
+        message_length=91,
     )
     fields = {
-        "flow_reference", "qr_state_decoded", "transaction_id", "qname", "qtype",
-        "qclass", "transport", "truncation", "raw_qname_ref", "parser_version",
-        "parser_status", "message_length",
+        "flow_reference",
+        "qr_state_decoded",
+        "transaction_id",
+        "qname",
+        "qtype",
+        "qclass",
+        "transport",
+        "truncation",
+        "raw_qname_ref",
+        "parser_version",
+        "parser_status",
+        "message_length",
     }
     if qtype is None:
         fields.remove("qtype")
     if qclass is None:
         fields.remove("qclass")
     manifest = SourceManifest(
-        source_id="dns-source", source_kind=SourceKind.PCAP, capture_start=None,
-        capture_end=None, timestamp_semantics=TimestampSemantics.SOURCE_EVENT_TIME,
-        input_observation_contract="dns_v1", direction_basis=DirectionBasis.CAPTURE_INTERFACE,
-        wire_direction=direction, quality=quality,
+        source_id="dns-source",
+        source_kind=SourceKind.PCAP,
+        capture_start=None,
+        capture_end=None,
+        timestamp_semantics=TimestampSemantics.SOURCE_EVENT_TIME,
+        input_observation_contract="dns_v1",
+        direction_basis=DirectionBasis.CAPTURE_INTERFACE,
+        wire_direction=direction,
+        quality=quality,
     )
     return DNSCanonicalBuilder().canonicalize(
-        RawSourceRecord(payload, NOW, 17), manifest, "quality:dns-source", NOW,
-        fields, clear_dns_fields=True,
+        RawSourceRecord(payload, NOW, 17),
+        manifest,
+        "quality:dns-source",
+        NOW,
+        fields,
+        clear_dns_fields=True,
     )
 
 
@@ -69,11 +113,16 @@ async def finalized(observation):
     plugin, governance = t1_parts()
     draft = (await plugin.process(observation, None, None)).result_drafts[0]
     context = ResultEmissionContext(
-        lane_id="dns_tunnelling.t1", causal_result_time=observation.causal_available_time,
-        quality_refs=(observation.quality_ref,), provenance_refs=(observation.provenance_ref,),
-        readiness=EvidenceReadiness.READY, quality_degraded=True,
-        trigger_reference=observation.observation_id, source_ids=(observation.source_id,),
-        source_observation_ids=(observation.observation_id,), quality_snapshot=observation.quality,
+        lane_id="dns_tunnelling.t1",
+        causal_result_time=observation.causal_available_time,
+        quality_refs=(observation.quality_ref,),
+        provenance_refs=(observation.provenance_ref,),
+        readiness=EvidenceReadiness.READY,
+        quality_degraded=True,
+        trigger_reference=observation.observation_id,
+        source_ids=(observation.source_id,),
+        source_observation_ids=(observation.observation_id,),
+        quality_snapshot=observation.quality,
         visibility_snapshot=observation.visibility,
         parser_refs=parser_refs_from_observation(observation),
     )
@@ -94,11 +143,15 @@ def test_manifest_identity_route_and_zero_to_many_boundary():
 
     plugins, _ = build_mvp_provider_registry(NOW)
     assert set(RelevanceRouter(plugins).route(canonical_observation())) == {
-        "dga.m1", "dns_tunnelling.t1",
+        "dga.m1",
+        "dns_tunnelling.t1",
     }
     assert RelevanceRouter(plugins).route(canonical_observation(".")) == ()
-    assert set(RelevanceRouter(plugins).route(canonical_observation(direction=WireDirection.REVERSE))) == {
-        "dga.m1", "dns_tunnelling.t1",
+    assert set(
+        RelevanceRouter(plugins).route(canonical_observation(direction=WireDirection.REVERSE))
+    ) == {
+        "dga.m1",
+        "dns_tunnelling.t1",
     }
 
 
@@ -106,8 +159,14 @@ def test_manifest_identity_route_and_zero_to_many_boundary():
 async def test_one_way_partial_observation_emits_one_factual_review_finding():
     observation = canonical_observation()
     plugin, _ = t1_parts()
-    assert observation.visibility.state(VisibilityCapability.FORWARD_FACTS) is CapabilityState.AVAILABLE
-    assert observation.visibility.state(VisibilityCapability.REVERSE_FACTS) is CapabilityState.UNAVAILABLE
+    assert (
+        observation.visibility.state(VisibilityCapability.FORWARD_FACTS)
+        is CapabilityState.AVAILABLE
+    )
+    assert (
+        observation.visibility.state(VisibilityCapability.REVERSE_FACTS)
+        is CapabilityState.UNAVAILABLE
+    )
     outcome = await plugin.process(observation, None, None)
     assert len(outcome.result_drafts) == 1
     draft = outcome.result_drafts[0]
@@ -165,7 +224,10 @@ async def test_runtime_provenance_determinism_case_distinction_and_sqlite_v3_rou
     writer.connect()
     await writer.write_result(first)
     assert await writer.get_result(first.result_id) == first
-    assert writer._conn.execute("SELECT COUNT(*) FROM schema_migrations WHERE version=3").fetchone()[0] == 1
+    assert (
+        writer._conn.execute("SELECT COUNT(*) FROM schema_migrations WHERE version=3").fetchone()[0]
+        == 1
+    )
     writer.close()
 
 
@@ -179,7 +241,10 @@ async def test_runtime_routes_dga_and_t1_and_unavailable_is_explicit():
         emitted.append((result, str(lane)))
 
     supervisor = RuntimeSupervisor(
-        plugins, governances, collect, shard_count=1,
+        plugins,
+        governances,
+        collect,
+        shard_count=1,
         reorder_policies=registration.reorder_policies,
     )
     supervisor.start_all()
@@ -197,7 +262,8 @@ async def test_runtime_routes_dga_and_t1_and_unavailable_is_explicit():
         assert results["dns_tunnelling.t1"].parser_refs == ("DNS:dns-parser-2",)
         assert results["dga.m1"].result_type is ResultType.ANALYTIC_UNAVAILABLE
         assert results["dga.m1"].evidence.to_value()["failure_reason"] in {
-            "MODEL_PATH_MISSING", "UNKNOWN_OR_INTERNAL_SUFFIX",
+            "MODEL_PATH_MISSING",
+            "UNKNOWN_OR_INTERNAL_SUFFIX",
         }
     finally:
         await supervisor.stop_all()

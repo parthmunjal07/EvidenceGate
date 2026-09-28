@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 from datetime import datetime
 
+
 @dataclass(frozen=True, slots=True)
 class PacketObservation:
     lengths: dict[str, int]
@@ -21,9 +22,11 @@ class PacketObservation:
     # factually declared protocol instead of guessing from ports or flags.
     protocol: Optional[int] = None
 
+
 @dataclass(frozen=True, slots=True)
 class FlowObservation:
     """Endpoints preserve source ordering only; tuple position assigns no role."""
+
     flow_id_basis: str
     endpoints: tuple[str, str]
     protocol: int
@@ -34,6 +37,7 @@ class FlowObservation:
     exporter_semantics: str
     sampling: Optional[dict[str, Any]]
     documented_end_state: Optional[str]
+
 
 @dataclass(frozen=True, slots=True)
 class DNSObservation:
@@ -60,6 +64,7 @@ class DNSObservation:
     registrable_domain_ref: Optional[str] = None
     canonicalization_failure_reason: Optional[str] = None
 
+
 @dataclass(frozen=True, slots=True)
 class TLSObservation:
     flow_reference: str
@@ -70,6 +75,7 @@ class TLSObservation:
     indexes: Optional[dict[str, int]]
     prefix_time: Optional[datetime]
     gaps: Optional[list[str]]
+
 
 @dataclass(frozen=True, slots=True)
 class QUICObservation:
@@ -83,5 +89,8 @@ class QUICObservation:
     timing: datetime
     visibility_flags: list[str]
 
+
 # The union of payload types for convenience in typing, though usually NetworkObservationEnvelope wraps these
-NetworkPayloadType = PacketObservation | FlowObservation | DNSObservation | TLSObservation | QUICObservation
+NetworkPayloadType = (
+    PacketObservation | FlowObservation | DNSObservation | TLSObservation | QUICObservation
+)

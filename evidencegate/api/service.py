@@ -1,4 +1,5 @@
 """Application-owned persistence, runtime replay, and notification services."""
+
 from __future__ import annotations
 
 import asyncio
@@ -13,7 +14,10 @@ from typing import Mapping
 from evidencegate.api.broadcast import ResultBroadcaster
 from evidencegate.api.runtime_trace import RuntimeTraceBuffer
 from evidencegate.api.models import (
-    FamilyStatusDto, ReplayStatusResponse, ResultNotification, ScenarioDto,
+    FamilyStatusDto,
+    ReplayStatusResponse,
+    ResultNotification,
+    ScenarioDto,
     TargetStatusDto,
 )
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner
@@ -65,31 +69,178 @@ BASE_FAMILY_STATUS = (
 def default_scenarios(root: Path) -> dict[str, ReplayScenario]:
     demos = root / "evidencegate" / "demo_data"
     contracts: dict[str, dict[str, object]] = {
-        "mixed_ddos_recon": {"demo_title":"DDoS + Recon fan-out", "demo_purpose":"A controlled packet episode shows zero-to-many independent DDoS and Recon routing.", "expected_records":12,"expected_observations":12,"expected_routes":60,"expected_zero_route_observations":2,"expected_results":65,"expected_family_views":17,"expected_relations":8,"max_trace_events":500,"source_label":"Controlled observations","episode_summary":["12 packet observations","12 s source window","TCP · UDP · ICMP · other IP","2 no-route observations"]},
-        "ddos_one_way": {"demo_title":"One-way SYN visibility", "demo_purpose":"Forward initiation facts remain visible while reverse packet evidence is unavailable.", "expected_records":8,"expected_observations":8,"expected_routes":37,"expected_zero_route_observations":2,"expected_results":40,"expected_family_views":11,"expected_relations":5,"max_trace_events":500,"source_label":"Controlled observations","episode_summary":["8 packet observations","8 s source window","5 distinct TCP SYN attempts","reverse facts unavailable"]},
-        "c2_recurrence": {"demo_title":"C2 recurrence", "demo_purpose":"Flow history builds across repeated observations before recurrence evidence appears.", "expected_records":7,"expected_observations":7,"expected_routes":14,"expected_zero_route_observations":0,"expected_results":14,"expected_family_views":10,"expected_relations":7,"max_trace_events":500,"source_label":"Controlled observations","episode_summary":["7 flow observations","4 min 11 s source window","3 observed peers","forward flow facts · reverse facts unavailable"]},
-        "dga_lexical": {"demo_title":"DGA + DNS", "demo_purpose":"Each DNS observation produces independent lexical and structural evidence.", "expected_records":6,"expected_observations":6,"expected_routes":12,"expected_zero_route_observations":0,"expected_results":12,"expected_family_views":6,"expected_relations":0,"max_trace_events":500,"needs_dga":True,"source_label":"Controlled observations","episode_summary":["6 DNS observations","6 controlled query names","A · AAAA · UDP","clear DNS fields available"]},
-        "raw_pcap_ddos_recon": {"demo_title":"Recorded PCAP", "demo_purpose":"A controlled classic PCAP becomes canonical packet observations and linked evidence.", "expected_records":18,"expected_observations":18,"expected_routes":71,"expected_zero_route_observations":5,"expected_results":58,"expected_family_views":15,"expected_relations":8,"max_trace_events":500,"source_label":"Recorded PCAP","episode_summary":["18 recorded packets","2 s capture window","11 observed endpoints","5 no-route observations"]},
-        "encrypted_tls_session": {"demo_title":"Encrypted TLS session", "demo_purpose":"Controlled passive TLS handshake metadata is visible while application payload remains unavailable.", "expected_records":1,"expected_observations":1,"expected_routes":1,"expected_zero_route_observations":0,"expected_results":1,"expected_family_views":1,"expected_relations":0,"max_trace_events":50,"source_label":"Controlled passive TLS handshake observation","episode_summary":["1 TLS ClientHello observation","SNI: example.test","Handshake metadata visible","Application payload not decrypted"]},
+        "mixed_ddos_recon": {
+            "demo_title": "DDoS + Recon fan-out",
+            "demo_purpose": "A controlled packet episode shows zero-to-many independent DDoS and Recon routing.",
+            "expected_records": 12,
+            "expected_observations": 12,
+            "expected_routes": 60,
+            "expected_zero_route_observations": 2,
+            "expected_results": 65,
+            "expected_family_views": 17,
+            "expected_relations": 8,
+            "max_trace_events": 500,
+            "source_label": "Controlled observations",
+            "episode_summary": [
+                "12 packet observations",
+                "12 s source window",
+                "TCP · UDP · ICMP · other IP",
+                "2 no-route observations",
+            ],
+        },
+        "ddos_one_way": {
+            "demo_title": "One-way SYN visibility",
+            "demo_purpose": "Forward initiation facts remain visible while reverse packet evidence is unavailable.",
+            "expected_records": 8,
+            "expected_observations": 8,
+            "expected_routes": 37,
+            "expected_zero_route_observations": 2,
+            "expected_results": 40,
+            "expected_family_views": 11,
+            "expected_relations": 5,
+            "max_trace_events": 500,
+            "source_label": "Controlled observations",
+            "episode_summary": [
+                "8 packet observations",
+                "8 s source window",
+                "5 distinct TCP SYN attempts",
+                "reverse facts unavailable",
+            ],
+        },
+        "c2_recurrence": {
+            "demo_title": "C2 recurrence",
+            "demo_purpose": "Flow history builds across repeated observations before recurrence evidence appears.",
+            "expected_records": 7,
+            "expected_observations": 7,
+            "expected_routes": 14,
+            "expected_zero_route_observations": 0,
+            "expected_results": 14,
+            "expected_family_views": 10,
+            "expected_relations": 7,
+            "max_trace_events": 500,
+            "source_label": "Controlled observations",
+            "episode_summary": [
+                "7 flow observations",
+                "4 min 11 s source window",
+                "3 observed peers",
+                "forward flow facts · reverse facts unavailable",
+            ],
+        },
+        "dga_lexical": {
+            "demo_title": "DGA + DNS",
+            "demo_purpose": "Each DNS observation produces independent lexical and structural evidence.",
+            "expected_records": 6,
+            "expected_observations": 6,
+            "expected_routes": 12,
+            "expected_zero_route_observations": 0,
+            "expected_results": 12,
+            "expected_family_views": 6,
+            "expected_relations": 0,
+            "max_trace_events": 500,
+            "needs_dga": True,
+            "source_label": "Controlled observations",
+            "episode_summary": [
+                "6 DNS observations",
+                "6 controlled query names",
+                "A · AAAA · UDP",
+                "clear DNS fields available",
+            ],
+        },
+        "raw_pcap_ddos_recon": {
+            "demo_title": "Recorded PCAP",
+            "demo_purpose": "A controlled classic PCAP becomes canonical packet observations and linked evidence.",
+            "expected_records": 18,
+            "expected_observations": 18,
+            "expected_routes": 71,
+            "expected_zero_route_observations": 5,
+            "expected_results": 58,
+            "expected_family_views": 15,
+            "expected_relations": 8,
+            "max_trace_events": 500,
+            "source_label": "Recorded PCAP",
+            "episode_summary": [
+                "18 recorded packets",
+                "2 s capture window",
+                "11 observed endpoints",
+                "5 no-route observations",
+            ],
+        },
+        "encrypted_tls_session": {
+            "demo_title": "Encrypted TLS session",
+            "demo_purpose": "Controlled passive TLS handshake metadata is visible while application payload remains unavailable.",
+            "expected_records": 1,
+            "expected_observations": 1,
+            "expected_routes": 1,
+            "expected_zero_route_observations": 0,
+            "expected_results": 1,
+            "expected_family_views": 1,
+            "expected_relations": 0,
+            "max_trace_events": 50,
+            "source_label": "Controlled passive TLS handshake observation",
+            "episode_summary": [
+                "1 TLS ClientHello observation",
+                "SNI: example.test",
+                "Handshake metadata visible",
+                "Application payload not decrypted",
+            ],
+        },
     }
-    definitions = (("mixed_ddos_recon", "DDoS + Recon fan-out", "DDoS / Reconnaissance", "mixed_ddos_recon_v2"), ("ddos_one_way", "One-way SYN visibility", "DDoS", "ddos_one_way_v2"), ("c2_recurrence", "C2 recurrence", "C2 / Beaconing", "c2_recurrence_v2"), ("dga_lexical", "DGA + DNS", "DGA / DNS", "dga_dns_v2"))
-    scenarios = {sid: ReplayScenario(sid, label, family, demos / bundle, demo_contract={"asset_version":bundle, **contracts[sid]}) for sid,label,family,bundle in definitions}
+    definitions = (
+        (
+            "mixed_ddos_recon",
+            "DDoS + Recon fan-out",
+            "DDoS / Reconnaissance",
+            "mixed_ddos_recon_v2",
+        ),
+        ("ddos_one_way", "One-way SYN visibility", "DDoS", "ddos_one_way_v2"),
+        ("c2_recurrence", "C2 recurrence", "C2 / Beaconing", "c2_recurrence_v2"),
+        ("dga_lexical", "DGA + DNS", "DGA / DNS", "dga_dns_v2"),
+    )
+    scenarios = {
+        sid: ReplayScenario(
+            sid,
+            label,
+            family,
+            demos / bundle,
+            demo_contract={"asset_version": bundle, **contracts[sid]},
+        )
+        for sid, label, family, bundle in definitions
+    }
     pcap_bundle = demos / "raw_pcap_ddos_recon_v2"
     scenarios["raw_pcap_ddos_recon"] = ReplayScenario(
-        "raw_pcap_ddos_recon", "Raw PCAP — DDoS + Recon",
-        "DDoS / Reconnaissance", pcap_bundle / "capture.pcap", "PCAP",
-        pcap_bundle / "manifest.json", {"asset_version":"raw_pcap_ddos_recon_v2", **contracts["raw_pcap_ddos_recon"]},
+        "raw_pcap_ddos_recon",
+        "Raw PCAP — DDoS + Recon",
+        "DDoS / Reconnaissance",
+        pcap_bundle / "capture.pcap",
+        "PCAP",
+        pcap_bundle / "manifest.json",
+        {"asset_version": "raw_pcap_ddos_recon_v2", **contracts["raw_pcap_ddos_recon"]},
     )
     scenarios["encrypted_tls_session"] = ReplayScenario(
-        "encrypted_tls_session", "Encrypted TLS session", "Encrypted Sessions",
+        "encrypted_tls_session",
+        "Encrypted TLS session",
+        "Encrypted Sessions",
         demos / "encrypted_tls_session_v1",
-        demo_contract={"asset_version":"encrypted_tls_session_v1", **contracts["encrypted_tls_session"]},
+        demo_contract={
+            "asset_version": "encrypted_tls_session_v1",
+            **contracts["encrypted_tls_session"],
+        },
     )
     if os.environ.get("EVIDENCEGATE_DEV_SCENARIOS", "").strip().lower() in {"1", "true", "yes"}:
         fixtures = root / "tests" / "fixtures" / "replay"
         internal = (
-            ("mixed_ddos_recon_internal", "Internal TCP fan-out fixture", "DDoS / Reconnaissance", "default_activation_tcp"),
-            ("ddos_one_way_internal", "Internal one-way SYN fixture", "DDoS", "ddos_syn_forward_only"),
+            (
+                "mixed_ddos_recon_internal",
+                "Internal TCP fan-out fixture",
+                "DDoS / Reconnaissance",
+                "default_activation_tcp",
+            ),
+            (
+                "ddos_one_way_internal",
+                "Internal one-way SYN fixture",
+                "DDoS",
+                "ddos_syn_forward_only",
+            ),
             ("ddos_udp", "UDP demand context", "DDoS", "default_activation_udp"),
             ("c2_recurrence_internal", "Internal C2 fixture", "C2 / Beaconing", "c2_r1"),
             ("dga_lexical_internal", "Internal DGA fixture", "DGA", "dga_lexical"),
@@ -97,14 +248,20 @@ def default_scenarios(root: Path) -> dict[str, ReplayScenario]:
             ("encrypted_session", "TLS handshake evidence", "Encrypted Sessions", "tls_handshake"),
             ("transfer_magnitude", "Transfer magnitude", "Data Exfiltration", "flow_transfer"),
         )
-        scenarios.update({
-            scenario_id: ReplayScenario(scenario_id, label, family, fixtures / bundle)
-            for scenario_id, label, family, bundle in internal
-        })
+        scenarios.update(
+            {
+                scenario_id: ReplayScenario(scenario_id, label, family, fixtures / bundle)
+                for scenario_id, label, family, bundle in internal
+            }
+        )
         pcap_fixture = root / "tests" / "fixtures" / "pcap" / "raw_ddos_recon"
         scenarios["raw_pcap_internal"] = ReplayScenario(
-            "raw_pcap_internal", "Internal PCAP fixture", "DDoS / Reconnaissance",
-            pcap_fixture / "capture.pcap", "PCAP", pcap_fixture / "manifest.json",
+            "raw_pcap_internal",
+            "Internal PCAP fixture",
+            "DDoS / Reconnaissance",
+            pcap_fixture / "capture.pcap",
+            "PCAP",
+            pcap_fixture / "manifest.json",
         )
     return scenarios
 
@@ -115,8 +272,12 @@ class ReplayBusyError(RuntimeError):
 
 class EvidenceGateService:
     def __init__(
-        self, database: Path, schema: Path, repository_root: Path,
-        *, scenarios: Mapping[str, ReplayScenario] | None = None,
+        self,
+        database: Path,
+        schema: Path,
+        repository_root: Path,
+        *,
+        scenarios: Mapping[str, ReplayScenario] | None = None,
         subscriber_queue_size: int = 100,
     ):
         self.writer = SqliteWriter(database, schema)
@@ -155,14 +316,16 @@ class EvidenceGateService:
                 result_id=result.result_id,
                 source_observation_ids=list(result.source_observation_ids),
             )
-            self.broadcaster.publish(ResultNotification(
-                result_id=result.result_id,
-                created_time=result.created_time,
-                lane_id=result.lane_id,
-                mechanism_id=result.mechanism_id,
-                result_type=result.result_type.value,
-                cursor=f"after.{self.writer.cursor_for(result)}",
-            ))
+            self.broadcaster.publish(
+                ResultNotification(
+                    result_id=result.result_id,
+                    created_time=result.created_time,
+                    lane_id=result.lane_id,
+                    mechanism_id=result.mechanism_id,
+                    result_type=result.result_type.value,
+                    cursor=f"after.{self.writer.cursor_for(result)}",
+                )
+            )
         return inserted
 
     def replay_status(self) -> ReplayStatusResponse:
@@ -170,7 +333,8 @@ class EvidenceGateService:
         if self._replay.state == "RUNNING" and self._started_monotonic is not None:
             elapsed = perf_counter() - self._started_monotonic
         return ReplayStatusResponse(
-            state=self._replay.state, scenario=self._replay.scenario,
+            state=self._replay.state,
+            scenario=self._replay.scenario,
             source_type=self._replay.source_type,
             records_read=self._replay.records_read,
             observations_emitted=self._replay.observations_emitted,
@@ -188,8 +352,10 @@ class EvidenceGateService:
             raise ReplayBusyError("a replay is already running")
         now = datetime.now(timezone.utc)
         self._replay = _ReplayState(
-            state="RUNNING", scenario=scenario_id,
-            source_type=self.scenarios[scenario_id].source_type, started_at=now,
+            state="RUNNING",
+            scenario=scenario_id,
+            source_type=self.scenarios[scenario_id].source_type,
+            started_at=now,
         )
         self._started_monotonic = perf_counter()
         self._task = asyncio.create_task(
@@ -212,7 +378,9 @@ class EvidenceGateService:
                 self._replay.results_persisted += 1
 
         supervisor = RuntimeSupervisor(
-            registration.plugins, registration.governances, writer,
+            registration.plugins,
+            registration.governances,
+            writer,
             reorder_policies=registration.reorder_policies,
             trace_sink=self.runtime_trace.emit,
         )
@@ -223,7 +391,9 @@ class EvidenceGateService:
                 else NdjsonReplaySource(scenario.bundle)
             )
             summary = await ReplayRunner(
-                source, supervisor, speed=speed,
+                source,
+                supervisor,
+                speed=speed,
                 trace_sink=self.runtime_trace.emit,
                 progress_sink=self._update_replay_progress,
             ).run()
@@ -250,10 +420,13 @@ class EvidenceGateService:
     def targets(self) -> list[TargetStatusDto]:
         return [
             TargetStatusDto(
-                lane_id=str(lane), mechanism_id=plugin.manifest().mechanism_id,
+                lane_id=str(lane),
+                mechanism_id=plugin.manifest().mechanism_id,
                 implementation=(
-                    "REGISTERED_SHELL" if plugin.manifest().mechanism_id is None
-                    else "ACTIVE_LEXICAL_MODEL_LANE" if str(lane) == "dga.m1"
+                    "REGISTERED_SHELL"
+                    if plugin.manifest().mechanism_id is None
+                    else "ACTIVE_LEXICAL_MODEL_LANE"
+                    if str(lane) == "dga.m1"
                     else "ACTIVE_FACTUAL_MECHANISM"
                 ),
             )
@@ -281,7 +454,9 @@ class EvidenceGateService:
     def scenario_dtos(self) -> list[ScenarioDto]:
         return [
             ScenarioDto(
-                id=item.scenario_id, label=item.label, family=item.family,
+                id=item.scenario_id,
+                label=item.label,
+                family=item.family,
                 source_type=item.source_type,
                 **(item.demo_contract or {}),
             )

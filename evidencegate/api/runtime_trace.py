@@ -1,4 +1,5 @@
 """Bounded, presentation-only runtime trace events."""
+
 from __future__ import annotations
 
 from collections import deque
@@ -40,12 +41,14 @@ class RuntimeTraceBuffer:
         try:
             with self._lock:
                 self._sequence += 1
-                self._events.append(RuntimeTraceEvent(
-                    sequence=self._sequence,
-                    kind=kind,
-                    occurred_at=datetime.now(timezone.utc),
-                    **fields,
-                ))
+                self._events.append(
+                    RuntimeTraceEvent(
+                        sequence=self._sequence,
+                        kind=kind,
+                        occurred_at=datetime.now(timezone.utc),
+                        **fields,
+                    )
+                )
         except Exception:
             # Presentation telemetry must never affect source/runtime processing.
             return

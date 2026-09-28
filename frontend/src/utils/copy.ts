@@ -11,4 +11,5 @@ export function dgaScoreNote(score: number | null) {
   return `DGA-labelled lexical resemblance score: ${score == null ? "not present" : score.toFixed(6)}. Not calibrated attack probability. Observed evidence; no attack probability is implied.`;
 }
 
-export const dgaScoreInterpretation = "Lexical model score is DGA-labelled resemblance evidence. Observed evidence; no attack probability is implied. The score is not calibrated.";
+export const dgaScoreInterpretation =
+  "Lexical model score is DGA-labelled resemblance evidence. Observed evidence; no attack probability is implied. The score is not calibrated.";

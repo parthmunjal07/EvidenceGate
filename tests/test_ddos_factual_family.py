@@ -1,4 +1,5 @@
 """M9 DDoS macro: factual bounded window mechanisms."""
+
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -6,12 +7,22 @@ from pathlib import Path
 import pytest
 
 from evidencegate.domain.enums import (
-    AvailabilityBasis, DirectionBasis, Finality, IdentityBasis, ObservationType,
-    QualityState, ResultType, ScientificStatus, SourceKind,
-    VisibilityCapability, WireDirection,
+    AvailabilityBasis,
+    DirectionBasis,
+    Finality,
+    IdentityBasis,
+    ObservationType,
+    QualityState,
+    ResultType,
+    ScientificStatus,
+    SourceKind,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import (
-    NetworkObservationEnvelope, ObservationIdentity, RoleAssignment,
+    NetworkObservationEnvelope,
+    ObservationIdentity,
+    RoleAssignment,
     VisibilityProfile,
 )
 from evidencegate.domain.governance import LaneGovernance
@@ -19,16 +30,23 @@ from evidencegate.domain.payloads import PacketObservation
 from evidencegate.domain.quality import EvidenceQuality
 from evidencegate.ingest.replay import validate_bundle
 from evidencegate.persistence.sqlite import SqliteWriter
-from evidencegate.plugins.providers.ddos import DdosASynPlugin, DdosShellPlugin
+from evidencegate.plugins.providers.ddos import DdosASynPlugin
 from evidencegate.plugins.providers.ddos_config import (
-    DdosASynConfig, DdosConnectionChurnConfig, DdosFragmentDemandConfig,
-    DdosIcmpDemandConfig, DdosReflectionVictimConfig,
-    DdosSourceDiversityConfig, DdosUdpDemandConfig,
+    DdosASynConfig,
+    DdosConnectionChurnConfig,
+    DdosFragmentDemandConfig,
+    DdosIcmpDemandConfig,
+    DdosReflectionVictimConfig,
+    DdosSourceDiversityConfig,
+    DdosUdpDemandConfig,
 )
 from evidencegate.plugins.providers.ddos_measurements import (
-    DdosConnectionChurnPlugin, DdosFragmentDemandPlugin,
-    DdosIcmpDemandPlugin, DdosReflectionVictimPlugin,
-    DdosSourceDiversityPlugin, DdosUdpDemandPlugin,
+    DdosConnectionChurnPlugin,
+    DdosFragmentDemandPlugin,
+    DdosIcmpDemandPlugin,
+    DdosReflectionVictimPlugin,
+    DdosSourceDiversityPlugin,
+    DdosUdpDemandPlugin,
 )
 from evidencegate.plugins.providers.registry import build_mvp_provider_registry
 from evidencegate.results.types import QualityDegraded, ReviewFinding, ThreatAlert
@@ -49,17 +67,19 @@ def roles(*, missing=None, duplicate=None):
     if missing:
         values = [item for item in values if item.role != missing]
     if duplicate:
-        values.append(RoleAssignment(
-            "duplicate", duplicate, IdentityBasis.POLICY_DECLARED_ROLE
-        ))
+        values.append(RoleAssignment("duplicate", duplicate, IdentityBasis.POLICY_DECLARED_ROLE))
     return tuple(values)
 
 
 def visibility(direction: WireDirection, mode="BOTH"):
     directional = {
         "BOTH": (
-            {VisibilityCapability.PACKET_FACTS, VisibilityCapability.FORWARD_FACTS,
-             VisibilityCapability.REVERSE_FACTS}, set()
+            {
+                VisibilityCapability.PACKET_FACTS,
+                VisibilityCapability.FORWARD_FACTS,
+                VisibilityCapability.REVERSE_FACTS,
+            },
+            set(),
         ),
         "FORWARD": (
             {VisibilityCapability.PACKET_FACTS, VisibilityCapability.FORWARD_FACTS},
@@ -76,24 +96,44 @@ def visibility(direction: WireDirection, mode="BOTH"):
 
 
 def packet(
-    milliseconds: int, *, protocol=17, flags=None,
-    direction=WireDirection.FORWARD, src="198.51.100.1", dst="10.0.0.2",
-    src_port=53000, dst_port=53, length=100, l4=None, fragmentation=None,
-    role_assignments=None, quality=EvidenceQuality(), visibility_mode="BOTH",
+    milliseconds: int,
+    *,
+    protocol=17,
+    flags=None,
+    direction=WireDirection.FORWARD,
+    src="198.51.100.1",
+    dst="10.0.0.2",
+    src_port=53000,
+    dst_port=53,
+    length=100,
+    l4=None,
+    fragmentation=None,
+    role_assignments=None,
+    quality=EvidenceQuality(),
+    visibility_mode="BOTH",
     observation_id=None,
 ):
     when = NOW + timedelta(milliseconds=milliseconds)
     lengths = {} if length is None else {"ip": length}
     payload = PacketObservation(
         lengths=lengths,
-        observed_l2_facts={}, observed_l3_facts={},
+        observed_l2_facts={},
+        observed_l3_facts={},
         observed_l4_facts={} if l4 is None else l4,
-        src_address=src, dst_address=dst, src_port=src_port, dst_port=dst_port,
-        flags=flags, sequence_facts=None, fragmentation=fragmentation,
-        raw_reference=None, protocol=protocol,
+        src_address=src,
+        dst_address=dst,
+        src_port=src_port,
+        dst_port=dst_port,
+        flags=flags,
+        sequence_facts=None,
+        fragmentation=fragmentation,
+        raw_reference=None,
+        protocol=protocol,
     )
     present = {
-        "protocol", "src_address", "dst_address",
+        "protocol",
+        "src_address",
+        "dst_address",
     }
     if src_port is not None:
         present.add("src_port")
@@ -108,24 +148,36 @@ def packet(
     if fragmentation is not None:
         present.add("fragmentation")
     degraded = QualityState.DEGRADED in (
-        quality.packet_loss, quality.sampling, quality.parser, quality.capture_gap
+        quality.packet_loss,
+        quality.sampling,
+        quality.parser,
+        quality.capture_gap,
     )
     return NetworkObservationEnvelope(
         observation_id=observation_id or f"p-{milliseconds}-{src}-{src_port}",
-        schema_version="1.1", observation_type=ObservationType.PACKET,
-        event_time=when, causal_available_time=when, ingest_time=when,
-        source_id="ddos-family-fixture", source_kind=SourceKind.PCAP,
-        source_position=str(milliseconds), observation_contract="packet-v1",
+        schema_version="1.1",
+        observation_type=ObservationType.PACKET,
+        event_time=when,
+        causal_available_time=when,
+        ingest_time=when,
+        source_id="ddos-family-fixture",
+        source_kind=SourceKind.PCAP,
+        source_position=str(milliseconds),
+        observation_contract="packet-v1",
         wire_direction=direction,
-        direction_basis=(DirectionBasis.CAPTURE_INTERFACE
-                         if direction is not WireDirection.UNKNOWN
-                         else DirectionBasis.UNKNOWN),
+        direction_basis=(
+            DirectionBasis.CAPTURE_INTERFACE
+            if direction is not WireDirection.UNKNOWN
+            else DirectionBasis.UNKNOWN
+        ),
         finality=Finality.CURRENT,
         availability_basis=AvailabilityBasis.IMMEDIATE,
         provenance_ref=f"prov:{milliseconds}",
         quality_ref=f"quality:{milliseconds}" if degraded else "",
-        present_fields=frozenset(present), typed_payload=payload,
-        visibility=visibility(direction, visibility_mode), quality=quality,
+        present_fields=frozenset(present),
+        typed_payload=payload,
+        visibility=visibility(direction, visibility_mode),
+        quality=quality,
         identity=ObservationIdentity(
             observed_identifiers=(src, dst),
             identifier_basis=IdentityBasis.OBSERVED_IDENTIFIER,
@@ -139,29 +191,35 @@ def plugin_set(*, source_limit=4, attempt_limit=4, state_limit=16):
     return {
         LaneTarget("ddos.udp_demand"): DdosUdpDemandPlugin(
             DdosUdpDemandConfig.reference_poc_v1(),
-            max_state_entries=state_limit, governing_decision_ids=decision,
+            max_state_entries=state_limit,
+            governing_decision_ids=decision,
         ),
         LaneTarget("ddos.reflection_victim"): DdosReflectionVictimPlugin(
             DdosReflectionVictimConfig.reference_poc_v1(),
-            max_state_entries=state_limit, max_sources_per_window=source_limit,
+            max_state_entries=state_limit,
+            max_sources_per_window=source_limit,
             governing_decision_ids=decision,
         ),
         LaneTarget("ddos.source_diversity"): DdosSourceDiversityPlugin(
             DdosSourceDiversityConfig.reference_poc_v1(),
-            max_state_entries=state_limit, max_sources_per_window=source_limit,
+            max_state_entries=state_limit,
+            max_sources_per_window=source_limit,
             governing_decision_ids=decision,
         ),
         LaneTarget("ddos.icmp_demand"): DdosIcmpDemandPlugin(
             DdosIcmpDemandConfig.reference_poc_v1(),
-            max_state_entries=state_limit, governing_decision_ids=decision,
+            max_state_entries=state_limit,
+            governing_decision_ids=decision,
         ),
         LaneTarget("ddos.fragment_demand"): DdosFragmentDemandPlugin(
             DdosFragmentDemandConfig.reference_poc_v1(),
-            max_state_entries=state_limit, governing_decision_ids=decision,
+            max_state_entries=state_limit,
+            governing_decision_ids=decision,
         ),
         LaneTarget("ddos.connection_churn"): DdosConnectionChurnPlugin(
             DdosConnectionChurnConfig.reference_poc_v1(),
-            max_state_entries=state_limit, max_attempts_per_window=attempt_limit,
+            max_state_entries=state_limit,
+            max_attempts_per_window=attempt_limit,
             governing_decision_ids=decision,
         ),
     }
@@ -192,10 +250,12 @@ async def run(plugins, observations, *, watermark_ms=1000, per_key=16, total=128
 
     governances = {lane: governance(lane, plugin) for lane, plugin in plugins.items()}
     supervisor = RuntimeSupervisor(
-        plugins, governances, writer, shard_count=1, control_sink=control,
-        reorder_policies={
-            lane: EventTimeReorderPolicy(per_key, total) for lane in plugins
-        },
+        plugins,
+        governances,
+        writer,
+        shard_count=1,
+        control_sink=control,
+        reorder_policies={lane: EventTimeReorderPolicy(per_key, total) for lane in plugins},
     )
     supervisor.start_all()
     try:
@@ -205,9 +265,7 @@ async def run(plugins, observations, *, watermark_ms=1000, per_key=16, total=128
         for dispatcher in supervisor.dispatchers.values():
             await dispatcher.queue.join()
         for lane in plugins:
-            await supervisor.advance_watermark(
-                lane, NOW + timedelta(milliseconds=watermark_ms)
-            )
+            await supervisor.advance_watermark(lane, NOW + timedelta(milliseconds=watermark_ms))
         return results, controls, plans, supervisor
     finally:
         await supervisor.stop_all()
@@ -235,8 +293,7 @@ def test_roles_direction_and_protocol_are_explicit_routing_prerequisites():
     good = packet(0)
     assert udp.route(good)
     assert not udp.route(packet(0, protocol=6))
-    assert not udp.route(packet(0, direction=WireDirection.UNKNOWN,
-                                visibility_mode="BOTH"))
+    assert not udp.route(packet(0, direction=WireDirection.UNKNOWN, visibility_mode="BOTH"))
     assert not udp.route(packet(0, role_assignments=roles(missing="target_id")))
     assert not udp.route(packet(0, role_assignments=roles(missing="service_id")))
     assert not udp.route(packet(0, role_assignments=roles(duplicate="target_id")))
@@ -314,19 +371,28 @@ async def test_source_diversity_exact_duplicate_and_bounded_saturation():
 
 def test_reflection_requires_exact_source_declared_victim_fact_contract():
     plugin = plugin_set()["ddos.reflection_victim"]
-    explicit = packet(0, l4={
-        "fact_contract": "DDOS_REFLECTION_FACT_V1",
-        "response_like": True,
-        "protocol_context": "DNS",
-    })
+    explicit = packet(
+        0,
+        l4={
+            "fact_contract": "DDOS_REFLECTION_FACT_V1",
+            "response_like": True,
+            "protocol_context": "DNS",
+        },
+    )
     assert plugin.route(explicit)
     assert not plugin.route(packet(0))
     assert not plugin.route(packet(0, l4={"response_like": True}))
-    assert not plugin.route(packet(0, direction=WireDirection.REVERSE, l4={
-        "fact_contract": "DDOS_REFLECTION_FACT_V1",
-        "response_like": True,
-        "protocol_context": "DNS",
-    }))
+    assert not plugin.route(
+        packet(
+            0,
+            direction=WireDirection.REVERSE,
+            l4={
+                "fact_contract": "DDOS_REFLECTION_FACT_V1",
+                "response_like": True,
+                "protocol_context": "DNS",
+            },
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -338,10 +404,13 @@ async def test_reflection_shape_is_measurement_not_ratio_or_source_authenticity(
         "response_like": True,
         "protocol_context": "DNS",
     }
-    results, _, _, _ = await run({lane: plugin}, (
-        packet(100, src="198.51.100.1", l4=facts),
-        packet(200, src="198.51.100.2", l4=facts),
-    ))
+    results, _, _, _ = await run(
+        {lane: plugin},
+        (
+            packet(100, src="198.51.100.1", l4=facts),
+            packet(200, src="198.51.100.2", l4=facts),
+        ),
+    )
     evidence = results[0][1].evidence.to_value()
     assert evidence["response_shaped_packet_count"] == 2
     assert evidence["apparent_source_cardinality_lower_bound"] == 2
@@ -356,16 +425,27 @@ def test_icmp_and_fragment_routes_require_explicit_protocol_and_fact_contract():
     fragment = plugins["ddos.fragment_demand"]
     assert icmp.route(packet(0, protocol=1, src_port=None, dst_port=None))
     assert not icmp.route(packet(0, protocol=58))
-    factual = packet(0, fragmentation={
-        "fact_contract": "DDOS_FRAGMENT_FACT_V1", "is_fragment": True,
-        "offset": 0, "more_fragments": True,
-    })
+    factual = packet(
+        0,
+        fragmentation={
+            "fact_contract": "DDOS_FRAGMENT_FACT_V1",
+            "is_fragment": True,
+            "offset": 0,
+            "more_fragments": True,
+        },
+    )
     assert fragment.route(factual)
     assert not fragment.route(packet(0, fragmentation={}))
     assert not fragment.route(packet(0, fragmentation={"is_fragment": True}))
-    assert not fragment.route(packet(0, fragmentation={
-        "fact_contract": "DDOS_FRAGMENT_FACT_V1", "is_fragment": False,
-    }))
+    assert not fragment.route(
+        packet(
+            0,
+            fragmentation={
+                "fact_contract": "DDOS_FRAGMENT_FACT_V1",
+                "is_fragment": False,
+            },
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -376,13 +456,18 @@ async def test_icmp_and_fragment_emit_factual_counts():
         LaneTarget("ddos.fragment_demand"): plugins["ddos.fragment_demand"],
     }
     fragment = {
-        "fact_contract": "DDOS_FRAGMENT_FACT_V1", "is_fragment": True,
-        "offset": 8, "more_fragments": False,
+        "fact_contract": "DDOS_FRAGMENT_FACT_V1",
+        "is_fragment": True,
+        "offset": 8,
+        "more_fragments": False,
     }
-    results, _, _, _ = await run(selected, (
-        packet(100, protocol=1, src_port=None, dst_port=None, length=84),
-        packet(200, protocol=17, fragmentation=fragment, length=1200),
-    ))
+    results, _, _, _ = await run(
+        selected,
+        (
+            packet(100, protocol=1, src_port=None, dst_port=None, length=84),
+            packet(200, protocol=17, fragmentation=fragment, length=1200),
+        ),
+    )
     by_lane = {str(lane): result.evidence.to_value() for lane, result in results}
     assert by_lane["ddos.icmp_demand"]["packet_count"] == 1
     assert by_lane["ddos.icmp_demand"]["byte_count"] == 84
@@ -400,9 +485,7 @@ async def test_connection_churn_counts_only_initiating_syn_and_bounds_unique_tup
         packet(300, protocol=6, flags=["SYN"], src_port=50002),
         packet(400, protocol=6, flags=["SYN"], src_port=50003),
     )
-    results, _, _, _ = await run(
-        {lane: plugin}, observations, per_key=512, total=512
-    )
+    results, _, _, _ = await run({lane: plugin}, observations, per_key=512, total=512)
     result = results[0][1]
     assert isinstance(result, QualityDegraded)
     evidence = result.evidence.to_value()
@@ -410,8 +493,9 @@ async def test_connection_churn_counts_only_initiating_syn_and_bounds_unique_tup
     assert evidence["unique_visible_tuple_count_lower_bound"] == 2
     assert evidence["attempt_capacity_reached"] is True
     assert not plugin.route(packet(500, protocol=6, flags=["ACK"]))
-    assert not plugin.route(packet(600, protocol=6, flags=["SYN", "ACK"],
-                                   direction=WireDirection.REVERSE))
+    assert not plugin.route(
+        packet(600, protocol=6, flags=["SYN", "ACK"], direction=WireDirection.REVERSE)
+    )
 
 
 @pytest.mark.asyncio
@@ -420,14 +504,13 @@ async def test_controlled_mvp_source_capacity_boundary_256_to_257_is_explicit():
     plugin = plugin_set(source_limit=256, state_limit=512)[lane]
     observations = tuple(
         packet(
-            index, src=f"198.51.{index // 256}.{index % 256}",
+            index,
+            src=f"198.51.{index // 256}.{index % 256}",
             src_port=10000 + index,
         )
         for index in range(257)
     )
-    results, _, _, _ = await run(
-        {lane: plugin}, observations, per_key=512, total=512
-    )
+    results, _, _, _ = await run({lane: plugin}, observations, per_key=512, total=512)
     result = results[0][1]
     evidence = result.evidence.to_value()
     assert isinstance(result, QualityDegraded)
@@ -441,12 +524,9 @@ async def test_controlled_mvp_attempt_capacity_boundary_256_to_257_is_explicit()
     lane = LaneTarget("ddos.connection_churn")
     plugin = plugin_set(attempt_limit=256, state_limit=512)[lane]
     observations = tuple(
-        packet(index, protocol=6, flags=["SYN"], src_port=10000 + index)
-        for index in range(257)
+        packet(index, protocol=6, flags=["SYN"], src_port=10000 + index) for index in range(257)
     )
-    results, _, _, _ = await run(
-        {lane: plugin}, observations, per_key=512, total=512
-    )
+    results, _, _, _ = await run({lane: plugin}, observations, per_key=512, total=512)
     result = results[0][1]
     evidence = result.evidence.to_value()
     assert isinstance(result, QualityDegraded)
@@ -456,15 +536,16 @@ async def test_controlled_mvp_attempt_capacity_boundary_256_to_257_is_explicit()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("quality", (
-    EvidenceQuality(packet_loss=QualityState.DEGRADED),
-    EvidenceQuality(sampling=QualityState.DEGRADED),
-))
+@pytest.mark.parametrize(
+    "quality",
+    (
+        EvidenceQuality(packet_loss=QualityState.DEGRADED),
+        EvidenceQuality(sampling=QualityState.DEGRADED),
+    ),
+)
 async def test_loss_and_sampling_make_counts_explicit_lower_bounds(quality):
     lane = LaneTarget("ddos.udp_demand")
-    results, _, _, _ = await run(
-        {lane: plugin_set()[lane]}, (packet(100, quality=quality),)
-    )
+    results, _, _, _ = await run({lane: plugin_set()[lane]}, (packet(100, quality=quality),))
     result = results[0][1]
     assert isinstance(result, QualityDegraded)
     evidence = result.evidence.to_value()
@@ -478,40 +559,34 @@ async def test_controlled_loss_and_half_sampling_projections_only_reduce_counts(
 
     async def measured(indices, quality):
         observations = tuple(
-            packet(index * 50, src_port=53000 + index, quality=quality)
-            for index in indices
+            packet(index * 50, src_port=53000 + index, quality=quality) for index in indices
         )
-        results, _, _, _ = await run(
-            {lane: plugin_set()[lane]}, observations, watermark_ms=1000
-        )
+        results, _, _, _ = await run({lane: plugin_set()[lane]}, observations, watermark_ms=1000)
         return results[0][1].evidence.to_value()
 
     baseline = await measured(range(10), EvidenceQuality())
-    loss_10 = await measured(
-        range(9), EvidenceQuality(packet_loss=QualityState.DEGRADED)
-    )
-    loss_30 = await measured(
-        range(7), EvidenceQuality(packet_loss=QualityState.DEGRADED)
-    )
-    sampled_half = await measured(
-        range(5), EvidenceQuality(sampling=QualityState.DEGRADED)
-    )
-    assert [baseline["packet_count"], loss_10["packet_count"],
-            loss_30["packet_count"], sampled_half["packet_count"]] == [10, 9, 7, 5]
-    assert all(item["measurement_is_lower_bound"] for item in (
-        loss_10, loss_30, sampled_half
-    ))
+    loss_10 = await measured(range(9), EvidenceQuality(packet_loss=QualityState.DEGRADED))
+    loss_30 = await measured(range(7), EvidenceQuality(packet_loss=QualityState.DEGRADED))
+    sampled_half = await measured(range(5), EvidenceQuality(sampling=QualityState.DEGRADED))
+    assert [
+        baseline["packet_count"],
+        loss_10["packet_count"],
+        loss_30["packet_count"],
+        sampled_half["packet_count"],
+    ] == [10, 9, 7, 5]
+    assert all(item["measurement_is_lower_bound"] for item in (loss_10, loss_30, sampled_half))
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("direction, mode", (
-    (WireDirection.FORWARD, "FORWARD"),
-    (WireDirection.REVERSE, "REVERSE"),
-    (WireDirection.FORWARD, "BOTH"),
-))
-async def test_directional_measurements_survive_each_observed_one_way_contract(
-    direction, mode
-):
+@pytest.mark.parametrize(
+    "direction, mode",
+    (
+        (WireDirection.FORWARD, "FORWARD"),
+        (WireDirection.REVERSE, "REVERSE"),
+        (WireDirection.FORWARD, "BOTH"),
+    ),
+)
+async def test_directional_measurements_survive_each_observed_one_way_contract(direction, mode):
     lane = LaneTarget("ddos.udp_demand")
     observation = packet(100, direction=direction, visibility_mode=mode)
     results, _, _, _ = await run({lane: plugin_set()[lane]}, (observation,))
@@ -524,21 +599,25 @@ async def test_directional_measurements_survive_each_observed_one_way_contract(
 async def test_zero_to_many_routing_keeps_mechanisms_independent():
     plugins = plugin_set()
     selected = {
-        lane: plugins[lane] for lane in (
-            "ddos.udp_demand", "ddos.reflection_victim", "ddos.source_diversity"
-        )
+        lane: plugins[lane]
+        for lane in ("ddos.udp_demand", "ddos.reflection_victim", "ddos.source_diversity")
     }
-    observation = packet(100, l4={
-        "fact_contract": "DDOS_REFLECTION_FACT_V1",
-        "response_like": True,
-        "protocol_context": "DNS",
-    })
+    observation = packet(
+        100,
+        l4={
+            "fact_contract": "DDOS_REFLECTION_FACT_V1",
+            "response_like": True,
+            "protocol_context": "DNS",
+        },
+    )
     router = RelevanceRouter(selected)
     assert set(router.route(observation)) == set(selected)
     results, _, _, _ = await run(selected, (observation,))
     assert {str(lane) for lane, _ in results} == set(selected)
     assert {result.mechanism_id for _, result in results} == {
-        "DDOS-B-B0", "DDOS-CV-B0", "DDOS-D-B0",
+        "DDOS-B-B0",
+        "DDOS-CV-B0",
+        "DDOS-D-B0",
     }
 
 
@@ -557,23 +636,39 @@ async def test_tcp_syn_routes_independently_to_state_diversity_and_churn():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("lane, observation", (
-    ("ddos.udp_demand", packet(100)),
-    ("ddos.reflection_victim", packet(100, l4={
-        "fact_contract": "DDOS_REFLECTION_FACT_V1", "response_like": True,
-        "protocol_context": "DNS",
-    })),
-    ("ddos.source_diversity", packet(100)),
-    ("ddos.icmp_demand", packet(100, protocol=1, src_port=None, dst_port=None)),
-    ("ddos.fragment_demand", packet(100, fragmentation={
-        "fact_contract": "DDOS_FRAGMENT_FACT_V1", "is_fragment": True,
-        "offset": 0, "more_fragments": True,
-    })),
-    ("ddos.connection_churn", packet(100, protocol=6, flags=["SYN"])),
-))
-async def test_each_mechanism_finalizes_and_round_trips_sqlite(
-    tmp_path, lane, observation
-):
+@pytest.mark.parametrize(
+    "lane, observation",
+    (
+        ("ddos.udp_demand", packet(100)),
+        (
+            "ddos.reflection_victim",
+            packet(
+                100,
+                l4={
+                    "fact_contract": "DDOS_REFLECTION_FACT_V1",
+                    "response_like": True,
+                    "protocol_context": "DNS",
+                },
+            ),
+        ),
+        ("ddos.source_diversity", packet(100)),
+        ("ddos.icmp_demand", packet(100, protocol=1, src_port=None, dst_port=None)),
+        (
+            "ddos.fragment_demand",
+            packet(
+                100,
+                fragmentation={
+                    "fact_contract": "DDOS_FRAGMENT_FACT_V1",
+                    "is_fragment": True,
+                    "offset": 0,
+                    "more_fragments": True,
+                },
+            ),
+        ),
+        ("ddos.connection_churn", packet(100, protocol=6, flags=["SYN"])),
+    ),
+)
+async def test_each_mechanism_finalizes_and_round_trips_sqlite(tmp_path, lane, observation):
     target = LaneTarget(lane)
     plugin = plugin_set()[target]
     results, _, _, _ = await run({target: plugin}, (observation,))
@@ -598,19 +693,19 @@ async def test_state_entry_capacity_boundary_is_explicit_and_observable():
     plugin = plugin_set(state_limit=1)[lane]
     observations = (
         packet(100, role_assignments=roles()),
-        replace(packet(200), identity=ObservationIdentity(
-            observed_identifiers=("198.51.100.2", "10.0.0.2"),
-            identifier_basis=IdentityBasis.OBSERVED_IDENTIFIER,
-            role_assignments=(
-                RoleAssignment("other-target", "target_id",
-                               IdentityBasis.SOURCE_DECLARED_ROLE),
-                roles()[1],
+        replace(
+            packet(200),
+            identity=ObservationIdentity(
+                observed_identifiers=("198.51.100.2", "10.0.0.2"),
+                identifier_basis=IdentityBasis.OBSERVED_IDENTIFIER,
+                role_assignments=(
+                    RoleAssignment("other-target", "target_id", IdentityBasis.SOURCE_DECLARED_ROLE),
+                    roles()[1],
+                ),
             ),
-        )),
+        ),
     )
-    _, controls, _, supervisor = await run(
-        {lane: plugin}, observations, watermark_ms=500
-    )
+    _, controls, _, supervisor = await run({lane: plugin}, observations, watermark_ms=500)
     assert len(supervisor.state_stores[lane]) == 1
     assert any(event.control_type.value == "ERROR" for event in controls)
 
@@ -631,12 +726,15 @@ def test_default_registry_activates_factual_ddos_without_alert_results():
     plugins, _ = build_mvp_provider_registry(NOW)
     assert "ddos" not in plugins
     active = {
-        str(lane): plugin for lane, plugin in plugins.items()
-        if str(lane).startswith("ddos.")
+        str(lane): plugin for lane, plugin in plugins.items() if str(lane).startswith("ddos.")
     }
     assert set(active) == {
-        "ddos.syn_state", "ddos.udp_demand", "ddos.reflection_victim",
-        "ddos.source_diversity", "ddos.icmp_demand", "ddos.fragment_demand",
+        "ddos.syn_state",
+        "ddos.udp_demand",
+        "ddos.reflection_victim",
+        "ddos.source_diversity",
+        "ddos.icmp_demand",
+        "ddos.fragment_demand",
         "ddos.connection_churn",
     }
     for plugin in active.values():
@@ -645,20 +743,23 @@ def test_default_registry_activates_factual_ddos_without_alert_results():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("name, count", (
-    ("ddos_udp_basic", 2),
-    ("ddos_udp_many_sources", 3),
-    ("ddos_udp_loss", 1),
-    ("ddos_reflection_victim_explicit", 1),
-    ("ddos_icmp_demand", 1),
-    ("ddos_fragment_demand", 1),
-    ("ddos_connection_churn", 2),
-    ("ddos_mixed_zero_to_many", 1),
-    ("ddos_window_boundary", 2),
-    ("ddos_source_set_capacity", 3),
-    ("ddos_reverse_only", 1),
-    ("ddos_sampling_degraded", 1),
-))
+@pytest.mark.parametrize(
+    "name, count",
+    (
+        ("ddos_udp_basic", 2),
+        ("ddos_udp_many_sources", 3),
+        ("ddos_udp_loss", 1),
+        ("ddos_reflection_victim_explicit", 1),
+        ("ddos_icmp_demand", 1),
+        ("ddos_fragment_demand", 1),
+        ("ddos_connection_churn", 2),
+        ("ddos_mixed_zero_to_many", 1),
+        ("ddos_window_boundary", 2),
+        ("ddos_source_set_capacity", 3),
+        ("ddos_reverse_only", 1),
+        ("ddos_sampling_degraded", 1),
+    ),
+)
 async def test_macro_replay_fixtures_are_schema_valid(name, count):
     bundle = Path(__file__).parent / "fixtures" / "replay" / name
     assert await validate_bundle(bundle) == count

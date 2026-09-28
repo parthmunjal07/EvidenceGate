@@ -60,11 +60,16 @@ export const api = {
   alerts: (signal?: AbortSignal) =>
     request<AlertsResponse>("/alerts", { signal: signal ?? null }),
   familyEvidence: (signal?: AbortSignal) =>
-    request<FamilyEvidenceResponse>("/family-evidence", { signal: signal ?? null }),
+    request<FamilyEvidenceResponse>("/family-evidence", {
+      signal: signal ?? null,
+    }),
   investigations: (signal?: AbortSignal, sourceResultIds?: string[]) => {
     const params = new URLSearchParams();
     sourceResultIds?.forEach((id) => params.append("source_result_id", id));
-    return request<InvestigationsResponse>(`/investigations${params.size ? `?${params}` : ""}`, { signal: signal ?? null });
+    return request<InvestigationsResponse>(
+      `/investigations${params.size ? `?${params}` : ""}`,
+      { signal: signal ?? null },
+    );
   },
   results: (
     query: { cursor?: string; limit?: number } = {},
@@ -82,7 +87,10 @@ export const api = {
     const results: ResultDto[] = [];
     let cursor: string | undefined;
     for (;;) {
-      const page = await api.results({ limit: 500, ...(cursor ? { cursor } : {}) }, signal);
+      const page = await api.results(
+        { limit: 500, ...(cursor ? { cursor } : {}) },
+        signal,
+      );
       results.push(...page.results);
       if (!page.next_cursor) break;
       cursor = page.next_cursor;
@@ -103,5 +111,8 @@ export const api = {
   replayStatus: (signal?: AbortSignal) =>
     request<ReplayStatusResponse>("/replay/status", { signal: signal ?? null }),
   runtimeTrace: (after = 0, signal?: AbortSignal, limit = 500) =>
-    request<RuntimeTraceResponse>(`/runtime/trace?after=${after}&limit=${limit}`, { signal: signal ?? null }),
+    request<RuntimeTraceResponse>(
+      `/runtime/trace?after=${after}&limit=${limit}`,
+      { signal: signal ?? null },
+    ),
 };

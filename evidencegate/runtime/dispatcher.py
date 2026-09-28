@@ -51,7 +51,8 @@ class EventTimeReorderPolicy:
 
     def __post_init__(self) -> None:
         for name in (
-            "max_buffered_events_per_key", "max_buffered_events_total",
+            "max_buffered_events_per_key",
+            "max_buffered_events_total",
         ):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int):
@@ -60,8 +61,7 @@ class EventTimeReorderPolicy:
                 raise ValueError(f"{name} must be greater than zero")
         if self.max_buffered_events_total < self.max_buffered_events_per_key:
             raise ValueError(
-                "max_buffered_events_total cannot be less than "
-                "max_buffered_events_per_key"
+                "max_buffered_events_total cannot be less than max_buffered_events_per_key"
             )
 
 
@@ -119,8 +119,8 @@ class LaneDispatcher:
         self.governance = governance
         self.shards = shards
         self.shard_count = shard_count
-        self.queue: asyncio.Queue[NetworkObservation | _WatermarkRequest] = (
-            asyncio.Queue(maxsize=max_size)
+        self.queue: asyncio.Queue[NetworkObservation | _WatermarkRequest] = asyncio.Queue(
+            maxsize=max_size
         )
         self._task: asyncio.Task | None = None
         self._stopping = False
@@ -190,9 +190,7 @@ class LaneDispatcher:
             except asyncio.CancelledError:
                 pass
 
-        error = DispatcherStoppedError(
-            "dispatcher stopped before watermark boundary completed"
-        )
+        error = DispatcherStoppedError("dispatcher stopped before watermark boundary completed")
         while True:
             try:
                 item = self.queue.get_nowait()
@@ -215,14 +213,14 @@ class LaneDispatcher:
             try:
                 if isinstance(item, _WatermarkRequest):
                     try:
-                        advanced = await self._advance_watermark_serialized(
-                            item.watermark
-                        )
+                        advanced = await self._advance_watermark_serialized(item.watermark)
                     except asyncio.CancelledError:
                         if not item.completion.done():
-                            item.completion.set_exception(DispatcherStoppedError(
-                                "dispatcher stopped during watermark boundary"
-                            ))
+                            item.completion.set_exception(
+                                DispatcherStoppedError(
+                                    "dispatcher stopped during watermark boundary"
+                                )
+                            )
                         raise
                     except Exception as exc:
                         if not item.completion.done():
@@ -240,9 +238,7 @@ class LaneDispatcher:
                     await self._emit_late_event(observation)
                     continue
                 manifest = self.plugin.manifest()
-                decision = AdmissionEvaluator.evaluate(
-                    observation, manifest, self.governance
-                )
+                decision = AdmissionEvaluator.evaluate(observation, manifest, self.governance)
                 if not decision.admitted:
                     emit_trace(
                         self._trace_sink,
@@ -257,9 +253,7 @@ class LaneDispatcher:
                     continue
 
                 state_key = self.plugin.state_key(observation)
-                shard_idx = compute_shard(
-                    manifest.plugin_id, state_key, self.shard_count
-                )
+                shard_idx = compute_shard(manifest.plugin_id, state_key, self.shard_count)
                 if state_key is None:
                     await self._dispatch_to_shard(observation, shard_idx, state_key)
                 else:
@@ -267,13 +261,9 @@ class LaneDispatcher:
 
             except Exception as exc:
                 plugin_id = self._plugin_id()
-                logger.exception(
-                    "Unexpected error in dispatcher for lane %s", self.target
-                )
+                logger.exception("Unexpected error in dispatcher for lane %s", self.target)
                 self.health.health = OperationalHealth.FAILED
-                registry.processing_errors.labels(
-                    lane=str(self.target), plugin_id=plugin_id
-                ).inc()
+                registry.processing_errors.labels(lane=str(self.target), plugin_id=plugin_id).inc()
                 await self._emit_control(self._error_event(item, plugin_id, exc))
             finally:
                 self.queue.task_done()
@@ -296,9 +286,7 @@ class LaneDispatcher:
     ) -> None:
         policy = self._reorder_policy
         if policy is None:
-            raise RuntimeError(
-                "stateful lane requires an explicit EventTimeReorderPolicy"
-            )
+            raise RuntimeError("stateful lane requires an explicit EventTimeReorderPolicy")
         buffer = self._reorder_buffers.get(state_key)
         # Deterministic precedence: a fact that violates both limits is
         # classified as per-key saturation.
@@ -306,9 +294,7 @@ class LaneDispatcher:
             await self._handle_reorder_saturation(observation, state_key, shard_idx)
             return
         if self._pending_reorder_total >= policy.max_buffered_events_total:
-            await self._handle_total_reorder_saturation(
-                observation, state_key, shard_idx
-            )
+            await self._handle_total_reorder_saturation(observation, state_key, shard_idx)
             return
         if buffer is None:
             buffer = self._reorder_buffers.setdefault(state_key, [])
@@ -324,9 +310,7 @@ class LaneDispatcher:
             ),
         )
         self._pending_reorder_total += 1
-        self._peak_pending_reorder_per_key = max(
-            self._peak_pending_reorder_per_key, len(buffer)
-        )
+        self._peak_pending_reorder_per_key = max(self._peak_pending_reorder_per_key, len(buffer))
         self._peak_pending_reorder_total = max(
             self._peak_pending_reorder_total, self.pending_reorder_count
         )
@@ -387,32 +371,52 @@ class LaneDispatcher:
         await self._emit_control(event)
 
     async def _emit_disabled_skip(self, observation: NetworkObservation) -> None:
-        await self._emit_control(RuntimeControlEvent(
-            control_event_id=str(uuid.uuid4()), schema_version="1.0",
-            control_type=ControlType.GAP_ACTION_STATUS,
-            ingest_time=datetime.now(timezone.utc), event_time=observation.event_time,
-            source_id=observation.source_id, lane_id=str(self.target),
-            provenance_ref=observation.provenance_ref, quality_ref=observation.quality_ref,
-            typed_payload={"component": "dispatcher", "plugin_id": self._plugin_id(),
-                "observation_id": observation.observation_id,
-                "action": GapAction.DISABLE_LANE.value, "status": "SKIPPED_DISABLED",
-                "reason": "lane is operationally disabled"},
-        ))
+        await self._emit_control(
+            RuntimeControlEvent(
+                control_event_id=str(uuid.uuid4()),
+                schema_version="1.0",
+                control_type=ControlType.GAP_ACTION_STATUS,
+                ingest_time=datetime.now(timezone.utc),
+                event_time=observation.event_time,
+                source_id=observation.source_id,
+                lane_id=str(self.target),
+                provenance_ref=observation.provenance_ref,
+                quality_ref=observation.quality_ref,
+                typed_payload={
+                    "component": "dispatcher",
+                    "plugin_id": self._plugin_id(),
+                    "observation_id": observation.observation_id,
+                    "action": GapAction.DISABLE_LANE.value,
+                    "status": "SKIPPED_DISABLED",
+                    "reason": "lane is operationally disabled",
+                },
+            )
+        )
 
     async def _emit_late_event(self, observation: NetworkObservation) -> None:
-        await self._emit_control(RuntimeControlEvent(
-            control_event_id=str(uuid.uuid4()), schema_version="1.0",
-            control_type=ControlType.LATE_EVENT_OBSERVED,
-            ingest_time=datetime.now(timezone.utc), event_time=observation.event_time,
-            source_id=observation.source_id, lane_id=str(self.target),
-            provenance_ref=observation.provenance_ref, quality_ref=observation.quality_ref,
-            typed_payload={"component": "dispatcher", "lane_id": str(self.target),
-                "plugin_id": self._plugin_id(), "observation_id": observation.observation_id,
-                "event_time": observation.event_time.isoformat(),
-                "current_watermark": self._watermark.isoformat() if self._watermark else None,
-                "source_id": observation.source_id,
-                "reason": "event_time is earlier than the lane watermark"},
-        ))
+        await self._emit_control(
+            RuntimeControlEvent(
+                control_event_id=str(uuid.uuid4()),
+                schema_version="1.0",
+                control_type=ControlType.LATE_EVENT_OBSERVED,
+                ingest_time=datetime.now(timezone.utc),
+                event_time=observation.event_time,
+                source_id=observation.source_id,
+                lane_id=str(self.target),
+                provenance_ref=observation.provenance_ref,
+                quality_ref=observation.quality_ref,
+                typed_payload={
+                    "component": "dispatcher",
+                    "lane_id": str(self.target),
+                    "plugin_id": self._plugin_id(),
+                    "observation_id": observation.observation_id,
+                    "event_time": observation.event_time.isoformat(),
+                    "current_watermark": self._watermark.isoformat() if self._watermark else None,
+                    "source_id": observation.source_id,
+                    "reason": "event_time is earlier than the lane watermark",
+                },
+            )
+        )
 
     async def advance_watermark(self, watermark: datetime) -> bool:
         """Enqueue and await a lane watermark serialized with observation ingress."""
@@ -447,9 +451,7 @@ class LaneDispatcher:
 
         for state_key in sorted(self._reorder_buffers, key=str):
             buffer = self._reorder_buffers[state_key]
-            shard_idx = compute_shard(
-                self._plugin_id(), state_key, self.shard_count
-            )
+            shard_idx = compute_shard(self._plugin_id(), state_key, self.shard_count)
             while buffer and buffer[0][0] < watermark:
                 observation = heapq.heappop(buffer)[-1]
                 self._pending_reorder_total -= 1
@@ -476,17 +478,24 @@ class LaneDispatcher:
 
         # Commit only after all pre-boundary work and lifecycle callbacks finish.
         self._watermark = watermark
-        await self._emit_control(RuntimeControlEvent(
-            control_event_id=str(uuid.uuid4()), schema_version="1.0",
-            control_type=ControlType.WATERMARK_ADVANCED,
-            ingest_time=datetime.now(timezone.utc), event_time=watermark,
-            lane_id=str(self.target),
-            typed_payload={"component": "lifecycle", "lane_id": str(self.target),
-                "plugin_id": plugin_id,
-                "previous_watermark": previous.isoformat() if previous else None,
-                "new_watermark": watermark.isoformat(),
-                "expired_state_count": len(expired)},
-        ))
+        await self._emit_control(
+            RuntimeControlEvent(
+                control_event_id=str(uuid.uuid4()),
+                schema_version="1.0",
+                control_type=ControlType.WATERMARK_ADVANCED,
+                ingest_time=datetime.now(timezone.utc),
+                event_time=watermark,
+                lane_id=str(self.target),
+                typed_payload={
+                    "component": "lifecycle",
+                    "lane_id": str(self.target),
+                    "plugin_id": plugin_id,
+                    "previous_watermark": previous.isoformat() if previous else None,
+                    "new_watermark": watermark.isoformat(),
+                    "expired_state_count": len(expired),
+                },
+            )
+        )
         return True
 
     async def _emit_control(self, event: RuntimeControlEvent) -> None:
@@ -508,13 +517,9 @@ class LaneDispatcher:
         try:
             await self._gap_sink(gap)
         except Exception:
-            logger.exception(
-                "Gap sink failed for gap %s; gap will not be retried", gap.gap_id
-            )
+            logger.exception("Gap sink failed for gap %s; gap will not be retried", gap.gap_id)
 
-    async def handle_ingress_saturation(
-        self, observation: NetworkObservation
-    ) -> QualityGap:
+    async def handle_ingress_saturation(self, observation: NetworkObservation) -> QualityGap:
         """Record evidence dropped before lane admission."""
         try:
             state_key = self.plugin.state_key(observation)
@@ -526,7 +531,8 @@ class LaneDispatcher:
             observation,
             shard_label="ingress",
             reason="Lane ingress queue full — routed observation dropped before admission.",
-            state_key=state_key, shard_id=shard_id,
+            state_key=state_key,
+            shard_id=shard_id,
         )
 
     async def _handle_queue_saturation(
@@ -536,11 +542,9 @@ class LaneDispatcher:
         return await self._record_queue_saturation(
             observation,
             shard_label=str(shard_id),
-            reason=(
-                "Shard queue full — admitted observation dropped before plugin "
-                "processing."
-            ),
-            state_key=state_key, shard_id=shard_id,
+            reason=("Shard queue full — admitted observation dropped before plugin processing."),
+            state_key=state_key,
+            shard_id=shard_id,
         )
 
     async def _handle_reorder_saturation(
@@ -564,13 +568,9 @@ class LaneDispatcher:
             ),
         )
         self.health.record_gap(gap)
-        registry.queue_full_events.labels(
-            lane=str(self.target), shard_id="reorder"
-        ).inc()
+        registry.queue_full_events.labels(lane=str(self.target), shard_id="reorder").inc()
         await self._emit_gap(gap)
-        await self._invoke_gap_action(
-            self.plugin.manifest().gap_action, gap, state_key, shard_id
-        )
+        await self._invoke_gap_action(self.plugin.manifest().gap_action, gap, state_key, shard_id)
         return gap
 
     async def _handle_total_reorder_saturation(
@@ -600,13 +600,9 @@ class LaneDispatcher:
             ),
         )
         self.health.record_gap(gap)
-        registry.queue_full_events.labels(
-            lane=str(self.target), shard_id="reorder-total"
-        ).inc()
+        registry.queue_full_events.labels(lane=str(self.target), shard_id="reorder-total").inc()
         await self._emit_gap(gap)
-        await self._invoke_gap_action(
-            self.plugin.manifest().gap_action, gap, state_key, shard_id
-        )
+        await self._invoke_gap_action(self.plugin.manifest().gap_action, gap, state_key, shard_id)
         return gap
 
     async def _record_queue_saturation(
@@ -628,9 +624,7 @@ class LaneDispatcher:
             reason=reason,
         )
         self.health.record_gap(gap)
-        registry.queue_full_events.labels(
-            lane=str(self.target), shard_id=shard_label
-        ).inc()
+        registry.queue_full_events.labels(lane=str(self.target), shard_id=shard_label).inc()
         await self._emit_gap(gap)
         await self._invoke_gap_action(self.plugin.manifest().gap_action, gap, state_key, shard_id)
         return gap
@@ -657,16 +651,30 @@ class LaneDispatcher:
         except Exception as exc:
             logger.exception("Gap action failed for %s", gap.gap_id)
             status, reason = "FAILED", str(exc)[:500]
-        await self._emit_control(RuntimeControlEvent(
-            control_event_id=str(uuid.uuid4()), schema_version="1.0",
-            control_type=ControlType.GAP_ACTION_STATUS,
-            ingest_time=datetime.now(timezone.utc), event_time=gap.detection_time,
-            source_id=None, lane_id=str(self.target), provenance_ref=None, quality_ref=None,
-            typed_payload={"component": "dispatcher", "gap_id": gap.gap_id,
-                "lane_id": str(self.target), "plugin_id": self._plugin_id(),
-                "action": action.value, "status": status, "state_key_known": state_key is not None,
-                "shard_id": shard_id, "reason": reason},
-        ))
+        await self._emit_control(
+            RuntimeControlEvent(
+                control_event_id=str(uuid.uuid4()),
+                schema_version="1.0",
+                control_type=ControlType.GAP_ACTION_STATUS,
+                ingest_time=datetime.now(timezone.utc),
+                event_time=gap.detection_time,
+                source_id=None,
+                lane_id=str(self.target),
+                provenance_ref=None,
+                quality_ref=None,
+                typed_payload={
+                    "component": "dispatcher",
+                    "gap_id": gap.gap_id,
+                    "lane_id": str(self.target),
+                    "plugin_id": self._plugin_id(),
+                    "action": action.value,
+                    "status": status,
+                    "state_key_known": state_key is not None,
+                    "shard_id": shard_id,
+                    "reason": reason,
+                },
+            )
+        )
 
     def _set_quality_degraded(self, value: bool) -> None:
         for shard in self.shards:
@@ -690,5 +698,7 @@ class LaneDispatcher:
         for shard in self.shards:
             shard.set_publication_enabled(True)
         self.health.health = (
-            OperationalHealth.BACKPRESSURED if self.health.active_gaps else OperationalHealth.HEALTHY
+            OperationalHealth.BACKPRESSURED
+            if self.health.active_gaps
+            else OperationalHealth.HEALTHY
         )

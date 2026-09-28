@@ -8,23 +8,38 @@ import pytest
 
 from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.domain.enums import (
-    AvailabilityBasis, ControlType, DirectionBasis, EvidenceReadiness, Finality,
-    GapAction, ObservationType, ResultType, ScientificStatus, SourceKind,
+    AvailabilityBasis,
+    ControlType,
+    DirectionBasis,
+    EvidenceReadiness,
+    Finality,
+    GapAction,
+    ObservationType,
+    ResultType,
+    ScientificStatus,
+    SourceKind,
     WireDirection,
 )
 from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.payloads import PacketObservation
-from evidencegate.plugins.providers.registry import build_mvp_provider_registry, build_mvp_runtime_registration
+from evidencegate.plugins.providers.registry import (
+    build_mvp_runtime_registration,
+)
 from evidencegate.plugins.scaffolds.basic_scaffold import BasicScaffoldPlugin
 from evidencegate.registry.manifest import StateResourcePolicy
 from evidencegate.registry.plugin import (
-    PluginProcessOutcome, StateKey, StateTransitionRequest,
+    PluginProcessOutcome,
+    StateKey,
+    StateTransitionRequest,
 )
 from evidencegate.results.types import ResultDraft
 from evidencegate.routing.router import LaneTarget
 from evidencegate.runtime.dispatcher import (
-    DispatcherStoppedError, EventTimeReorderPolicy, LaneDispatcher, WatermarkError,
+    DispatcherStoppedError,
+    EventTimeReorderPolicy,
+    LaneDispatcher,
+    WatermarkError,
     source_position_order,
 )
 from evidencegate.runtime.shard import LaneShard
@@ -62,18 +77,33 @@ def observation(
         quality_ref="quality",
         present_fields=frozenset({"src_address", "dst_address"}),
         typed_payload=PacketObservation(
-            lengths={"ip": 20}, observed_l2_facts={}, observed_l3_facts={},
-            observed_l4_facts={}, src_address="10.0.0.1",
-            dst_address="10.0.0.2", src_port=None, dst_port=None, flags=[],
-            sequence_facts=None, fragmentation=None, raw_reference=None,
+            lengths={"ip": 20},
+            observed_l2_facts={},
+            observed_l3_facts={},
+            observed_l4_facts={},
+            src_address="10.0.0.1",
+            dst_address="10.0.0.2",
+            src_port=None,
+            dst_port=None,
+            flags=[],
+            sequence_facts=None,
+            fragmentation=None,
+            raw_reference=None,
         ),
     )
 
 
 def governance(lane: str = "stateful") -> LaneGovernance:
     return LaneGovernance(
-        lane, ScientificStatus.EVIDENCE_CONSTRUCTION, "test", (),
-        "REVIEW_FINDING_ONLY", "gov", NOW, (ResultType.REVIEW_FINDING,), True,
+        lane,
+        ScientificStatus.EVIDENCE_CONSTRUCTION,
+        "test",
+        (),
+        "REVIEW_FINDING_ONLY",
+        "gov",
+        NOW,
+        (ResultType.REVIEW_FINDING,),
+        True,
     )
 
 
@@ -85,8 +115,10 @@ class RecordingStatefulPlugin(BasicScaffoldPlugin):
 
     def manifest(self):
         return replace(
-            super().manifest(), plugin_id="reorder-fixture",
-            mechanism_id="fixture.reorder", gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
+            super().manifest(),
+            plugin_id="reorder-fixture",
+            mechanism_id="fixture.reorder",
+            gap_action=GapAction.CONTINUE_WITH_QUALITY_FLAG,
             state_resource_policy=StateResourcePolicy(20, timedelta(hours=1)),
         )
 
@@ -99,14 +131,21 @@ class RecordingStatefulPlugin(BasicScaffoldPlugin):
         self.timeline.append(f"process:{item.observation_id}")
         count = 1 if state is None else state.payload["count"] + 1
         return PluginProcessOutcome(
-            (ResultDraft(
-                ResultType.REVIEW_FINDING, item.source_id,
-                (item.observation_id,), (),
-                evidence={"count": count, "observation_id": item.observation_id},
-            ),),
+            (
+                ResultDraft(
+                    ResultType.REVIEW_FINDING,
+                    item.source_id,
+                    (item.observation_id,),
+                    (),
+                    evidence={"count": count, "observation_id": item.observation_id},
+                ),
+            ),
             StateTransitionRequest(
-                self.state_key(item), None if state is None else state.version,
-                StateOperation.UPSERT, {"count": count}, self.ttl,
+                self.state_key(item),
+                None if state is None else state.version,
+                StateOperation.UPSERT,
+                {"count": count},
+                self.ttl,
             ),
             EvaluationReadinessDecision(EvidenceReadiness.READY),
         )
@@ -124,19 +163,27 @@ async def collect(target, item):
     target.append(item)
 
 
-async def dispatcher_fixture(
-    *, maximum=20, total=200, ttl=timedelta(minutes=10), shards=2
-):
+async def dispatcher_fixture(*, maximum=20, total=200, ttl=timedelta(minutes=10), shards=2):
     plugin = RecordingStatefulPlugin(ttl=ttl)
     store = StateStore(expire_on_access=False)
     results, controls, gaps = [], [], []
     lane_shards = [
-        LaneShard(i, plugin, store, lambda item: collect(results, item),
-                  control_sink=lambda item: collect(controls, item), lane_id=str(LANE))
+        LaneShard(
+            i,
+            plugin,
+            store,
+            lambda item: collect(results, item),
+            control_sink=lambda item: collect(controls, item),
+            lane_id=str(LANE),
+        )
         for i in range(shards)
     ]
     dispatcher = LaneDispatcher(
-        LANE, plugin, governance(), lane_shards, shards,
+        LANE,
+        plugin,
+        governance(),
+        lane_shards,
+        shards,
         control_sink=lambda item: collect(controls, item),
         gap_sink=lambda item: collect(gaps, item),
         reorder_policy=EventTimeReorderPolicy(maximum, total),
@@ -178,7 +225,8 @@ async def test_replay_arrival_order_is_reordered_by_event_time(arrival):
 async def test_same_timestamp_uses_position_then_observation_id():
     plugin, _, shards, dispatcher, *_ = await dispatcher_fixture()
     try:
-        await admit(dispatcher,
+        await admit(
+            dispatcher,
             observation(1, position="3", observation_id="position-3"),
             observation(1, position="1", observation_id="position-1"),
             observation(1, position="2", observation_id="position-2"),
@@ -198,9 +246,12 @@ async def test_same_timestamp_uses_position_then_observation_id():
 async def test_multiple_keys_have_independent_order_and_buffers():
     plugin, _, shards, dispatcher, *_ = await dispatcher_fixture()
     try:
-        await admit(dispatcher,
-            observation(3, key="a"), observation(2, key="b"),
-            observation(1, key="a"), observation(1, key="b"),
+        await admit(
+            dispatcher,
+            observation(3, key="a"),
+            observation(2, key="b"),
+            observation(1, key="a"),
+            observation(1, key="b"),
             observation(2, key="a"),
         )
         await dispatcher.advance_watermark(NOW + timedelta(seconds=4))
@@ -244,8 +295,12 @@ async def test_flush_completes_before_expiry_then_watermark_callback():
 async def test_per_key_bound_surfaces_quality_loss_without_evicting_buffered_facts():
     plugin, _, shards, dispatcher, _, controls, gaps = await dispatcher_fixture(maximum=2)
     try:
-        await admit(dispatcher,
-            observation(3), observation(1), observation(2), observation(1, key="b"),
+        await admit(
+            dispatcher,
+            observation(3),
+            observation(1),
+            observation(2),
+            observation(1, key="b"),
         )
         assert dispatcher.pending_reorder_count == 3
         assert len(gaps) == 1
@@ -261,23 +316,21 @@ async def test_per_key_bound_surfaces_quality_loss_without_evicting_buffered_fac
 
 @pytest.mark.asyncio
 async def test_total_bound_saturates_across_keys_without_evicting_existing_facts():
-    plugin, _, shards, dispatcher, _, controls, gaps = await dispatcher_fixture(
-        maximum=4, total=4
-    )
+    plugin, _, shards, dispatcher, _, controls, gaps = await dispatcher_fixture(maximum=4, total=4)
     try:
         await admit(
             dispatcher,
-            observation(1, key="a"), observation(1, key="b"),
-            observation(1, key="c"), observation(1, key="d"),
+            observation(1, key="a"),
+            observation(1, key="b"),
+            observation(1, key="c"),
+            observation(1, key="d"),
             observation(1, key="e"),
         )
         assert dispatcher.pending_reorder_count == 4
         assert dispatcher.peak_pending_reorder_total == 4
         assert dispatcher.peak_pending_reorder_per_key == 1
         assert len(dispatcher._reorder_buffers) == 4
-        assert [gap.gap_types for gap in gaps] == [
-            ("REORDER_BUFFER_TOTAL_SATURATION",)
-        ]
+        assert [gap.gap_types for gap in gaps] == [("REORDER_BUFFER_TOTAL_SATURATION",)]
         assert "configured_total_limit=4" in gaps[0].reason
         assert "current_pending_total=4" in gaps[0].reason
         assert any(event.control_type is ControlType.GAP_ACTION_STATUS for event in controls)
@@ -290,28 +343,23 @@ async def test_total_bound_saturates_across_keys_without_evicting_existing_facts
 
 @pytest.mark.asyncio
 async def test_per_key_saturation_has_precedence_when_both_limits_are_full():
-    _, _, shards, dispatcher, _, _, gaps = await dispatcher_fixture(
-        maximum=2, total=2
-    )
+    _, _, shards, dispatcher, _, _, gaps = await dispatcher_fixture(maximum=2, total=2)
     try:
         await admit(
             dispatcher,
-            observation(1, key="a"), observation(2, key="a"),
+            observation(1, key="a"),
+            observation(2, key="a"),
             observation(3, key="a"),
         )
         assert dispatcher.pending_reorder_count == 2
-        assert [gap.gap_types for gap in gaps] == [
-            ("REORDER_BUFFER_SATURATION",)
-        ]
+        assert [gap.gap_types for gap in gaps] == [("REORDER_BUFFER_SATURATION",)]
     finally:
         await close(dispatcher, shards)
 
 
 @pytest.mark.asyncio
 async def test_watermark_releases_total_budget_for_new_observations():
-    plugin, _, shards, dispatcher, _, _, gaps = await dispatcher_fixture(
-        maximum=2, total=2
-    )
+    plugin, _, shards, dispatcher, _, _, gaps = await dispatcher_fixture(maximum=2, total=2)
     try:
         await admit(dispatcher, observation(1, key="a"), observation(1, key="b"))
         assert dispatcher.pending_reorder_count == 2
@@ -352,14 +400,18 @@ async def test_supervisor_requires_stateful_policy_but_not_for_current_registry(
     with pytest.raises(ValueError, match="requires an explicit event-time reorder policy"):
         RuntimeSupervisor({LANE: plugin}, {LANE: governance()}, writer)
     supervisor = RuntimeSupervisor(
-        {LANE: plugin}, {LANE: governance()}, writer,
+        {LANE: plugin},
+        {LANE: governance()},
+        writer,
         reorder_policies={LANE: EventTimeReorderPolicy(5, 50)},
     )
     assert supervisor.dispatchers[LANE].pending_reorder_count == 0
 
     registration = build_mvp_runtime_registration(NOW)
     current = RuntimeSupervisor(
-        registration.plugins, registration.governances, writer,
+        registration.plugins,
+        registration.governances,
+        writer,
         reorder_policies=registration.reorder_policies,
     )
     assert set(current.dispatchers) == set(registration.plugins)
@@ -375,7 +427,10 @@ async def test_different_arrivals_produce_identical_state_and_finalized_results(
             results.append(result)
 
         supervisor = RuntimeSupervisor(
-            {LANE: plugin}, {LANE: governance()}, writer, shard_count=2,
+            {LANE: plugin},
+            {LANE: governance()},
+            writer,
+            shard_count=2,
             reorder_policies={LANE: EventTimeReorderPolicy(10, 100)},
         )
         supervisor.start_all()
@@ -388,7 +443,9 @@ async def test_different_arrivals_produce_identical_state_and_finalized_results(
                 "reorder-fixture", StateKey("a"), NOW + timedelta(seconds=4)
             )
             return (
-                tuple(plugin.processed), entry.payload, entry.version,
+                tuple(plugin.processed),
+                entry.payload,
+                entry.version,
                 tuple(result.result_id for result in results),
                 tuple(result.evidence.canonical_json for result in results),
                 tuple(result.state_version for result in results),
@@ -470,9 +527,7 @@ async def test_observation_queued_after_marker_sees_committed_watermark():
     plugin.on_watermark = blocked_watermark
     try:
         dispatcher.put_nowait(observation(9))
-        boundary = asyncio.create_task(
-            dispatcher.advance_watermark(NOW + timedelta(seconds=10))
-        )
+        boundary = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=10)))
         await asyncio.wait_for(entered.wait(), 1)
         dispatcher.put_nowait(observation(8))
         release.set()
@@ -481,7 +536,9 @@ async def test_observation_queued_after_marker_sees_committed_watermark():
         entry = store.read("reorder-fixture", StateKey("a"), NOW + timedelta(seconds=10))
         assert entry is not None and entry.payload == {"count": 1}
         assert [item[1] for item in plugin.processed] == [9]
-        late = [event for event in controls if event.control_type is ControlType.LATE_EVENT_OBSERVED]
+        late = [
+            event for event in controls if event.control_type is ControlType.LATE_EVENT_OBSERVED
+        ]
         assert len(late) == 1 and late[0].typed_payload["observation_id"] == "event-a-8"
     finally:
         release.set()
@@ -524,9 +581,7 @@ async def test_watermark_joins_pre_marker_stateless_shard_work():
     dispatcher.start()
     try:
         dispatcher.put_nowait(observation(1))
-        boundary = asyncio.create_task(
-            dispatcher.advance_watermark(NOW + timedelta(seconds=2))
-        )
+        boundary = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=2)))
         await asyncio.wait_for(process_entered.wait(), 1)
         assert not boundary.done()
         process_release.set()
@@ -541,16 +596,13 @@ async def test_watermark_joins_pre_marker_stateless_shard_work():
 async def test_concurrent_watermarks_and_duplicates_are_queue_ordered():
     plugin, _, shards, dispatcher, _, controls, _ = await dispatcher_fixture()
     try:
-        first = asyncio.create_task(
-            dispatcher.advance_watermark(NOW + timedelta(seconds=10))
-        )
-        second = asyncio.create_task(
-            dispatcher.advance_watermark(NOW + timedelta(seconds=20))
-        )
+        first = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=10)))
+        second = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=20)))
         assert await asyncio.gather(first, second) == [True, True]
         assert dispatcher.watermark == NOW + timedelta(seconds=20)
         assert [item for item in plugin.timeline if item == "watermark"] == [
-            "watermark", "watermark"
+            "watermark",
+            "watermark",
         ]
 
         duplicate_one = asyncio.create_task(
@@ -560,7 +612,9 @@ async def test_concurrent_watermarks_and_duplicates_are_queue_ordered():
             dispatcher.advance_watermark(NOW + timedelta(seconds=30))
         )
         assert await asyncio.gather(duplicate_one, duplicate_two) == [True, False]
-        advanced = [event for event in controls if event.control_type is ControlType.WATERMARK_ADVANCED]
+        advanced = [
+            event for event in controls if event.control_type is ControlType.WATERMARK_ADVANCED
+        ]
         assert len(advanced) == 3
     finally:
         await close(dispatcher, shards)
@@ -570,12 +624,8 @@ async def test_concurrent_watermarks_and_duplicates_are_queue_ordered():
 async def test_backward_watermark_reaches_caller_and_dispatcher_stays_usable():
     _, _, shards, dispatcher, *_ = await dispatcher_fixture()
     try:
-        forward = asyncio.create_task(
-            dispatcher.advance_watermark(NOW + timedelta(seconds=20))
-        )
-        backward = asyncio.create_task(
-            dispatcher.advance_watermark(NOW + timedelta(seconds=10))
-        )
+        forward = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=20)))
+        backward = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=10)))
         assert await forward is True
         with pytest.raises(WatermarkError):
             await backward
@@ -596,13 +646,9 @@ async def test_stop_fails_active_and_queued_watermark_requests():
         return PluginProcessOutcome()
 
     plugin.on_watermark = blocked_watermark
-    first = asyncio.create_task(
-        dispatcher.advance_watermark(NOW + timedelta(seconds=10))
-    )
+    first = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=10)))
     await asyncio.wait_for(entered.wait(), 1)
-    second = asyncio.create_task(
-        dispatcher.advance_watermark(NOW + timedelta(seconds=20))
-    )
+    second = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=20)))
 
     async def marker_is_queued():
         while dispatcher.queue.qsize() == 0:
@@ -624,7 +670,12 @@ async def test_watermark_marker_backpressures_instead_of_dropping_on_full_ingres
     store = StateStore(expire_on_access=False)
     shard = LaneShard(0, plugin, store, lambda item: collect([], item))
     dispatcher = LaneDispatcher(
-        LANE, plugin, governance(), [shard], 1, max_size=1,
+        LANE,
+        plugin,
+        governance(),
+        [shard],
+        1,
+        max_size=1,
         reorder_policy=EventTimeReorderPolicy(10, 100),
     )
     entered, release = asyncio.Event(), asyncio.Event()
@@ -643,9 +694,7 @@ async def test_watermark_marker_backpressures_instead_of_dropping_on_full_ingres
         dispatcher.put_nowait(observation(1))
         await asyncio.wait_for(entered.wait(), 1)
         dispatcher.put_nowait(observation(2))
-        boundary = asyncio.create_task(
-            dispatcher.advance_watermark(NOW + timedelta(seconds=3))
-        )
+        boundary = asyncio.create_task(dispatcher.advance_watermark(NOW + timedelta(seconds=3)))
 
         async def marker_is_backpressured():
             while not dispatcher._watermark_put_tasks:

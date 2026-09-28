@@ -4,14 +4,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict, Awaitable, Callable, Mapping
 from evidencegate.registry.plugin import AnalyticPlugin
-from evidencegate.registry.manifest import PluginManifest
 from evidencegate.domain.events import NetworkObservation, RuntimeControlEvent
 from evidencegate.domain.governance import LaneGovernance
 from evidencegate.domain.quality import QualityGap
 from evidencegate.routing.router import RelevanceRouter, LaneTarget
-from evidencegate.admission.evaluator import AdmissionEvaluator
 from evidencegate.runtime.state import StateStore
-from evidencegate.runtime.shard import LaneShard, compute_shard
+from evidencegate.runtime.shard import LaneShard
 from evidencegate.runtime.trace import emit_trace
 from evidencegate.runtime.dispatcher import EventTimeReorderPolicy, LaneDispatcher
 from evidencegate.results.types import Result_T
@@ -21,11 +19,13 @@ from evidencegate.metrics.registry import registry
 
 logger = logging.getLogger(__name__)
 
+
 class RuntimeSupervisor:
     """
     Wires the pipeline:
     Router -> Queue -> Ingest Admission -> State Key -> Shards -> Plugin -> Validator -> SQLite
     """
+
     def __init__(
         self,
         plugins: Dict[LaneTarget, AnalyticPlugin],
@@ -47,25 +47,29 @@ class RuntimeSupervisor:
         self.trace_sink = trace_sink
 
         for target, plugin in plugins.items():
-            if (plugin.manifest().state_resource_policy is not None
-                    and target not in self.reorder_policies):
+            if (
+                plugin.manifest().state_resource_policy is not None
+                and target not in self.reorder_policies
+            ):
                 raise ValueError(
                     f"stateful lane {target} requires an explicit event-time reorder policy"
                 )
-        
+
         self.router = RelevanceRouter(plugins)
         self.state_stores: Dict[LaneTarget, StateStore] = {
             # Explicit lane watermarks, not observation timestamps, own expiry.
             # The manifest limit is an engineering bound, never a scientific window.
             target: StateStore(
-                max_entries=(plugin.manifest().state_resource_policy.max_entries
-                             if plugin.manifest().state_resource_policy is not None
-                             else StateStore.DEFAULT_MAX_ENTRIES),
+                max_entries=(
+                    plugin.manifest().state_resource_policy.max_entries
+                    if plugin.manifest().state_resource_policy is not None
+                    else StateStore.DEFAULT_MAX_ENTRIES
+                ),
                 expire_on_access=False,
             )
             for target, plugin in plugins.items()
         }
-        
+
         self.shards: Dict[LaneTarget, list[LaneShard]] = {}
         self.dispatchers: Dict[LaneTarget, LaneDispatcher] = {}
         for target, plugin in plugins.items():
@@ -73,17 +77,20 @@ class RuntimeSupervisor:
             manifest = plugin.manifest()
             lane_shards = []
             for i in range(shard_count):
+
                 async def bound_writer(res: Result_T, t=target):
                     await self.result_writer(res, t)
 
                 def finalize(
-                    draft, context: ResultEmissionContext,
-                    m=manifest, g=gov,
+                    draft,
+                    context: ResultEmissionContext,
+                    m=manifest,
+                    g=gov,
                 ) -> Result_T:
                     if g is None:
                         raise RuntimeError(f"lane {target} has no governance snapshot")
                     return ResultFinalizer.finalize(draft, m, g, context)
-                
+
                 shard = LaneShard(
                     shard_id=i,
                     plugin=plugin,
@@ -96,7 +103,7 @@ class RuntimeSupervisor:
                 )
                 lane_shards.append(shard)
             self.shards[target] = lane_shards
-            
+
             # Create dispatcher for this lane
             if gov:
                 self.dispatchers[target] = LaneDispatcher(
@@ -117,7 +124,7 @@ class RuntimeSupervisor:
                 shard.start()
         for dispatcher in self.dispatchers.values():
             dispatcher.start()
-                
+
     async def stop_all(self):
         for dispatcher in self.dispatchers.values():
             await dispatcher.stop()
@@ -135,7 +142,8 @@ class RuntimeSupervisor:
                 # UI projection is best effort; it must not change routing or evaluation.
                 canonical_presentation = None
             emit_trace(
-                self.trace_sink, "OBSERVATION_CREATED",
+                self.trace_sink,
+                "OBSERVATION_CREATED",
                 observation_id=observation.observation_id,
                 observation_type=observation.observation_type.value,
                 canonical_observation=canonical_presentation,
@@ -159,12 +167,17 @@ class RuntimeSupervisor:
                     ("capture gap", observation.quality.capture_gap),
                 )
             ]
-            visibility_reason = "; ".join((
-                ", ".join(visibility_parts) if visibility_parts else "visibility capabilities unknown",
-                "quality " + ", ".join(quality_parts),
-            ))
+            visibility_reason = "; ".join(
+                (
+                    ", ".join(visibility_parts)
+                    if visibility_parts
+                    else "visibility capabilities unknown",
+                    "quality " + ", ".join(quality_parts),
+                )
+            )
             emit_trace(
-                self.trace_sink, "VISIBILITY_EVALUATED",
+                self.trace_sink,
+                "VISIBILITY_EVALUATED",
                 observation_id=observation.observation_id,
                 observation_type=observation.observation_type.value,
                 reason=visibility_reason,
@@ -175,7 +188,8 @@ class RuntimeSupervisor:
                 if decision.selected:
                     plugin = self.plugins[decision.target]
                     emit_trace(
-                        self.trace_sink, "ROUTED",
+                        self.trace_sink,
+                        "ROUTED",
                         observation_id=observation.observation_id,
                         observation_type=observation.observation_type.value,
                         lane_id=str(decision.target),
@@ -189,7 +203,7 @@ class RuntimeSupervisor:
             dispatcher = self.dispatchers.get(target)
             if not dispatcher:
                 continue
-            
+
             try:
                 dispatcher.put_nowait(observation)
             except asyncio.QueueFull:
@@ -203,13 +217,18 @@ class RuntimeSupervisor:
             if decision.predicate_exception_type is None:
                 continue
             event = RuntimeControlEvent(
-                control_event_id=str(uuid.uuid4()), schema_version="1.0",
-                control_type=ControlType.ERROR, ingest_time=datetime.now(timezone.utc),
-                event_time=observation.event_time, source_id=observation.source_id,
-                lane_id=str(decision.target), provenance_ref=observation.provenance_ref,
+                control_event_id=str(uuid.uuid4()),
+                schema_version="1.0",
+                control_type=ControlType.ERROR,
+                ingest_time=datetime.now(timezone.utc),
+                event_time=observation.event_time,
+                source_id=observation.source_id,
+                lane_id=str(decision.target),
+                provenance_ref=observation.provenance_ref,
                 quality_ref=observation.quality_ref,
                 typed_payload={
-                    "component": "router", "lane": str(decision.target),
+                    "component": "router",
+                    "lane": str(decision.target),
                     "plugin_id": self.router.plugin_id_for(decision.target),
                     "observation_id": observation.observation_id,
                     "exception_type": decision.predicate_exception_type,

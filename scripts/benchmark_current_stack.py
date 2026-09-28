@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """PRE-DGA controlled characterization of the actual current EvidenceGate stack."""
+
 from __future__ import annotations
 
 import argparse
@@ -8,8 +9,6 @@ import importlib.metadata
 import json
 import os
 import platform
-import statistics
-import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,11 +44,16 @@ def percentiles(values: list[float]) -> dict[str, float | None]:
 
 
 async def _run_mode(
-    root: Path, source_type: str, source_factory: Callable[[], object], scenario: str,
+    root: Path,
+    source_type: str,
+    source_factory: Callable[[], object],
+    scenario: str,
 ) -> dict[str, object]:
     results_dir = root / "benchmark_results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    fd, database_name = tempfile.mkstemp(prefix=f"current-stack-{source_type.lower()}-", suffix=".db", dir=results_dir)
+    fd, database_name = tempfile.mkstemp(
+        prefix=f"current-stack-{source_type.lower()}-", suffix=".db", dir=results_dir
+    )
     os.close(fd)
     database = Path(database_name)
     writer = SqliteWriter(database, root / "evidencegate" / "persistence" / "schema.sql")
@@ -86,14 +90,20 @@ async def _run_mode(
 
     registration = build_mvp_runtime_registration(datetime.now(timezone.utc))
     supervisor = RuntimeSupervisor(
-        registration.plugins, registration.governances, persist,
-        control_sink=control_sink, gap_sink=gap_sink,
+        registration.plugins,
+        registration.governances,
+        persist,
+        control_sink=control_sink,
+        gap_sink=gap_sink,
         reorder_policies=registration.reorder_policies,
     )
     sampler = asyncio.create_task(sample_memory())
     try:
         summary = await ReplayRunner(
-            source_factory(), supervisor, speed=0, control_sink=control_sink,
+            source_factory(),
+            supervisor,
+            speed=0,
+            control_sink=control_sink,
         ).run()
     finally:
         sampling = False
@@ -102,13 +112,18 @@ async def _run_mode(
         rss_peak = max(rss_peak, rss_end)
         active_state_entries = sum(len(store) for store in supervisor.state_stores.values())
         peak_reorder = max(
-            (dispatcher.peak_pending_reorder_total for dispatcher in supervisor.dispatchers.values()),
+            (
+                dispatcher.peak_pending_reorder_total
+                for dispatcher in supervisor.dispatchers.values()
+            ),
             default=0,
         )
         writer.close()
 
     pragmas = {
-        "journal_mode": "WAL", "synchronous": "NORMAL", "foreign_keys": "ON",
+        "journal_mode": "WAL",
+        "synchronous": "NORMAL",
+        "foreign_keys": "ON",
     }
     database_size = database.stat().st_size
     database.unlink()
@@ -144,14 +159,20 @@ async def _run_mode(
         },
         "timing": {
             "replay_wall_seconds": round(elapsed, 6),
-            "controlled_processing_rate_observations_per_second": round(summary.observations_emitted / elapsed, 3) if elapsed else None,
+            "controlled_processing_rate_observations_per_second": round(
+                summary.observations_emitted / elapsed, 3
+            )
+            if elapsed
+            else None,
             "persist_latency": percentiles(persist_latencies),
             "structural_time_to_signal": "reported by mechanism evidence, not benchmark-combined",
             "end_to_end_evidence_latency": "not measured; capture event time is historical",
         },
         "memory": {
-            "rss_start_bytes": rss_start, "rss_peak_bytes": rss_peak,
-            "rss_end_bytes": rss_end, "active_state_entries_end": active_state_entries,
+            "rss_start_bytes": rss_start,
+            "rss_peak_bytes": rss_peak,
+            "rss_end_bytes": rss_end,
+            "active_state_entries_end": active_state_entries,
             "peak_reorder_occupancy": peak_reorder,
             "sqlite_file_size_bytes": database_size,
         },
@@ -175,9 +196,12 @@ async def run_characterization(root: Path = ROOT) -> dict[str, object]:
     }
     typed_bundle = root / "tests" / "fixtures" / "replay" / "raw_ddos_recon_parity"
     pcap_bundle = root / "tests" / "fixtures" / "pcap" / "raw_ddos_recon"
-    typed = await _run_mode(root, "NDJSON", lambda: NdjsonReplaySource(typed_bundle), "controlled DDoS + Recon parity")
+    typed = await _run_mode(
+        root, "NDJSON", lambda: NdjsonReplaySource(typed_bundle), "controlled DDoS + Recon parity"
+    )
     pcap = await _run_mode(
-        root, "PCAP",
+        root,
+        "PCAP",
         lambda: PcapReplaySource(pcap_bundle / "capture.pcap", pcap_bundle / "manifest.json"),
         "controlled DDoS + Recon raw PCAP",
     )
@@ -214,18 +238,22 @@ def markdown_report(payload: dict[str, object]) -> str:
     for run in runs:
         latency = run["timing"]["persist_latency"]
         memory = run["memory"]
-        latency_rows.append(f"| {run['source_type']} | {latency['p50_ms']} | {latency['p95_ms']} | {latency['p99_ms']} |")
-        memory_rows.append(f"| {run['source_type']} | {memory['rss_start_bytes']} | {memory['rss_peak_bytes']} | {memory['rss_end_bytes']} | {memory['active_state_entries_end']} | {memory['peak_reorder_occupancy']} | {memory['sqlite_file_size_bytes']} |")
+        latency_rows.append(
+            f"| {run['source_type']} | {latency['p50_ms']} | {latency['p95_ms']} | {latency['p99_ms']} |"
+        )
+        memory_rows.append(
+            f"| {run['source_type']} | {memory['rss_start_bytes']} | {memory['rss_peak_bytes']} | {memory['rss_end_bytes']} | {memory['active_state_entries_end']} | {memory['peak_reorder_occupancy']} | {memory['sqlite_file_size_bytes']} |"
+        )
     return f"""# Current Stack Real Benchmark Report
 
-> **{payload['watermark']}**
+> **{payload["watermark"]}**
 
-Classification: **{payload['classification']}**. These controlled measurements are not final, production, sustained-capacity, or sizing claims. DGA model inference is not active.
+Classification: **{payload["classification"]}**. These controlled measurements are not final, production, sustained-capacity, or sizing claims. DGA model inference is not active.
 
 ## Environment
 
 ```json
-{json.dumps(payload['environment'], indent=2)}
+{json.dumps(payload["environment"], indent=2)}
 ```
 
 Both modes use the real source adapter, shared canonicalizer, default 16-target registry, routing, mechanism state, finalization, and a disk-backed SQLite database at replay speed 0.
@@ -256,14 +284,20 @@ Each run's machine-readable counters separately report quality gaps, state-capac
 
 ## Limitations
 
-{chr(10).join('- ' + item for item in payload['limitations'])}
+{chr(10).join("- " + item for item in payload["limitations"])}
 """
 
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--json", type=Path, default=ROOT / "benchmark_results" / "current_stack_real_benchmark.json")
-    parser.add_argument("--report", type=Path, default=ROOT / "CURRENT_STACK_REAL_BENCHMARK_REPORT.md")
+    parser.add_argument(
+        "--json",
+        type=Path,
+        default=ROOT / "benchmark_results" / "current_stack_real_benchmark.json",
+    )
+    parser.add_argument(
+        "--report", type=Path, default=ROOT / "CURRENT_STACK_REAL_BENCHMARK_REPORT.md"
+    )
     args = parser.parse_args()
     payload = await run_characterization(ROOT)
     args.json.parent.mkdir(parents=True, exist_ok=True)

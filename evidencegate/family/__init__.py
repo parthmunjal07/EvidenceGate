@@ -10,6 +10,10 @@ from evidencegate.family.composer import (
 )
 
 __all__ = [
-    "FAMILY_BY_LANE", "OFFICIAL_FAMILIES", "FamilyEvidenceView",
-    "InvestigationLink", "compose_family_evidence", "index_investigations",
+    "FAMILY_BY_LANE",
+    "OFFICIAL_FAMILIES",
+    "FamilyEvidenceView",
+    "InvestigationLink",
+    "compose_family_evidence",
+    "index_investigations",
 ]

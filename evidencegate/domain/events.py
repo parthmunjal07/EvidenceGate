@@ -2,13 +2,25 @@ from dataclasses import dataclass, fields
 from typing import Any, Optional
 from datetime import datetime
 from evidencegate.domain.enums import (
-    AvailabilityBasis, CapabilityState, ControlType, DirectionBasis, Finality,
-    IdentityBasis, ObservationType, QualityState, SourceKind, VisibilityCapability,
+    AvailabilityBasis,
+    CapabilityState,
+    ControlType,
+    DirectionBasis,
+    Finality,
+    IdentityBasis,
+    ObservationType,
+    QualityState,
+    SourceKind,
+    VisibilityCapability,
     WireDirection,
 )
 from evidencegate.domain.payloads import (
-    DNSObservation, FlowObservation, NetworkPayloadType, PacketObservation,
-    QUICObservation, TLSObservation,
+    DNSObservation,
+    FlowObservation,
+    NetworkPayloadType,
+    PacketObservation,
+    QUICObservation,
+    TLSObservation,
 )
 from evidencegate.domain.quality import EvidenceQuality
 
@@ -20,7 +32,10 @@ class RoleAssignment:
     basis: IdentityBasis
 
     def __post_init__(self) -> None:
-        if self.basis not in (IdentityBasis.SOURCE_DECLARED_ROLE, IdentityBasis.POLICY_DECLARED_ROLE):
+        if self.basis not in (
+            IdentityBasis.SOURCE_DECLARED_ROLE,
+            IdentityBasis.POLICY_DECLARED_ROLE,
+        ):
             raise ValueError("role assignments require an explicit trusted role basis")
 
 
@@ -47,10 +62,15 @@ class VisibilityProfile:
         collections = (self.available, self.unavailable, self.degraded)
         if any(not isinstance(items, frozenset) for items in collections):
             raise TypeError("visibility states must be frozenset[VisibilityCapability]")
-        if any(not isinstance(item, VisibilityCapability) for items in collections for item in items):
+        if any(
+            not isinstance(item, VisibilityCapability) for items in collections for item in items
+        ):
             raise TypeError("visibility facts must use VisibilityCapability")
-        if (self.available & self.unavailable or self.available & self.degraded
-                or self.unavailable & self.degraded):
+        if (
+            self.available & self.unavailable
+            or self.available & self.degraded
+            or self.unavailable & self.degraded
+        ):
             raise ValueError("a visibility capability cannot have contradictory states")
 
     def state(self, capability: VisibilityCapability) -> CapabilityState:
@@ -74,6 +94,7 @@ class VisibilityProfile:
             degraded=self.degraded - available - unavailable,
         )
 
+
 @dataclass(frozen=True, slots=True)
 class NetworkObservationEnvelope:
     """
@@ -81,6 +102,7 @@ class NetworkObservationEnvelope:
     None means the field was absent or not supplied.
     'UNKNOWN' means the field was observed, but its factual value could not be determined.
     """
+
     observation_id: str
     schema_version: str
     observation_type: ObservationType
@@ -130,22 +152,30 @@ class NetworkObservationEnvelope:
                 raise ValueError(f"{name} must be timezone-aware")
         if self.causal_available_time < self.event_time:
             raise ValueError("causal_available_time cannot precede event_time")
-        if self.wire_direction is not WireDirection.UNKNOWN and self.direction_basis is DirectionBasis.UNKNOWN:
+        if (
+            self.wire_direction is not WireDirection.UNKNOWN
+            and self.direction_basis is DirectionBasis.UNKNOWN
+        ):
             raise ValueError("known wire direction requires an explicit direction basis")
         directional_capability = {
             WireDirection.FORWARD: VisibilityCapability.FORWARD_FACTS,
             WireDirection.REVERSE: VisibilityCapability.REVERSE_FACTS,
         }.get(self.wire_direction)
-        if (directional_capability is not None
-                and self.visibility.state(directional_capability) is CapabilityState.UNAVAILABLE):
+        if (
+            directional_capability is not None
+            and self.visibility.state(directional_capability) is CapabilityState.UNAVAILABLE
+        ):
             raise ValueError("known wire direction contradicts unavailable directional facts")
         if not isinstance(self.present_fields, frozenset):
             raise TypeError("present_fields must be frozenset[str]")
         if any(not isinstance(name, str) for name in self.present_fields):
             raise TypeError("present_fields entries must be strings")
-        if (not self.quality_ref and QualityState.DEGRADED in (
-                self.quality.packet_loss, self.quality.sampling,
-                self.quality.parser, self.quality.capture_gap)):
+        if not self.quality_ref and QualityState.DEGRADED in (
+            self.quality.packet_loss,
+            self.quality.sampling,
+            self.quality.parser,
+            self.quality.capture_gap,
+        ):
             raise ValueError("degraded source quality requires quality_ref provenance")
 
         payload_types = {
@@ -166,6 +196,7 @@ class NetworkObservationEnvelope:
         if absent:
             raise ValueError(f"None-valued fields cannot be present: {sorted(absent)}")
 
+
 @dataclass(frozen=True, slots=True)
 class RuntimeControlEvent:
     control_event_id: str
@@ -178,6 +209,7 @@ class RuntimeControlEvent:
     lane_id: Optional[str] = None
     provenance_ref: Optional[str] = None
     quality_ref: Optional[str] = None
+
 
 # Unions
 NetworkObservation = NetworkObservationEnvelope

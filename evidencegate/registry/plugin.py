@@ -52,22 +52,25 @@ class PluginProcessOutcome:
     # Stateful invocations must explicitly supply this mechanism decision.
     evaluation_readiness: EvaluationReadinessDecision | None = None
 
+
 class AnalyticPlugin(Protocol):
     def manifest(self) -> PluginManifest: ...
-    
+
     def route(self, observation: NetworkObservation) -> bool: ...
-    
+
     def state_key(self, observation: NetworkObservation) -> Optional[StateKey]: ...
-    
+
     async def process(
         self,
         observation: NetworkObservation,
         context: Any,
         state: PluginStateSnapshot | None,
     ) -> PluginProcessOutcome: ...
-    
-    async def on_quality_gap(self, gap: QualityGap, context: Any, state: Any) -> Sequence[ResultDraft]: ...
-    
+
+    async def on_quality_gap(
+        self, gap: QualityGap, context: Any, state: Any
+    ) -> Sequence[ResultDraft]: ...
+
     async def on_watermark(self, watermark: datetime, context: Any) -> PluginProcessOutcome: ...
 
     async def on_expire(

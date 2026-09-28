@@ -1,4 +1,5 @@
 """Typed public API contracts for the EvidenceGate product surface."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -238,8 +239,11 @@ class RuntimeStatusResponse(StrictModel):
     scenarios: list[ScenarioDto]
     supported_sources: list[str] = Field(default_factory=list)
     dga_model_readiness: Literal[
-        "VERIFIED_READY", "ARTIFACT_MISSING", "ARTIFACT_HASH_MISMATCH",
-        "DEPENDENCY_MISMATCH", "MODEL_CONTRACT_MISMATCH",
+        "VERIFIED_READY",
+        "ARTIFACT_MISSING",
+        "ARTIFACT_HASH_MISMATCH",
+        "DEPENDENCY_MISMATCH",
+        "MODEL_CONTRACT_MISMATCH",
     ]
     dga_model_failure_reason: str | None = None
     alert_projection_available: bool = False

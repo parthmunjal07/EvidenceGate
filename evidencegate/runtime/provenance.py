@@ -1,4 +1,5 @@
 """Factual runtime-owned provenance extraction for result finalization."""
+
 from evidencegate.domain.events import NetworkObservation
 
 

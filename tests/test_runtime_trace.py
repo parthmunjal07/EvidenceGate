@@ -7,8 +7,14 @@ import httpx
 from evidencegate.api.app import create_app
 from evidencegate.api.runtime_trace import RuntimeTraceBuffer
 from evidencegate.domain.enums import (
-    AvailabilityBasis, DirectionBasis, Finality, ObservationType, ResultType,
-    ScientificStatus, SourceKind, WireDirection,
+    AvailabilityBasis,
+    DirectionBasis,
+    Finality,
+    ObservationType,
+    ResultType,
+    ScientificStatus,
+    SourceKind,
+    WireDirection,
 )
 from evidencegate.domain.events import NetworkObservationEnvelope
 from evidencegate.domain.governance import LaneGovernance
@@ -18,7 +24,9 @@ from evidencegate.routing.router import LaneTarget
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 from evidencegate.runtime.trace import emit_trace
 from evidencegate.results.types import (
-    EvidencePayload, Result, ResultStatusSnapshot,
+    EvidencePayload,
+    Result,
+    ResultStatusSnapshot,
 )
 from evidencegate.domain.enums import EvidenceReadiness, IntegrationStatus
 from evidencegate.domain.quality import EvidenceQuality
@@ -30,25 +38,39 @@ NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 def observation():
     return NetworkObservationEnvelope(
-        observation_id="trace-obs-1", schema_version="1.1",
-        observation_type=ObservationType.PACKET, event_time=NOW,
-        causal_available_time=NOW, ingest_time=NOW, source_id="trace-source",
-        source_kind=SourceKind.PCAP, source_position="1",
-        observation_contract="packet_v1", wire_direction=WireDirection.UNKNOWN,
-        direction_basis=DirectionBasis.UNKNOWN, finality=Finality.CURRENT,
+        observation_id="trace-obs-1",
+        schema_version="1.1",
+        observation_type=ObservationType.PACKET,
+        event_time=NOW,
+        causal_available_time=NOW,
+        ingest_time=NOW,
+        source_id="trace-source",
+        source_kind=SourceKind.PCAP,
+        source_position="1",
+        observation_contract="packet_v1",
+        wire_direction=WireDirection.UNKNOWN,
+        direction_basis=DirectionBasis.UNKNOWN,
+        finality=Finality.CURRENT,
         availability_basis=AvailabilityBasis.IMMEDIATE,
-        provenance_ref="prov:trace", quality_ref="quality:trace",
+        provenance_ref="prov:trace",
+        quality_ref="quality:trace",
         present_fields=frozenset(),
-        typed_payload=PacketObservation({}, {}, {}, {}, None, None, None, None, None, None, None, None),
+        typed_payload=PacketObservation(
+            {}, {}, {}, {}, None, None, None, None, None, None, None, None
+        ),
     )
 
 
 def governance(lane):
     return LaneGovernance(
-        analytic_lane=lane, scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-        scientific_phase="trace-test", scientific_blockers=(),
-        claim_ceiling="REVIEW_FINDING_ONLY", governance_version="trace-test-v1",
-        effective_at=NOW, allowed_result_types=(ResultType.REVIEW_FINDING,),
+        analytic_lane=lane,
+        scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="trace-test",
+        scientific_blockers=(),
+        claim_ceiling="REVIEW_FINDING_ONLY",
+        governance_version="trace-test-v1",
+        effective_at=NOW,
+        allowed_result_types=(ResultType.REVIEW_FINDING,),
         ingest_permitted=True,
     )
 
@@ -92,11 +114,13 @@ async def test_trace_api_exposes_bounded_typed_events(tmp_path):
     app = create_app(tmp_path / "trace-api.sqlite")
     async with app.router.lifespan_context(app):
         app.state.service.runtime_trace.emit(
-            "RESULT_PERSISTED", result_id="result-api",
+            "RESULT_PERSISTED",
+            result_id="result-api",
             source_observation_ids=["obs-a", "obs-b", "obs-c"],
         )
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test",
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
         ) as client:
             response = await client.get("/runtime/trace?after=0&limit=1")
     assert response.status_code == 200
@@ -115,7 +139,8 @@ async def test_trace_api_pages_forward_while_reporting_global_latest(tmp_path):
         for index in range(700):
             trace.emit("OBSERVATION_CREATED", observation_id=f"packet-{index}")
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test",
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
         ) as client:
             first = await client.get("/runtime/trace?after=100&limit=100")
             second = await client.get("/runtime/trace?after=200&limit=100")
@@ -136,7 +161,8 @@ async def test_trace_api_head_query_returns_current_sequence_without_draining_hi
         for index in range(4500):
             trace.emit("SOURCE_RECORD_ACCEPTED", observation_id=f"record-{index}")
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test",
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
         ) as client:
             response = await client.get("/runtime/trace?after=0&limit=1")
 
@@ -150,23 +176,42 @@ async def test_trace_api_head_query_returns_current_sequence_without_draining_hi
 async def test_persisted_result_trace_keeps_full_lineage_without_claiming_one_cause(tmp_path):
     app = create_app(tmp_path / "trace-lineage.sqlite")
     service = app.state.service
-    async def inserted(_result): return True
+
+    async def inserted(_result):
+        return True
+
     service.writer.write_result = inserted
     service.writer.cursor_for = lambda _result: "cursor-test"
     result = Result(
-        result_id="result-lineage", schema_version="3.0", result_type=ResultType.REVIEW_FINDING,
-        created_time=NOW, lane_id="c2.r1", plugin_id="c2", plugin_version="1",
-        analytic_version="1", governance_version="g1", entity_reference="entity",
+        result_id="result-lineage",
+        schema_version="3.0",
+        result_type=ResultType.REVIEW_FINDING,
+        created_time=NOW,
+        lane_id="c2.r1",
+        plugin_id="c2",
+        plugin_version="1",
+        analytic_version="1",
+        governance_version="g1",
+        entity_reference="entity",
         taxonomy=("network", "c2", "recurrence"),
         status_snapshot=ResultStatusSnapshot(
-            ScientificStatus.EVIDENCE_CONSTRUCTION, IntegrationStatus.BASELINE_IMPLEMENTED,
-            "g1", EvidenceReadiness.READY, False,
+            ScientificStatus.EVIDENCE_CONSTRUCTION,
+            IntegrationStatus.BASELINE_IMPLEMENTED,
+            "g1",
+            EvidenceReadiness.READY,
+            False,
         ),
-        claim_ceiling="REVIEW", evidence_items=(), missing_prerequisites=(),
-        governing_ids=(), quality_refs=(), provenance_refs=(), mechanism_id="C2-R1",
+        claim_ceiling="REVIEW",
+        evidence_items=(),
+        missing_prerequisites=(),
+        governing_ids=(),
+        quality_refs=(),
+        provenance_refs=(),
+        mechanism_id="C2-R1",
         evidence=EvidencePayload.from_value({}),
         source_observation_ids=("obs-a", "obs-b", "obs-c"),
-        quality_snapshot=EvidenceQuality(), visibility_snapshot=VisibilityProfile(),
+        quality_snapshot=EvidenceQuality(),
+        visibility_snapshot=VisibilityProfile(),
     )
 
     assert await service.persist_and_publish(result) is True
@@ -187,12 +232,16 @@ async def test_telemetry_reports_real_zero_to_many_routes_and_sink_failure_isola
     for lane, plugin in plugins.items():
         original = plugin.manifest
         plugin.manifest = lambda original=original, lane=lane: replace(
-            original(), plugin_id=str(lane), accepted_observation_types=(ObservationType.PACKET,),
+            original(),
+            plugin_id=str(lane),
+            accepted_observation_types=(ObservationType.PACKET,),
         )
     trace = RuntimeTraceBuffer()
     supervisor = RuntimeSupervisor(
-        plugins, {lane: governance(str(lane)) for lane in plugins},
-        lambda _result, _target: None, shard_count=1,
+        plugins,
+        {lane: governance(str(lane)) for lane in plugins},
+        lambda _result, _target: None,
+        shard_count=1,
         trace_sink=trace.emit,
     )
     plan = await supervisor.ingest_observation(observation())
@@ -204,8 +253,10 @@ async def test_telemetry_reports_real_zero_to_many_routes_and_sink_failure_isola
         raise RuntimeError("UI disconnected")
 
     isolated = RuntimeSupervisor(
-        plugins, {lane: governance(str(lane)) for lane in plugins},
-        lambda _result, _target: None, shard_count=1,
+        plugins,
+        {lane: governance(str(lane)) for lane in plugins},
+        lambda _result, _target: None,
+        shard_count=1,
         trace_sink=disconnected,
     )
     disconnected_plan = await isolated.ingest_observation(observation())

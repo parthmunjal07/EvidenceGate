@@ -79,13 +79,33 @@ export function CodeBlock({ label, value }: { label: string; value: unknown }) {
 }
 export function ClaimCeiling({ text }: { text: string }) {
   const claim = claimSemantics(text);
-  return <div className="claim-semantics">
-    <h4>Supported by this evidence</h4>
-    {claim.supports.length ? <ul>{claim.supports.map((item) => <li key={item}>{item}</li>)}</ul> : <p>Evidence was observed; no additional conclusion is drawn.</p>}
-    <h4>Not established</h4>
-    {claim.limitations.length ? <ul>{claim.limitations.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No additional limitation was reported.</p>}
-    {claim.hasUnknown && <p>Additional evidence limits are recorded in the evidence details.</p>}
-  </div>;
+  return (
+    <div className="claim-semantics">
+      <h4>Supported by this evidence</h4>
+      {claim.supports.length ? (
+        <ul>
+          {claim.supports.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>Evidence was observed; no additional conclusion is drawn.</p>
+      )}
+      <h4>Not established</h4>
+      {claim.limitations.length ? (
+        <ul>
+          {claim.limitations.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>No additional limitation was reported.</p>
+      )}
+      {claim.hasUnknown && (
+        <p>Additional evidence limits are recorded in the evidence details.</p>
+      )}
+    </div>
+  );
 }
 export function QualitySnapshotView({ value }: { value: QualitySnapshot }) {
   const labels: Record<string, string> = {
@@ -94,8 +114,25 @@ export function QualitySnapshotView({ value }: { value: QualitySnapshot }) {
     parser: "Parser",
     capture_gap: "Capture gaps",
   };
-  const stateLabel = (state: string) => ({ CLEAR: "Clear", DEGRADED: "Degraded", UNKNOWN: "Not reported" }[state] ?? "Not reported");
-  if (Object.values(value).every((state) => state === "UNKNOWN")) return <div className="quality-summary">Capture quality: Not reported <details><summary>View quality details</summary><Snapshot rows={Object.entries(value).map(([key, state]) => [labels[key] ?? readable(key), stateLabel(state)])} /></details></div>;
+  const stateLabel = (state: string) =>
+    ({ CLEAR: "Clear", DEGRADED: "Degraded", UNKNOWN: "Not reported" })[
+      state
+    ] ?? "Not reported";
+  if (Object.values(value).every((state) => state === "UNKNOWN"))
+    return (
+      <div className="quality-summary">
+        Capture quality: Not reported{" "}
+        <details>
+          <summary>View quality details</summary>
+          <Snapshot
+            rows={Object.entries(value).map(([key, state]) => [
+              labels[key] ?? readable(key),
+              stateLabel(state),
+            ])}
+          />
+        </details>
+      </div>
+    );
   return (
     <Snapshot
       rows={Object.entries(value).map(([key, state]) => [
@@ -110,7 +147,15 @@ export function VisibilitySnapshotView({
 }: {
   value: VisibilitySnapshot;
 }) {
-  const labels: Record<string, string> = { FORWARD_FACTS: "Forward facts", REVERSE_TCP_STATE: "Reverse TCP state", TCP_STATE: "TCP state", PACKET_HEADERS: "Packet headers", DNS_CONTENT: "DNS content", TLS_HANDSHAKE: "TLS handshake", TCP_STATE_REVERSE: "Reverse TCP state" };
+  const labels: Record<string, string> = {
+    FORWARD_FACTS: "Forward facts",
+    REVERSE_TCP_STATE: "Reverse TCP state",
+    TCP_STATE: "TCP state",
+    PACKET_HEADERS: "Packet headers",
+    DNS_CONTENT: "DNS content",
+    TLS_HANDSHAKE: "TLS handshake",
+    TCP_STATE_REVERSE: "Reverse TCP state",
+  };
   const itemLabel = (item: string) => {
     const key = item.replace(/^VisibilityCapability\./, "");
     return labels[key] ?? readable(key);
@@ -121,10 +166,19 @@ export function VisibilitySnapshotView({
       ["unavailable", "△"],
       ["degraded", "△"],
     ] as const
-  ).flatMap(([key, label]) => value[key].map((item) => [label, `${itemLabel(item)} ${key === "available" ? "available" : key === "unavailable" ? "unavailable" : "degraded"}`]));
+  ).flatMap(([key, label]) =>
+    value[key].map((item) => [
+      label,
+      `${itemLabel(item)} ${key === "available" ? "available" : key === "unavailable" ? "unavailable" : "degraded"}`,
+    ]),
+  );
   return (
     <Snapshot
-      rows={rows.length ? rows : [["Visibility", "No explicit visibility classes reported"]]}
+      rows={
+        rows.length
+          ? rows
+          : [["Visibility", "No explicit visibility classes reported"]]
+      }
     />
   );
 }

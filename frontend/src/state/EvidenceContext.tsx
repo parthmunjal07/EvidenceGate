@@ -29,7 +29,11 @@ export function EvidenceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const previous = previousReplayState.current;
     previousReplayState.current = state.replay?.state;
-    if (previous === "RUNNING" && state.replay?.state !== "RUNNING" && deferredResults.current) {
+    if (
+      previous === "RUNNING" &&
+      state.replay?.state !== "RUNNING" &&
+      deferredResults.current
+    ) {
       deferredResults.current = false;
       void resyncRef.current();
     }
@@ -111,7 +115,8 @@ export function EvidenceProvider({ children }: { children: ReactNode }) {
         });
         source.addEventListener("stream_gap", () => {
           dispatch({ type: "stream", value: "reconnecting" });
-          if (currentState.current.replay?.state === "RUNNING") deferredResults.current = true;
+          if (currentState.current.replay?.state === "RUNNING")
+            deferredResults.current = true;
           else enqueueResync();
         });
         source.onerror = () =>

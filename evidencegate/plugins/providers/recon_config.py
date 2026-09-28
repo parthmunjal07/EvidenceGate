@@ -1,4 +1,5 @@
 """Explicit, immutable configuration for Category-5 Recon measurements."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -53,9 +54,7 @@ class ReconConfig:
             ],
             "initiator_role_label": self.initiator_role_label,
             "max_events_per_key": self.max_events_per_key,
-            "state_ttl_microseconds": int(
-                self.state_ttl.total_seconds() * 1_000_000
-            ),
+            "state_ttl_microseconds": int(self.state_ttl.total_seconds() * 1_000_000),
             "target_role_label": self.target_role_label,
         }
         encoded = json.dumps(

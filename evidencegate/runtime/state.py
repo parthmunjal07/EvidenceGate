@@ -110,17 +110,10 @@ class StateStore:
         """Remove and return all entries expired at or before ``at_time``."""
         self._validate_time(at_time, "at_time")
         expired_identities = sorted(
-            (
-                identity
-                for identity, entry in self._state.items()
-                if entry.expires_at <= at_time
-            ),
+            (identity for identity, entry in self._state.items() if entry.expires_at <= at_time),
             key=lambda identity: (identity[0], str(identity[1])),
         )
-        return tuple(
-            self._snapshot(self._state.pop(identity))
-            for identity in expired_identities
-        )
+        return tuple(self._snapshot(self._state.pop(identity)) for identity in expired_identities)
 
     def transition(
         self,
@@ -145,9 +138,7 @@ class StateStore:
         before = self._state.get(identity)
         version_before = before.version if before is not None else None
         if expected_version != version_before:
-            raise StateVersionConflict(
-                namespace, identity[1], expected_version, version_before
-            )
+            raise StateVersionConflict(namespace, identity[1], expected_version, version_before)
 
         if operation is StateOperation.UPSERT:
             if not isinstance(ttl, timedelta) or ttl <= timedelta(0):

@@ -5,6 +5,7 @@ socket, or network-interface operations.  Direction and semantic roles come
 only from the trusted sidecar manifest; packet tuples are never interpreted as
 roles by heuristic.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,8 +20,14 @@ from typing import AsyncIterator, Mapping
 import dpkt
 
 from evidencegate.domain.enums import (
-    DirectionBasis, Finality, IdentityBasis, QualityState, SourceKind,
-    TimestampSemantics, VisibilityCapability, WireDirection,
+    DirectionBasis,
+    Finality,
+    IdentityBasis,
+    QualityState,
+    SourceKind,
+    TimestampSemantics,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import RoleAssignment, VisibilityProfile
 from evidencegate.domain.payloads import PacketObservation
@@ -113,10 +120,14 @@ def _parse_networks(value: object, name: str) -> tuple[ipaddress.IPv4Network, ..
 
 def _visibility(mode: object) -> VisibilityProfile:
     if mode == "BOTH":
-        return VisibilityProfile(available=frozenset({
-            VisibilityCapability.FORWARD_FACTS,
-            VisibilityCapability.REVERSE_FACTS,
-        }))
+        return VisibilityProfile(
+            available=frozenset(
+                {
+                    VisibilityCapability.FORWARD_FACTS,
+                    VisibilityCapability.REVERSE_FACTS,
+                }
+            )
+        )
     if mode == "FORWARD":
         return VisibilityProfile(
             available=frozenset({VisibilityCapability.FORWARD_FACTS}),
@@ -138,10 +149,19 @@ def parse_pcap_manifest(path: str | Path) -> PcapAdapterManifest:
     try:
         value = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ReplayValidationError("<unknown>", manifest_path.name, type(exc).__name__, str(exc)) from exc
+        raise ReplayValidationError(
+            "<unknown>", manifest_path.name, type(exc).__name__, str(exc)
+        ) from exc
     required = {
-        "schema_version", "source_id", "capture_file", "visibility", "quality",
-        "direction_policy", "endpoint_roles", "services", "reflection_facts",
+        "schema_version",
+        "source_id",
+        "capture_file",
+        "visibility",
+        "quality",
+        "direction_policy",
+        "endpoint_roles",
+        "services",
+        "reflection_facts",
     }
     allowed = required | {"capture_start", "capture_end", "packet_count"}
     source_id = value.get("source_id", "<unknown>") if isinstance(value, dict) else "<unknown>"
@@ -156,11 +176,17 @@ def parse_pcap_manifest(path: str | Path) -> PcapAdapterManifest:
         if not isinstance(source_id, str) or not source_id:
             raise ValueError("source_id must be a non-empty string")
         capture_file = value["capture_file"]
-        if (not isinstance(capture_file, str) or not capture_file
-                or Path(capture_file).name != capture_file):
+        if (
+            not isinstance(capture_file, str)
+            or not capture_file
+            or Path(capture_file).name != capture_file
+        ):
             raise ValueError("capture_file must be a single relative filename")
         direction_value = value["direction_policy"]
-        if not isinstance(direction_value, dict) or set(direction_value) != {"a_networks", "b_networks"}:
+        if not isinstance(direction_value, dict) or set(direction_value) != {
+            "a_networks",
+            "b_networks",
+        }:
             raise ValueError("direction_policy requires only a_networks and b_networks")
         direction = PcapDirectionPolicy(
             _parse_networks(direction_value["a_networks"], "direction_policy.a_networks"),
@@ -177,8 +203,11 @@ def parse_pcap_manifest(path: str | Path) -> PcapAdapterManifest:
             parsed_address = ipaddress.ip_address(address)
             if not isinstance(parsed_address, ipaddress.IPv4Address):
                 raise ValueError("endpoint_roles supports IPv4 only")
-            if (not isinstance(labels, list) or not labels
-                    or any(not isinstance(label, str) or not label for label in labels)):
+            if (
+                not isinstance(labels, list)
+                or not labels
+                or any(not isinstance(label, str) or not label for label in labels)
+            ):
                 raise TypeError("endpoint role values must be non-empty string arrays")
             if len(set(labels)) != len(labels):
                 raise ValueError("endpoint role values must not contain duplicates")
@@ -191,15 +220,28 @@ def parse_pcap_manifest(path: str | Path) -> PcapAdapterManifest:
         service_keys: set[tuple[str, int, int]] = set()
         for entry in services_value:
             required = {"target_address", "protocol", "port", "service_id"}
-            if not isinstance(entry, dict) or not required.issubset(entry) or set(entry) - required - {"basis"}:
-                raise ValueError("each service requires target_address, protocol, port, service_id and optional basis")
+            if (
+                not isinstance(entry, dict)
+                or not required.issubset(entry)
+                or set(entry) - required - {"basis"}
+            ):
+                raise ValueError(
+                    "each service requires target_address, protocol, port, service_id and optional basis"
+                )
             target = ipaddress.ip_address(entry["target_address"])
             protocol, port, service_id = entry["protocol"], entry["port"], entry["service_id"]
             if not isinstance(target, ipaddress.IPv4Address):
                 raise ValueError("service target must be IPv4")
-            if (isinstance(protocol, bool) or not isinstance(protocol, int) or not 0 <= protocol <= 255
-                    or isinstance(port, bool) or not isinstance(port, int) or not 0 <= port <= 65535
-                    or not isinstance(service_id, str) or not service_id):
+            if (
+                isinstance(protocol, bool)
+                or not isinstance(protocol, int)
+                or not 0 <= protocol <= 255
+                or isinstance(port, bool)
+                or not isinstance(port, int)
+                or not 0 <= port <= 65535
+                or not isinstance(service_id, str)
+                or not service_id
+            ):
                 raise ValueError("invalid service mapping")
             key = (str(target), protocol, port)
             if key in service_keys:
@@ -222,12 +264,14 @@ def parse_pcap_manifest(path: str | Path) -> PcapAdapterManifest:
             position = int(key)
             if str(position) != key or position < 1:
                 raise ValueError("reflection fact keys must be positive canonical integers")
-            if (not isinstance(facts, dict)
-                    or set(facts) != {"fact_contract", "response_like", "protocol_context"}
-                    or facts["fact_contract"] != "DDOS_REFLECTION_FACT_V1"
-                    or facts["response_like"] is not True
-                    or not isinstance(facts["protocol_context"], str)
-                    or not facts["protocol_context"].strip()):
+            if (
+                not isinstance(facts, dict)
+                or set(facts) != {"fact_contract", "response_like", "protocol_context"}
+                or facts["fact_contract"] != "DDOS_REFLECTION_FACT_V1"
+                or facts["response_like"] is not True
+                or not isinstance(facts["protocol_context"], str)
+                or not facts["protocol_context"].strip()
+            ):
                 raise ValueError("invalid DDOS_REFLECTION_FACT_V1 sidecar fact")
             reflections[position] = MappingProxyType(dict(facts))
 
@@ -235,34 +279,54 @@ def parse_pcap_manifest(path: str | Path) -> PcapAdapterManifest:
         quality_names = {"packet_loss", "sampling", "parser", "capture_gap"}
         if not isinstance(quality_value, dict) or set(quality_value) != quality_names:
             raise ValueError(f"quality requires exactly {sorted(quality_names)}")
-        quality = EvidenceQuality(**{
-            name: _enum_value(QualityState, quality_value[name], f"quality.{name}")
-            for name in quality_names
-        })
+        quality = EvidenceQuality(
+            **{
+                name: _enum_value(QualityState, quality_value[name], f"quality.{name}")
+                for name in quality_names
+            }
+        )
         count = value.get("packet_count")
-        if count is not None and (isinstance(count, bool) or not isinstance(count, int) or count < 0):
+        if count is not None and (
+            isinstance(count, bool) or not isinstance(count, int) or count < 0
+        ):
             raise ValueError("packet_count must be a non-negative integer")
-        start, end = _parse_time(value.get("capture_start"), "capture_start"), _parse_time(value.get("capture_end"), "capture_end")
+        start, end = (
+            _parse_time(value.get("capture_start"), "capture_start"),
+            _parse_time(value.get("capture_end"), "capture_end"),
+        )
         if start and end and end < start:
             raise ValueError("capture_end cannot precede capture_start")
         visibility_mode = value["visibility"]
         source = SourceManifest(
-            source_id=source_id, source_kind=SourceKind.PCAP,
-            capture_start=start, capture_end=end,
+            source_id=source_id,
+            source_kind=SourceKind.PCAP,
+            capture_start=start,
+            capture_end=end,
             timestamp_semantics=TimestampSemantics.SOURCE_EVENT_TIME,
             input_observation_contract=PCAP_INPUT_CONTRACT,
-            direction_basis=(DirectionBasis.LOCAL_EXTERNAL_POLICY
-                             if direction.configured else DirectionBasis.UNKNOWN),
+            direction_basis=(
+                DirectionBasis.LOCAL_EXTERNAL_POLICY
+                if direction.configured
+                else DirectionBasis.UNKNOWN
+            ),
             wire_direction=WireDirection.UNKNOWN,
-            visibility=_visibility(visibility_mode), quality=quality,
+            visibility=_visibility(visibility_mode),
+            quality=quality,
         )
         return PcapAdapterManifest(
-            source, capture_file, str(visibility_mode), direction,
-            MappingProxyType(roles), tuple(services),
-            MappingProxyType(reflections), count,
+            source,
+            capture_file,
+            str(visibility_mode),
+            direction,
+            MappingProxyType(roles),
+            tuple(services),
+            MappingProxyType(reflections),
+            count,
         )
     except (TypeError, ValueError) as exc:
-        raise ReplayValidationError(str(source_id), manifest_path.name, type(exc).__name__, str(exc)) from exc
+        raise ReplayValidationError(
+            str(source_id), manifest_path.name, type(exc).__name__, str(exc)
+        ) from exc
 
 
 class PcapReplaySource:
@@ -290,7 +354,9 @@ class PcapReplaySource:
         self.source_id = adapter.source_manifest.source_id
         if self.capture_path.name != adapter.capture_file:
             raise ReplayValidationError(
-                self.source_id, "manifest", "CaptureIdentityError",
+                self.source_id,
+                "manifest",
+                "CaptureIdentityError",
                 "capture path filename does not match manifest capture_file",
             )
         try:
@@ -298,7 +364,9 @@ class PcapReplaySource:
             self._reader = dpkt.pcap.Reader(self._file)
             if self._reader.datalink() != SUPPORTED_LINKTYPE:
                 raise ReplayValidationError(
-                    self.source_id, "pcap header", "UnsupportedLinkType",
+                    self.source_id,
+                    "pcap header",
+                    "UnsupportedLinkType",
                     f"only Ethernet linktype {SUPPORTED_LINKTYPE} is supported",
                 )
         except ReplayValidationError:
@@ -310,7 +378,9 @@ class PcapReplaySource:
             if self._file is not None:
                 self._file.close()
             self._file = self._reader = None
-            raise ReplayValidationError(self.source_id, "pcap header", type(exc).__name__, str(exc)) from exc
+            raise ReplayValidationError(
+                self.source_id, "pcap header", type(exc).__name__, str(exc)
+            ) from exc
         self.adapter_manifest = adapter
         self._opened = True
         return adapter.source_manifest
@@ -345,18 +415,32 @@ class PcapReplaySource:
         expected = self.adapter_manifest.packet_count
         if expected is not None and count != expected:
             raise ReplayValidationError(
-                self.source_id, "EOF", "PacketCountError",
+                self.source_id,
+                "EOF",
+                "PacketCountError",
                 f"manifest declares {expected}, read {count}",
             )
 
-    def _packet_record(self, position: int, timestamp: float, packet_bytes: bytes) -> ReplaySourceRecord:
+    def _packet_record(
+        self, position: int, timestamp: float, packet_bytes: bytes
+    ) -> ReplaySourceRecord:
         if self.adapter_manifest is None:
             raise RuntimeError("source is not open")
         ethernet = dpkt.ethernet.Ethernet(packet_bytes)
         if ethernet.type == dpkt.ethernet.ETH_TYPE_IP6:
-            raise ReplayValidationError(self.source_id, position, "UnsupportedProtocol", "IPv6 is not supported by RAW_PCAP_PACKET_V1")
+            raise ReplayValidationError(
+                self.source_id,
+                position,
+                "UnsupportedProtocol",
+                "IPv6 is not supported by RAW_PCAP_PACKET_V1",
+            )
         if ethernet.type != dpkt.ethernet.ETH_TYPE_IP or not isinstance(ethernet.data, dpkt.ip.IP):
-            raise ReplayValidationError(self.source_id, position, "UnsupportedProtocol", f"Ethernet type {ethernet.type} is not supported")
+            raise ReplayValidationError(
+                self.source_id,
+                position,
+                "UnsupportedProtocol",
+                f"Ethernet type {ethernet.type} is not supported",
+            )
         ip = ethernet.data
         source, destination = str(ipaddress.ip_address(ip.src)), str(ipaddress.ip_address(ip.dst))
         direction = self.adapter_manifest.direction_policy.classify(source, destination)
@@ -383,12 +467,20 @@ class PcapReplaySource:
         if fragment_offset == 0 and isinstance(ip.data, dpkt.tcp.TCP):
             tcp = ip.data
             src_port, dst_port = int(tcp.sport), int(tcp.dport)
-            flags = [name for bit, name in (
-                (dpkt.tcp.TH_FIN, "FIN"), (dpkt.tcp.TH_SYN, "SYN"),
-                (dpkt.tcp.TH_RST, "RST"), (dpkt.tcp.TH_PUSH, "PSH"),
-                (dpkt.tcp.TH_ACK, "ACK"), (dpkt.tcp.TH_URG, "URG"),
-                (dpkt.tcp.TH_ECE, "ECE"), (dpkt.tcp.TH_CWR, "CWR"),
-            ) if tcp.flags & bit]
+            flags = [
+                name
+                for bit, name in (
+                    (dpkt.tcp.TH_FIN, "FIN"),
+                    (dpkt.tcp.TH_SYN, "SYN"),
+                    (dpkt.tcp.TH_RST, "RST"),
+                    (dpkt.tcp.TH_PUSH, "PSH"),
+                    (dpkt.tcp.TH_ACK, "ACK"),
+                    (dpkt.tcp.TH_URG, "URG"),
+                    (dpkt.tcp.TH_ECE, "ECE"),
+                    (dpkt.tcp.TH_CWR, "CWR"),
+                )
+                if tcp.flags & bit
+            ]
             sequence_facts = {"seq": int(tcp.seq), "ack": int(tcp.ack)}
             l4_facts.update({"header_length": int(tcp.off) * 4})
         elif fragment_offset == 0 and isinstance(ip.data, dpkt.udp.UDP):
@@ -401,7 +493,12 @@ class PcapReplaySource:
         reflection = self.adapter_manifest.reflection_facts.get(position)
         if reflection is not None:
             if ip.p != dpkt.ip.IP_PROTO_UDP:
-                raise ReplayValidationError(self.source_id, position, "ReflectionContractError", "reflection facts require UDP")
+                raise ReplayValidationError(
+                    self.source_id,
+                    position,
+                    "ReflectionContractError",
+                    "reflection facts require UDP",
+                )
             l4_facts = dict(reflection)
 
         roles: list[RoleAssignment] = []
@@ -410,25 +507,40 @@ class PcapReplaySource:
                 roles.append(RoleAssignment(address, role, IdentityBasis.POLICY_DECLARED_ROLE))
         for service in self.adapter_manifest.services:
             target_side_port = (
-                dst_port if destination == service.target_address else
-                src_port if source == service.target_address else None
+                dst_port
+                if destination == service.target_address
+                else src_port
+                if source == service.target_address
+                else None
             )
             if ip.p == service.protocol and target_side_port == service.port:
                 roles.append(RoleAssignment(service.service_id, "service_id", service.basis))
 
         payload = PacketObservation(
-            lengths=lengths, observed_l2_facts=l2_facts,
-            observed_l3_facts=l3_facts, observed_l4_facts=l4_facts,
-            src_address=source, dst_address=destination,
-            src_port=src_port, dst_port=dst_port, flags=flags,
-            sequence_facts=sequence_facts, fragmentation=fragmentation,
+            lengths=lengths,
+            observed_l2_facts=l2_facts,
+            observed_l3_facts=l3_facts,
+            observed_l4_facts=l4_facts,
+            src_address=source,
+            dst_address=destination,
+            src_port=src_port,
+            dst_port=dst_port,
+            flags=flags,
+            sequence_facts=sequence_facts,
+            fragmentation=fragmentation,
             raw_reference=f"pcap:{self.source_id}:packet:{position}",
             protocol=int(ip.p),
         )
         declared = [
-            "lengths", "observed_l2_facts", "observed_l3_facts",
-            "observed_l4_facts", "src_address", "dst_address", "fragmentation",
-            "raw_reference", "protocol",
+            "lengths",
+            "observed_l2_facts",
+            "observed_l3_facts",
+            "observed_l4_facts",
+            "src_address",
+            "dst_address",
+            "fragmentation",
+            "raw_reference",
+            "protocol",
         ]
         if src_port is not None:
             declared.extend(("src_port", "dst_port"))
@@ -437,9 +549,12 @@ class PcapReplaySource:
         return ReplaySourceRecord(
             raw_data=payload,
             timestamp=datetime.fromtimestamp(float(timestamp), tz=timezone.utc),
-            position=position, finality=Finality.CURRENT,
-            declared_observed_fields=tuple(declared), role_assignments=tuple(roles),
-            canonicalization_options={}, wire_direction=direction,
+            position=position,
+            finality=Finality.CURRENT,
+            declared_observed_fields=tuple(declared),
+            role_assignments=tuple(roles),
+            canonicalization_options={},
+            wire_direction=direction,
         )
 
     async def pause(self) -> None:
@@ -467,7 +582,8 @@ async def validate_pcap(capture: str | Path, manifest: str | Path) -> int:
     try:
         async for record in records:
             canonicalizer.canonicalize(
-                record, source_manifest,
+                record,
+                source_manifest,
                 f"quality:{source_manifest.source_id}:{record.position}",
                 datetime.now(timezone.utc),
             )

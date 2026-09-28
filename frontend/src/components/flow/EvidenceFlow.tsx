@@ -40,7 +40,11 @@ export function EvidenceFlow({
           <p>Latest persisted result: {detail}</p>
         </div>
         <span className="flow-state" role="status" aria-live="polite">
-          {replaying ? "Replay running" : result ? "Result received" : "Waiting for activity"}
+          {replaying
+            ? "Replay running"
+            : result
+              ? "Result received"
+              : "Waiting for activity"}
         </span>
       </div>
       <div className="flow-path" role="group" aria-label="Live evidence path">
@@ -52,17 +56,26 @@ export function EvidenceFlow({
             >
               <span>{title}</span>
               {name === "analytics" && result && (
-                <small>{result.family} · {result.mechanism_id || result.lane_id}</small>
+                <small>
+                  {result.family} · {result.mechanism_id || result.lane_id}
+                </small>
               )}
             </div>
             {index < stages.length - 1 && (
               <span className="flow-join" aria-hidden="true">
-              <span key={result?.result_id ?? "idle"} className={`flow-pulse${!reduced && result ? " is-moving" : ""}`} />
+                <span
+                  key={result?.result_id ?? "idle"}
+                  className={`flow-pulse${!reduced && result ? " is-moving" : ""}`}
+                />
               </span>
             )}
           </div>
         ))}
-        <div className="flow-branches" aria-label="Presentation" key="presentation">
+        <div
+          className="flow-branches"
+          aria-label="Presentation"
+          key="presentation"
+        >
           <span className={alert ? "is-active" : ""}>Analyst review</span>
           <span className={status ? "is-active" : ""}>System status</span>
         </div>

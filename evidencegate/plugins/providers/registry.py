@@ -1,4 +1,5 @@
 """Explicit, deterministic controlled-MVP runtime registration."""
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Mapping
@@ -11,14 +12,21 @@ from .c2 import C2R1Plugin
 from .c2_config import C2R1Config
 from .ddos import DDOS_A_CLAIM_CEILING, DdosASynPlugin
 from .ddos_config import (
-    DdosASynConfig, DdosConnectionChurnConfig, DdosFragmentDemandConfig,
-    DdosIcmpDemandConfig, DdosReflectionVictimConfig,
-    DdosSourceDiversityConfig, DdosUdpDemandConfig,
+    DdosASynConfig,
+    DdosConnectionChurnConfig,
+    DdosFragmentDemandConfig,
+    DdosIcmpDemandConfig,
+    DdosReflectionVictimConfig,
+    DdosSourceDiversityConfig,
+    DdosUdpDemandConfig,
 )
 from .ddos_measurements import (
-    DdosConnectionChurnPlugin, DdosFragmentDemandPlugin,
-    DdosIcmpDemandPlugin, DdosReflectionVictimPlugin,
-    DdosSourceDiversityPlugin, DdosUdpDemandPlugin,
+    DdosConnectionChurnPlugin,
+    DdosFragmentDemandPlugin,
+    DdosIcmpDemandPlugin,
+    DdosReflectionVictimPlugin,
+    DdosSourceDiversityPlugin,
+    DdosUdpDemandPlugin,
 )
 from .dga_m1 import CLAIM_CEILING as DGA_M1_CLAIM_CEILING, DgaM1Plugin
 from .dns_dga import DnsT1StructuralPlugin
@@ -26,7 +34,10 @@ from .encrypted import EncAHandshakePlugin
 from .exfil import ExfilM1TransferPlugin
 from .recon import (
     CLAIM_CEILING as RECON_CLAIM_CEILING,
-    Recon2DPlugin, ReconHPlugin, ReconTcpPlugin, ReconVPlugin,
+    Recon2DPlugin,
+    ReconHPlugin,
+    ReconTcpPlugin,
+    ReconVPlugin,
 )
 from .recon_config import ReconConfig
 from evidencegate.runtime.dispatcher import EventTimeReorderPolicy
@@ -86,7 +97,9 @@ class MvpRuntimeRegistration:
 
 
 def build_mvp_provider_registry(
-    effective_at: datetime, *, dga_model_path: str | None = None,
+    effective_at: datetime,
+    *,
+    dga_model_path: str | None = None,
 ) -> tuple[dict[LaneTarget, AnalyticPlugin], dict[LaneTarget, LaneGovernance]]:
     """Return the default MVP providers for inspection and isolated tests."""
     ddos_capacity = DDOS_CONTROLLED_MVP_CAPACITY
@@ -141,28 +154,35 @@ def build_mvp_provider_registry(
         LaneTarget("dns_tunnelling.t1"): DnsT1StructuralPlugin(),
         LaneTarget("encrypted_session.enc_a"): EncAHandshakePlugin(),
         LaneTarget("recon.h"): ReconHPlugin(
-            recon_config, max_state_entries=recon_capacity.max_state_entries,
+            recon_config,
+            max_state_entries=recon_capacity.max_state_entries,
             governing_decision_ids=decision_ids,
         ),
         LaneTarget("recon.v"): ReconVPlugin(
-            recon_config, max_state_entries=recon_capacity.max_state_entries,
+            recon_config,
+            max_state_entries=recon_capacity.max_state_entries,
             governing_decision_ids=decision_ids,
         ),
         LaneTarget("recon.2d"): Recon2DPlugin(
-            recon_config, max_state_entries=recon_capacity.max_state_entries,
+            recon_config,
+            max_state_entries=recon_capacity.max_state_entries,
             governing_decision_ids=decision_ids,
         ),
         LaneTarget("recon.tcp"): ReconTcpPlugin(
-            recon_config, max_state_entries=recon_capacity.max_state_entries,
+            recon_config,
+            max_state_entries=recon_capacity.max_state_entries,
             governing_decision_ids=decision_ids,
         ),
         LaneTarget("unusual_transfer.m1"): ExfilM1TransferPlugin(),
     }
     governances = {
         lane: LaneGovernance(
-            analytic_lane=str(lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-            scientific_phase="provider shell integration", scientific_blockers=("mechanisms not implemented",),
-            claim_ceiling="NO_SCIENTIFIC_CLAIMS", governance_version="m6-shell-0.1.0",
+            analytic_lane=str(lane),
+            scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+            scientific_phase="provider shell integration",
+            scientific_blockers=("mechanisms not implemented",),
+            claim_ceiling="NO_SCIENTIFIC_CLAIMS",
+            governance_version="m6-shell-0.1.0",
             effective_at=effective_at,
             allowed_result_types=(ResultType.QUALITY_DEGRADED, ResultType.PLUGIN_STATUS),
             ingest_permitted=True,
@@ -171,54 +191,84 @@ def build_mvp_provider_registry(
     }
     enc_a_lane = LaneTarget("encrypted_session.enc_a")
     governances[enc_a_lane] = LaneGovernance(
-        analytic_lane=str(enc_a_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-        scientific_phase="visible TLS handshake evidence construction", scientific_blockers=(),
-        claim_ceiling=("VISIBLE_CLIENTHELLO_FINGERPRINT_CONTEXT_ONLY; PROHIBITS "
-                       "MALWARE_CONFIRMED, COMPROMISE, C2, EXFILTRATION, DECRYPTED_CONTENT"),
-        governance_version="enc-a-0.1.0", effective_at=effective_at,
+        analytic_lane=str(enc_a_lane),
+        scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="visible TLS handshake evidence construction",
+        scientific_blockers=(),
+        claim_ceiling=(
+            "VISIBLE_CLIENTHELLO_FINGERPRINT_CONTEXT_ONLY; PROHIBITS "
+            "MALWARE_CONFIRMED, COMPROMISE, C2, EXFILTRATION, DECRYPTED_CONTENT"
+        ),
+        governance_version="enc-a-0.1.0",
+        effective_at=effective_at,
         allowed_result_types=(
-            ResultType.REVIEW_FINDING, ResultType.PREREQUISITE_MISSING,
-            ResultType.QUALITY_DEGRADED, ResultType.ANALYTIC_UNAVAILABLE,
-        ), ingest_permitted=True,
+            ResultType.REVIEW_FINDING,
+            ResultType.PREREQUISITE_MISSING,
+            ResultType.QUALITY_DEGRADED,
+            ResultType.ANALYTIC_UNAVAILABLE,
+        ),
+        ingest_permitted=True,
     )
     exfil_m1_lane = LaneTarget("unusual_transfer.m1")
     governances[exfil_m1_lane] = LaneGovernance(
-        analytic_lane=str(exfil_m1_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-        scientific_phase="factual directional transfer magnitude measurement", scientific_blockers=(),
-        claim_ceiling=("TRANSFER_MAGNITUDE_ONLY; NO_UNUSUALNESS; NO_AUTHORIZATION_INFERENCE; "
-                       "NO_DATA_SENSITIVITY; NO_EXFILTRATION_CONFIRMED; NO_THEFT"),
-        governance_version="cat6-ex-m1-0.1.0", effective_at=effective_at,
-        allowed_result_types=(ResultType.REVIEW_FINDING,), ingest_permitted=True,
+        analytic_lane=str(exfil_m1_lane),
+        scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="factual directional transfer magnitude measurement",
+        scientific_blockers=(),
+        claim_ceiling=(
+            "TRANSFER_MAGNITUDE_ONLY; NO_UNUSUALNESS; NO_AUTHORIZATION_INFERENCE; "
+            "NO_DATA_SENSITIVITY; NO_EXFILTRATION_CONFIRMED; NO_THEFT"
+        ),
+        governance_version="cat6-ex-m1-0.1.0",
+        effective_at=effective_at,
+        allowed_result_types=(ResultType.REVIEW_FINDING,),
+        ingest_permitted=True,
     )
     dns_t1_lane = LaneTarget("dns_tunnelling.t1")
     governances[dns_t1_lane] = LaneGovernance(
-        analytic_lane=str(dns_t1_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-        scientific_phase="factual DNS name structure evidence", scientific_blockers=(),
-        claim_ceiling=("RAW_OBSERVATION_ONLY; NO_DNS_TUNNEL_VERDICT; NO_EXFILTRATION; "
-                       "NO_C2; NO_MALWARE"),
-        governance_version="dns-t1-0.1.0", effective_at=effective_at,
-        allowed_result_types=(ResultType.REVIEW_FINDING,), ingest_permitted=True,
+        analytic_lane=str(dns_t1_lane),
+        scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="factual DNS name structure evidence",
+        scientific_blockers=(),
+        claim_ceiling=(
+            "RAW_OBSERVATION_ONLY; NO_DNS_TUNNEL_VERDICT; NO_EXFILTRATION; NO_C2; NO_MALWARE"
+        ),
+        governance_version="dns-t1-0.1.0",
+        effective_at=effective_at,
+        allowed_result_types=(ResultType.REVIEW_FINDING,),
+        ingest_permitted=True,
     )
     dga_m1_lane = LaneTarget("dga.m1")
     governances[dga_m1_lane] = LaneGovernance(
-        analytic_lane=str(dga_m1_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-        scientific_phase="DGA-labelled lexical review evidence", scientific_blockers=(),
+        analytic_lane=str(dga_m1_lane),
+        scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="DGA-labelled lexical review evidence",
+        scientific_blockers=(),
         claim_ceiling=DGA_M1_CLAIM_CEILING,
-        governance_version="dga-m1-r1-default-1.0.0", effective_at=effective_at,
+        governance_version="dga-m1-r1-default-1.0.0",
+        effective_at=effective_at,
         allowed_result_types=(ResultType.REVIEW_FINDING, ResultType.ANALYTIC_UNAVAILABLE),
         ingest_permitted=True,
     )
     c2_r1_lane = LaneTarget("c2.r1")
     governances[c2_r1_lane] = LaneGovernance(
-        analytic_lane=str(c2_r1_lane), scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-        scientific_phase="descriptive recurrence measurement", scientific_blockers=(),
-        claim_ceiling=("RECURRENT_COMMUNICATION_MEASUREMENT_ONLY; NOT_C2; NOT_MALWARE; "
-                       "NOT_COMPROMISE; NOT_BENIGN"),
-        governance_version="c2-r1-mvp-0.1.0", effective_at=effective_at,
+        analytic_lane=str(c2_r1_lane),
+        scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
+        scientific_phase="descriptive recurrence measurement",
+        scientific_blockers=(),
+        claim_ceiling=(
+            "RECURRENT_COMMUNICATION_MEASUREMENT_ONLY; NOT_C2; NOT_MALWARE; "
+            "NOT_COMPROMISE; NOT_BENIGN"
+        ),
+        governance_version="c2-r1-mvp-0.1.0",
+        effective_at=effective_at,
         allowed_result_types=(
-            ResultType.REVIEW_FINDING, ResultType.INSUFFICIENT_EVIDENCE,
-            ResultType.PREREQUISITE_MISSING, ResultType.QUALITY_DEGRADED,
-        ), ingest_permitted=True,
+            ResultType.REVIEW_FINDING,
+            ResultType.INSUFFICIENT_EVIDENCE,
+            ResultType.PREREQUISITE_MISSING,
+            ResultType.QUALITY_DEGRADED,
+        ),
+        ingest_permitted=True,
     )
     ddos_phases = {
         "ddos.syn_state": "captured TCP SYN/state evidence construction",
@@ -233,13 +283,13 @@ def build_mvp_provider_registry(
         lane = LaneTarget(lane_name)
         plugin = plugins[lane]
         claim_ceiling = (
-            DDOS_A_CLAIM_CEILING if lane_name == "ddos.syn_state"
-            else plugin.claim_ceiling
+            DDOS_A_CLAIM_CEILING if lane_name == "ddos.syn_state" else plugin.claim_ceiling
         )
         governances[lane] = LaneGovernance(
             analytic_lane=lane_name,
             scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-            scientific_phase=phase, scientific_blockers=(),
+            scientific_phase=phase,
+            scientific_blockers=(),
             claim_ceiling=claim_ceiling,
             governance_version=f"{plugin.manifest().mechanism_id.lower()}-mvp-0.1.0",
             effective_at=effective_at,
@@ -258,7 +308,8 @@ def build_mvp_provider_registry(
         governances[lane] = LaneGovernance(
             analytic_lane=lane_name,
             scientific_status=ScientificStatus.EVIDENCE_CONSTRUCTION,
-            scientific_phase=phase, scientific_blockers=(),
+            scientific_phase=phase,
+            scientific_blockers=(),
             claim_ceiling=RECON_CLAIM_CEILING,
             governance_version=f"{plugin.manifest().mechanism_id.lower()}-mvp-0.1.0",
             effective_at=effective_at,
@@ -269,11 +320,14 @@ def build_mvp_provider_registry(
 
 
 def build_mvp_runtime_registration(
-    effective_at: datetime, *, dga_model_path: str | None = None,
+    effective_at: datetime,
+    *,
+    dga_model_path: str | None = None,
 ) -> MvpRuntimeRegistration:
     """Return all required default runtime inputs as one atomic registration."""
     plugins, governances = build_mvp_provider_registry(
-        effective_at, dga_model_path=dga_model_path,
+        effective_at,
+        dga_model_path=dga_model_path,
     )
     c2_capacity = C2_CONTROLLED_MVP_CAPACITY
     ddos_capacity = DDOS_CONTROLLED_MVP_CAPACITY
@@ -289,8 +343,12 @@ def build_mvp_runtime_registration(
         ),
     }
     for lane_name in (
-        "ddos.udp_demand", "ddos.reflection_victim", "ddos.source_diversity",
-        "ddos.icmp_demand", "ddos.fragment_demand", "ddos.connection_churn",
+        "ddos.udp_demand",
+        "ddos.reflection_victim",
+        "ddos.source_diversity",
+        "ddos.icmp_demand",
+        "ddos.fragment_demand",
+        "ddos.connection_churn",
     ):
         policies[LaneTarget(lane_name)] = EventTimeReorderPolicy(
             max_buffered_events_per_key=ddos_capacity.window_max_buffered_events_per_key,

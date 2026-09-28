@@ -11,10 +11,13 @@ Phase 2 — EvaluationReadinessDecision (runs AFTER factual state update):
   States: READY, WARMING_UP, INSUFFICIENT_HISTORY, STATE_EVICTED,
           TERMINAL_EVIDENCE_PENDING.
 """
+
 from dataclasses import dataclass
 from typing import Optional
 from evidencegate.domain.enums import (
-    AdmissionReason, CapabilityState, ScientificStatus, EvidenceReadiness,
+    AdmissionReason,
+    CapabilityState,
+    EvidenceReadiness,
 )
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.governance import LaneGovernance
@@ -25,6 +28,7 @@ from evidencegate.registry.manifest import PluginManifest
 # Phase 1: Ingest Admission Decision
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True, slots=True)
 class IngestAdmissionDecision:
     """
@@ -33,6 +37,7 @@ class IngestAdmissionDecision:
     factual/governance reasons — never WARMING_UP, INSUFFICIENT_HISTORY,
     or STATE_EVICTED (those are Phase 2 EvaluationReadiness states).
     """
+
     admitted: bool
     reasons: tuple[AdmissionReason, ...]
     quality_ref: Optional[str]
@@ -46,6 +51,7 @@ class AdmissionDecision:
     Legacy alias kept so existing tests that import AdmissionDecision still work.
     New code should use IngestAdmissionDecision.
     """
+
     admitted: bool
     reasons: tuple[AdmissionReason, ...]
     quality_ref: Optional[str]
@@ -56,6 +62,7 @@ class AdmissionDecision:
 # Phase 2: Evaluation Readiness Decision
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True, slots=True)
 class EvaluationReadinessDecision:
     """
@@ -65,6 +72,7 @@ class EvaluationReadinessDecision:
     the factual state ingestion above — they are purely post-update lifecycle
     states (IC-16).
     """
+
     readiness: EvidenceReadiness
     reason: Optional[str] = None
 
@@ -72,6 +80,7 @@ class EvaluationReadinessDecision:
 # ---------------------------------------------------------------------------
 # Admission Evaluator
 # ---------------------------------------------------------------------------
+
 
 class AdmissionEvaluator:
     """
@@ -81,6 +90,7 @@ class AdmissionEvaluator:
     It must NOT check WARMING_UP / INSUFFICIENT_HISTORY / STATE_EVICTED;
     those are mechanism-owned evaluation-readiness concerns.
     """
+
     @staticmethod
     def evaluate(
         observation: NetworkObservation,
@@ -102,7 +112,9 @@ class AdmissionEvaluator:
                 reasons.append(AdmissionReason.PREREQUISITE_MISSING)
 
         # Check observation contracts
-        if manifest.required_observation_contracts and manifest.required_observation_contracts[0] not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
+        if manifest.required_observation_contracts and manifest.required_observation_contracts[
+            0
+        ] not in ("NOT_YET_GOVERNED", "NOT_APPLICABLE"):
             if observation.observation_contract not in manifest.required_observation_contracts:
                 reasons.append(AdmissionReason.UNSUPPORTED_OBSERVATION_CONTRACT)
 
@@ -111,7 +123,10 @@ class AdmissionEvaluator:
             reasons.append(AdmissionReason.UNSUPPORTED_FINALITY)
 
         # Check availability basis
-        if manifest.allowed_availability_basis and observation.availability_basis not in manifest.allowed_availability_basis:
+        if (
+            manifest.allowed_availability_basis
+            and observation.availability_basis not in manifest.allowed_availability_basis
+        ):
             reasons.append(AdmissionReason.UNSUPPORTED_AVAILABILITY)
 
         # Typed factual capability and quality checks. quality_ref is provenance,

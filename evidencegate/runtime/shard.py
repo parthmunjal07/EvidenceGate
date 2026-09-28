@@ -4,6 +4,7 @@ Admissible observations always reach the mechanism. Stateful mechanisms derive
 readiness from the prior immutable state snapshot plus the current causally
 ordered observation; the runtime only validates and commits that decision.
 """
+
 import asyncio
 import hashlib
 import logging
@@ -38,6 +39,7 @@ class ShardKeyState:
     Per-state-key metadata tracked by the shard for readiness lifecycle.
     No threat science or generic observation-count readiness is inferred here.
     """
+
     __slots__ = ("readiness", "abstaining_gap_ids")
 
     def __init__(self) -> None:
@@ -159,7 +161,11 @@ class LaneShard:
                 entry.key, context, PluginStateSnapshot.from_entry(entry)
             )
             await self._deliver_lifecycle_outcome(
-                outcome, watermark, "on_expire", entry.key, publish_results,
+                outcome,
+                watermark,
+                "on_expire",
+                entry.key,
+                publish_results,
                 state_version=entry.version,
             )
         except Exception as exc:
@@ -177,7 +183,11 @@ class LaneShard:
         try:
             outcome = await self.plugin.on_watermark(watermark, context)
             await self._deliver_lifecycle_outcome(
-                outcome, watermark, "on_watermark", None, publish_results,
+                outcome,
+                watermark,
+                "on_watermark",
+                None,
+                publish_results,
                 state_version=None,
             )
         except Exception as exc:
@@ -196,9 +206,10 @@ class LaneShard:
             raise TypeError(f"plugin {callback} must return PluginProcessOutcome")
         if outcome.state_transition is not None:
             raise ValueError(f"plugin {callback} cannot request state mutation")
-        abstaining = state_key is not None and self._key_states.get(
-            str(state_key), ShardKeyState()
-        ).abstaining
+        abstaining = (
+            state_key is not None
+            and self._key_states.get(str(state_key), ShardKeyState()).abstaining
+        )
         if publish_results and not abstaining:
             for draft in outcome.result_drafts:
                 trigger = (
@@ -227,14 +238,24 @@ class LaneShard:
         registry.processing_errors.labels(
             lane=self.lane_id or "unassigned", plugin_id=self._plugin_id()
         ).inc()
-        await self._emit_control(RuntimeControlEvent(
-            control_event_id=str(uuid.uuid4()), schema_version="1.0",
-            control_type=ControlType.ERROR, ingest_time=datetime.now(timezone.utc),
-            event_time=watermark, lane_id=self.lane_id,
-            typed_payload={"component": "lifecycle", "callback": callback,
-                "plugin_id": self._plugin_id(), "shard_id": self.shard_id,
-                "exception_type": type(exc).__name__, "error": str(exc)[:500]},
-        ))
+        await self._emit_control(
+            RuntimeControlEvent(
+                control_event_id=str(uuid.uuid4()),
+                schema_version="1.0",
+                control_type=ControlType.ERROR,
+                ingest_time=datetime.now(timezone.utc),
+                event_time=watermark,
+                lane_id=self.lane_id,
+                typed_payload={
+                    "component": "lifecycle",
+                    "callback": callback,
+                    "plugin_id": self._plugin_id(),
+                    "shard_id": self.shard_id,
+                    "exception_type": type(exc).__name__,
+                    "error": str(exc)[:500],
+                },
+            )
+        )
 
     def start(self) -> None:
         if self._task is None:
@@ -280,18 +301,15 @@ class LaneShard:
                         key=key_str,
                         at_time=observation.event_time,
                     )
-                    state = (
-                        PluginStateSnapshot.from_entry(entry)
-                        if entry is not None
-                        else None
-                    )
+                    state = PluginStateSnapshot.from_entry(entry) if entry is not None else None
                     if key_str not in self._key_states:
                         self._key_states[key_str] = ShardKeyState()
 
                 # ── Evaluation Readiness ─────────────────────────────────────
                 # Computed AFTER state update so it reflects the new count.
                 readiness_decision = (
-                    self._key_states[key_str].readiness if key_str is not None
+                    self._key_states[key_str].readiness
+                    if key_str is not None
                     else EvaluationReadinessDecision(EvidenceReadiness.READY)
                 )
 
@@ -303,7 +321,8 @@ class LaneShard:
 
                 if self.trace_sink is not None:
                     emit_trace(
-                        self.trace_sink, "ANALYTIC_EVALUATING",
+                        self.trace_sink,
+                        "ANALYTIC_EVALUATING",
                         observation_id=observation.observation_id,
                         observation_type=observation.observation_type.value,
                         lane_id=self.lane_id,
@@ -331,7 +350,8 @@ class LaneShard:
 
                 if self.trace_sink is not None:
                     emit_trace(
-                        self.trace_sink, "ANALYTIC_READINESS",
+                        self.trace_sink,
+                        "ANALYTIC_READINESS",
                         observation_id=observation.observation_id,
                         observation_type=observation.observation_type.value,
                         lane_id=self.lane_id,
@@ -340,7 +360,8 @@ class LaneShard:
                         reason=readiness_decision.reason,
                     )
                     emit_trace(
-                        self.trace_sink, "ANALYTIC_EVALUATED",
+                        self.trace_sink,
+                        "ANALYTIC_EVALUATED",
                         observation_id=observation.observation_id,
                         observation_type=observation.observation_type.value,
                         lane_id=self.lane_id,
@@ -351,9 +372,7 @@ class LaneShard:
                 transition = outcome.state_transition
                 if transition is not None:
                     if not isinstance(transition, StateTransitionRequest):
-                        raise TypeError(
-                            "plugin state transition must be StateTransitionRequest"
-                        )
+                        raise TypeError("plugin state transition must be StateTransitionRequest")
                     if state_key is None:
                         raise ValueError(
                             "a stateless plugin invocation cannot request state mutation"
@@ -365,9 +384,13 @@ class LaneShard:
                     if transition.operation is StateOperation.UPSERT:
                         policy = self.plugin.manifest().state_resource_policy
                         if policy is None:
-                            raise ValueError("stateful UPSERT requires manifest.state_resource_policy")
+                            raise ValueError(
+                                "stateful UPSERT requires manifest.state_resource_policy"
+                            )
                         if transition.ttl is not None and transition.ttl > policy.max_ttl:
-                            raise ValueError("state transition TTL exceeds manifest state resource policy")
+                            raise ValueError(
+                                "state transition TTL exceeds manifest state resource policy"
+                            )
 
                     transition_result = self.state_store.transition(
                         namespace=self.plugin.manifest().plugin_id,
@@ -392,7 +415,8 @@ class LaneShard:
                 # runtime warm-up lifecycle decision.
                 if state_key is not None and (
                     transition is None
-                    or transition.operation not in (
+                    or transition.operation
+                    not in (
                         StateOperation.RESET,
                         StateOperation.REENTER_WARMUP,
                     )
@@ -465,9 +489,7 @@ class LaneShard:
         except Exception:
             return type(self.plugin).__name__
 
-    async def _deliver_draft(
-        self, draft: ResultDraft, context: ResultEmissionContext
-    ) -> None:
+    async def _deliver_draft(self, draft: ResultDraft, context: ResultEmissionContext) -> None:
         """Finalize before delivery when this shard is runtime-wired.
 
         The ``None`` compatibility mode is retained for isolated M1–M4 shard

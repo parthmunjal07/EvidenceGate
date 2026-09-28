@@ -8,8 +8,13 @@ from typing import Any
 import pytest
 
 from evidencegate.domain.enums import (
-    AvailabilityBasis, DirectionBasis, EvidenceReadiness, Finality, ResultType,
-    SourceKind, WireDirection,
+    AvailabilityBasis,
+    DirectionBasis,
+    EvidenceReadiness,
+    Finality,
+    ResultType,
+    SourceKind,
+    WireDirection,
 )
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.payloads import PacketObservation
@@ -90,8 +95,11 @@ class GenericStatefulPlugin(BasicScaffoldPlugin):
         self.expected_version_override: int | None | object = _UNSET
 
     def manifest(self):
-        return replace(super().manifest(), plugin_id="generic_state_fixture",
-                       state_resource_policy=StateResourcePolicy(10, timedelta(minutes=10)))
+        return replace(
+            super().manifest(),
+            plugin_id="generic_state_fixture",
+            state_resource_policy=StateResourcePolicy(10, timedelta(minutes=10)),
+        )
 
     def state_key(self, observation: NetworkObservation) -> StateKey:
         return KEY
@@ -125,11 +133,12 @@ class GenericStatefulPlugin(BasicScaffoldPlugin):
             evidence_items=(observation.observation_id,),
             missing_prerequisites=(),
         )
-        readiness = (EvidenceReadiness.INSUFFICIENT_HISTORY
-                     if payload is not None and payload["count"] < 2
-                     else EvidenceReadiness.READY)
-        return PluginProcessOutcome((draft,), transition,
-                                    EvaluationReadinessDecision(readiness))
+        readiness = (
+            EvidenceReadiness.INSUFFICIENT_HISTORY
+            if payload is not None and payload["count"] < 2
+            else EvidenceReadiness.READY
+        )
+        return PluginProcessOutcome((draft,), transition, EvaluationReadinessDecision(readiness))
 
 
 _UNSET = object()

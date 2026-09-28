@@ -1,4 +1,5 @@
 """Bounded factual event-time measurements for the Category-1 DDoS family."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,22 +9,38 @@ from typing import Any, Sequence
 
 from evidencegate.admission.evaluator import EvaluationReadinessDecision
 from evidencegate.domain.enums import (
-    AnalyticFamily, AvailabilityBasis, EvidenceReadiness, Finality, GapAction,
-    IntegrationStatus, ObservationType, OfficialPsCategory, QualityState,
-    ResultType, VisibilityCapability, WireDirection,
+    AnalyticFamily,
+    AvailabilityBasis,
+    EvidenceReadiness,
+    Finality,
+    GapAction,
+    IntegrationStatus,
+    ObservationType,
+    OfficialPsCategory,
+    QualityState,
+    ResultType,
+    VisibilityCapability,
+    WireDirection,
 )
 from evidencegate.domain.events import NetworkObservation
 from evidencegate.domain.quality import QualityGap
 from evidencegate.registry.manifest import PluginManifest, StateResourcePolicy
 from evidencegate.registry.plugin import (
-    PluginProcessOutcome, PluginStateSnapshot, StateKey, StateTransitionRequest,
+    PluginProcessOutcome,
+    PluginStateSnapshot,
+    StateKey,
+    StateTransitionRequest,
 )
 from evidencegate.results.types import ResultDraft
 from evidencegate.runtime.state_contract import StateOperation
 
 from .ddos_config import (
-    DdosConnectionChurnConfig, DdosFragmentDemandConfig, DdosIcmpDemandConfig,
-    DdosReflectionVictimConfig, DdosSourceDiversityConfig, DdosUdpDemandConfig,
+    DdosConnectionChurnConfig,
+    DdosFragmentDemandConfig,
+    DdosIcmpDemandConfig,
+    DdosReflectionVictimConfig,
+    DdosSourceDiversityConfig,
+    DdosUdpDemandConfig,
     DdosWindowConfig,
 )
 
@@ -41,12 +58,10 @@ DDOS_D_CLAIM_CEILING = (
     "NO_BOTNET_CONFIRMED;NO_DDOS_CONFIRMED;NO_ATTRIBUTION"
 )
 DDOS_E1_CLAIM_CEILING = (
-    "OBSERVED_ICMP_DEMAND_ONLY;NO_DDOS_CONFIRMED;NO_SERVICE_IMPACT;"
-    "NO_MALICIOUSNESS"
+    "OBSERVED_ICMP_DEMAND_ONLY;NO_DDOS_CONFIRMED;NO_SERVICE_IMPACT;NO_MALICIOUSNESS"
 )
 DDOS_E2_CLAIM_CEILING = (
-    "OBSERVED_FRAGMENTED_PACKET_DEMAND_ONLY;NO_DDOS_CONFIRMED;"
-    "NO_SERVICE_IMPACT;NO_MALICIOUSNESS"
+    "OBSERVED_FRAGMENTED_PACKET_DEMAND_ONLY;NO_DDOS_CONFIRMED;NO_SERVICE_IMPACT;NO_MALICIOUSNESS"
 )
 DDOS_E3_CLAIM_CEILING = (
     "OBSERVED_TCP_INITIATING_ATTEMPT_MEASUREMENT_ONLY;NO_DDOS_CONFIRMED;"
@@ -54,11 +69,22 @@ DDOS_E3_CLAIM_CEILING = (
 )
 
 COMMON_HARD_NEGATIVES = (
-    "flash crowd", "authorized load test", "performance benchmark",
-    "backup/update traffic", "retry storm", "outage recovery",
-    "scanner burst", "large legitimate UDP", "DNS/NTP service burst",
-    "CDN", "anycast", "NAT", "load balancer", "routing changes",
-    "capture overload", "sampling/loss",
+    "flash crowd",
+    "authorized load test",
+    "performance benchmark",
+    "backup/update traffic",
+    "retry storm",
+    "outage recovery",
+    "scanner burst",
+    "large legitimate UDP",
+    "DNS/NTP service burst",
+    "CDN",
+    "anycast",
+    "NAT",
+    "load balancer",
+    "routing changes",
+    "capture overload",
+    "sampling/loss",
 )
 
 
@@ -115,14 +141,20 @@ def _normalized_tuple(
 ) -> tuple[tuple[str, int], tuple[str, int]] | None:
     payload = observation.typed_payload
     values = (
-        payload.src_address, payload.src_port,
-        payload.dst_address, payload.dst_port,
+        payload.src_address,
+        payload.src_port,
+        payload.dst_address,
+        payload.dst_port,
     )
     if (
-        not isinstance(values[0], str) or not values[0]
-        or isinstance(values[1], bool) or not isinstance(values[1], int)
-        or not isinstance(values[2], str) or not values[2]
-        or isinstance(values[3], bool) or not isinstance(values[3], int)
+        not isinstance(values[0], str)
+        or not values[0]
+        or isinstance(values[1], bool)
+        or not isinstance(values[1], int)
+        or not isinstance(values[2], str)
+        or not values[2]
+        or isinstance(values[3], bool)
+        or not isinstance(values[3], int)
     ):
         return None
     endpoints = ((values[0], values[1]), (values[2], values[3]))
@@ -157,8 +189,10 @@ def _merge_quality(
 
 def _degraded(observation: NetworkObservation) -> bool:
     return QualityState.DEGRADED in (
-        observation.quality.packet_loss, observation.quality.sampling,
-        observation.quality.parser, observation.quality.capture_gap,
+        observation.quality.packet_loss,
+        observation.quality.sampling,
+        observation.quality.parser,
+        observation.quality.capture_gap,
     )
 
 
@@ -176,11 +210,7 @@ def _window_bounds(event_time: datetime, duration: timedelta) -> tuple[datetime,
     epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
     value = event_time.astimezone(timezone.utc)
     elapsed = value - epoch
-    elapsed_us = (
-        elapsed.days * 86_400_000_000
-        + elapsed.seconds * 1_000_000
-        + elapsed.microseconds
-    )
+    elapsed_us = elapsed.days * 86_400_000_000 + elapsed.seconds * 1_000_000 + elapsed.microseconds
     window_us = int(duration.total_seconds() * 1_000_000)
     start = epoch + timedelta(microseconds=(elapsed_us // window_us) * window_us)
     return start, start + duration
@@ -207,7 +237,10 @@ class _DdosWindowPlugin:
     attempt_tracking = False
 
     def __init__(
-        self, config: DdosWindowConfig, *, max_state_entries: int,
+        self,
+        config: DdosWindowConfig,
+        *,
+        max_state_entries: int,
         max_sources_per_window: int | None = None,
         max_attempts_per_window: int | None = None,
         governing_decision_ids: tuple[str, ...] = (),
@@ -240,9 +273,7 @@ class _DdosWindowPlugin:
             ),
             required_fields=self.required_fields,
             required_observation_contracts=(),
-            required_visibility_capabilities=frozenset(
-                {VisibilityCapability.PACKET_FACTS}
-            ),
+            required_visibility_capabilities=frozenset({VisibilityCapability.PACKET_FACTS}),
             required_quality=(),
             allowed_finality=tuple(Finality),
             allowed_availability_basis=tuple(AvailabilityBasis),
@@ -318,22 +349,24 @@ class _DdosWindowPlugin:
         if not self.route(observation):
             return None
         target_ref, service_ref = _resolve_scope(observation, self.config)  # type: ignore[misc]
-        start, _ = _window_bounds(
-            observation.event_time, self.config.measurement_window
+        start, _ = _window_bounds(observation.event_time, self.config.measurement_window)
+        return StateKey(
+            json.dumps(
+                [
+                    target_ref,
+                    service_ref,
+                    observation.wire_direction.value,
+                    start.isoformat(),
+                    *self._key_extra(observation),
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
         )
-        return StateKey(json.dumps(
-            [target_ref, service_ref, observation.wire_direction.value,
-             start.isoformat(), *self._key_extra(observation)],
-            ensure_ascii=False, separators=(",", ":"),
-        ))
 
-    def _new_state(
-        self, observation: NetworkObservation, context: Any
-    ) -> DdosWindowState:
+    def _new_state(self, observation: NetworkObservation, context: Any) -> DdosWindowState:
         target_ref, service_ref = _resolve_scope(observation, self.config)  # type: ignore[misc]
-        start, end = _window_bounds(
-            observation.event_time, self.config.measurement_window
-        )
+        start, end = _window_bounds(observation.event_time, self.config.measurement_window)
         length = _packet_length(observation, self.config.packet_length_key)
         source = self._source_value(observation)
         attempt = self._attempt_value(observation)
@@ -399,20 +432,21 @@ class _DdosWindowPlugin:
             protocols=protocols,
             protocol_context=prior.protocol_context,
             packet_count=prior.packet_count + 1,
-            measured_byte_count=(prior.measured_byte_count
-                                 + (0 if length is None else length)),
-            measured_length_count=(prior.measured_length_count
-                                   + (0 if length is None else 1)),
-            missing_length_count=(prior.missing_length_count
-                                  + (1 if length is None else 0)),
+            measured_byte_count=(prior.measured_byte_count + (0 if length is None else length)),
+            measured_length_count=(prior.measured_length_count + (0 if length is None else 1)),
+            missing_length_count=(prior.missing_length_count + (1 if length is None else 0)),
             minimum_packet_length=(
-                prior.minimum_packet_length if length is None
-                else length if prior.minimum_packet_length is None
+                prior.minimum_packet_length
+                if length is None
+                else length
+                if prior.minimum_packet_length is None
                 else min(prior.minimum_packet_length, length)
             ),
             maximum_packet_length=(
-                prior.maximum_packet_length if length is None
-                else length if prior.maximum_packet_length is None
+                prior.maximum_packet_length
+                if length is None
+                else length
+                if prior.maximum_packet_length is None
                 else max(prior.maximum_packet_length, length)
             ),
             sources=sources,
@@ -426,14 +460,17 @@ class _DdosWindowPlugin:
             capture_quality=_merge_quality(prior.capture_quality, observation),
             source_visibility=prior.source_visibility,
             quality_degraded=(
-                prior.quality_degraded or _degraded(observation)
+                prior.quality_degraded
+                or _degraded(observation)
                 or bool(context.get("quality_degraded", False))
             ),
             config_hash=prior.config_hash,
         )
 
     async def process(
-        self, observation: NetworkObservation, context: Any,
+        self,
+        observation: NetworkObservation,
+        context: Any,
         state: PluginStateSnapshot | None,
     ) -> PluginProcessOutcome:
         key = self.state_key(observation)
@@ -469,9 +506,7 @@ class _DdosWindowPlugin:
         complete_lengths = state.missing_length_count == 0
         missing: list[str] = []
         if not complete_lengths:
-            missing.append(
-                f"{self.config.packet_length_key} packet length for every observation"
-            )
+            missing.append(f"{self.config.packet_length_key} packet length for every observation")
         if degraded:
             missing.append("complete unsampled/loss-free observation coverage")
         if state.source_capacity_reached:
@@ -490,21 +525,16 @@ class _DdosWindowPlugin:
             "window_end": state.window_end,
             "packet_count": state.packet_count,
             "byte_count": state.measured_byte_count if complete_lengths else None,
-            "observed_byte_count_for_length_available_packets": (
-                state.measured_byte_count
-            ),
+            "observed_byte_count_for_length_available_packets": (state.measured_byte_count),
             "measured_length_count": state.measured_length_count,
             "missing_length_count": state.missing_length_count,
             "mean_packet_length": (
                 state.measured_byte_count / state.measured_length_count
-                if complete_lengths and state.measured_length_count else None
+                if complete_lengths and state.measured_length_count
+                else None
             ),
-            "minimum_packet_length": (
-                state.minimum_packet_length if complete_lengths else None
-            ),
-            "maximum_packet_length": (
-                state.maximum_packet_length if complete_lengths else None
-            ),
+            "minimum_packet_length": (state.minimum_packet_length if complete_lengths else None),
+            "maximum_packet_length": (state.maximum_packet_length if complete_lengths else None),
             "measurement_is_lower_bound": degraded,
             "capture_quality": dict(state.capture_quality),
             "source_visibility": dict(state.source_visibility),
@@ -532,27 +562,25 @@ class _DdosWindowPlugin:
             or value.attempt_capacity_reached
             or bool(context.get("quality_degraded", False))
         )
-        result_type = (
-            ResultType.QUALITY_DEGRADED if degraded else ResultType.REVIEW_FINDING
-        )
-        supporting = tuple(dict.fromkeys(
-            (value.first_observation_id, value.last_observation_id)
-        ))
+        result_type = ResultType.QUALITY_DEGRADED if degraded else ResultType.REVIEW_FINDING
+        supporting = tuple(dict.fromkeys((value.first_observation_id, value.last_observation_id)))
         evidence = self._evidence(value, degraded)
         missing = tuple(evidence["missing_evidence"])  # type: ignore[arg-type]
-        return PluginProcessOutcome(result_drafts=(ResultDraft(
-            result_type=result_type,
-            entity_reference=str(key),
-            evidence_items=(),
-            missing_prerequisites=missing,
-            evidence_interval=(value.window_start, value.window_end),
-            evidence=evidence,
-            source_observation_ids=supporting,
-        ),))
+        return PluginProcessOutcome(
+            result_drafts=(
+                ResultDraft(
+                    result_type=result_type,
+                    entity_reference=str(key),
+                    evidence_items=(),
+                    missing_prerequisites=missing,
+                    evidence_interval=(value.window_start, value.window_end),
+                    evidence=evidence,
+                    source_observation_ids=supporting,
+                ),
+            )
+        )
 
-    async def on_watermark(
-        self, watermark: datetime, context: Any
-    ) -> PluginProcessOutcome:
+    async def on_watermark(self, watermark: datetime, context: Any) -> PluginProcessOutcome:
         return PluginProcessOutcome()
 
     async def on_quality_gap(
@@ -605,7 +633,8 @@ class DdosReflectionVictimPlugin(_DdosWindowPlugin):
         valid = (
             facts.get("fact_contract") == "DDOS_REFLECTION_FACT_V1"
             and facts.get("response_like") is True
-            and isinstance(context, str) and bool(context.strip())
+            and isinstance(context, str)
+            and bool(context.strip())
         )
         return valid, context if valid else None
 
@@ -715,10 +744,9 @@ class DdosFragmentDemandPlugin(_DdosWindowPlugin):
         offset = facts.get("offset")
         more = facts.get("more_fragments")
         return (
-            (offset is None or (not isinstance(offset, bool) and isinstance(offset, int)
-                                and offset >= 0))
-            and (more is None or isinstance(more, bool))
-        )
+            offset is None
+            or (not isinstance(offset, bool) and isinstance(offset, int) and offset >= 0)
+        ) and (more is None or isinstance(more, bool))
 
     def _key_extra(self, observation: NetworkObservation) -> tuple[object, ...]:
         return (observation.typed_payload.protocol,)
@@ -738,7 +766,12 @@ class DdosConnectionChurnPlugin(_DdosWindowPlugin):
     evidence_kind = "TCP_INITIATING_ATTEMPT_MEASUREMENT"
     claim_ceiling = DDOS_E3_CLAIM_CEILING
     required_fields = (
-        "protocol", "src_address", "dst_address", "src_port", "dst_port", "flags",
+        "protocol",
+        "src_address",
+        "dst_address",
+        "src_port",
+        "dst_port",
+        "flags",
     )
     attempt_tracking = True
 
@@ -754,7 +787,9 @@ class DdosConnectionChurnPlugin(_DdosWindowPlugin):
             and observation.wire_direction is WireDirection.FORWARD
             and isinstance(flags, list)
             and all(isinstance(flag, str) for flag in flags)
-            and "SYN" in flags and "ACK" not in flags and "RST" not in flags
+            and "SYN" in flags
+            and "ACK" not in flags
+            and "RST" not in flags
             and _normalized_tuple(observation) is not None
         )
 

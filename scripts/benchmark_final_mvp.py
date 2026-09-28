@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Final controlled model-inclusive EvidenceGate stack characterization."""
+
 from __future__ import annotations
 
 import argparse
@@ -26,10 +27,13 @@ from evidencegate.ingest.pcap import PcapReplaySource
 from evidencegate.ingest.replay import NdjsonReplaySource, ReplayRunner
 from evidencegate.persistence.sqlite import SqliteWriter
 from evidencegate.plugins.providers.dga_m1 import (
-    ARTIFACT_SHA256, DgaM1Plugin, DgaM1Readiness,
+    ARTIFACT_SHA256,
+    DgaM1Plugin,
+    DgaM1Readiness,
 )
 from evidencegate.plugins.providers.registry import (
-    MvpRuntimeRegistration, build_mvp_runtime_registration,
+    MvpRuntimeRegistration,
+    build_mvp_runtime_registration,
 )
 from evidencegate.runtime.supervisor import RuntimeSupervisor
 
@@ -61,9 +65,16 @@ def dga_component_latencies(plugin: DgaM1Plugin, iterations: int = 30) -> dict[s
         records = source.records()
         try:
             record = await anext(records)
-            return ReplayCanonicalizer().canonicalize(
-                record, manifest, "quality:benchmark:dga", record.timestamp,
-            ).observations[0]
+            return (
+                ReplayCanonicalizer()
+                .canonicalize(
+                    record,
+                    manifest,
+                    "quality:benchmark:dga",
+                    record.timestamp,
+                )
+                .observations[0]
+            )
         finally:
             await records.aclose()
             await source.close()
@@ -95,13 +106,17 @@ def dga_component_latencies(plugin: DgaM1Plugin, iterations: int = 30) -> dict[s
 
 
 async def _run_mode(
-    registration: MvpRuntimeRegistration, source_type: str,
-    source_factory: Callable[[], object], scenario: str,
+    registration: MvpRuntimeRegistration,
+    source_type: str,
+    source_factory: Callable[[], object],
+    scenario: str,
 ) -> dict[str, object]:
     results_dir = ROOT / "benchmark_results"
     results_dir.mkdir(parents=True, exist_ok=True)
     fd, database_name = tempfile.mkstemp(
-        prefix=f"final-mvp-{source_type.lower()}-", suffix=".db", dir=results_dir,
+        prefix=f"final-mvp-{source_type.lower()}-",
+        suffix=".db",
+        dir=results_dir,
     )
     os.close(fd)
     database = Path(database_name)
@@ -139,7 +154,11 @@ async def _run_mode(
             dga_persist_latencies.append(duration)
         if inserted:
             persisted += 1
-        candidates = [observation_started[item] for item in result.source_observation_ids if item in observation_started]
+        candidates = [
+            observation_started[item]
+            for item in result.source_observation_ids
+            if item in observation_started
+        ]
         if candidates:
             end_to_end_latencies.append(perf_counter() - min(candidates))
 
@@ -150,8 +169,11 @@ async def _run_mode(
         gaps.append(gap)
 
     supervisor = RuntimeSupervisor(
-        registration.plugins, registration.governances, persist,
-        control_sink=control_sink, gap_sink=gap_sink,
+        registration.plugins,
+        registration.governances,
+        persist,
+        control_sink=control_sink,
+        gap_sink=gap_sink,
         reorder_policies=registration.reorder_policies,
     )
     original_ingest = supervisor.ingest_observation
@@ -167,7 +189,10 @@ async def _run_mode(
     sampler = asyncio.create_task(sample_memory())
     try:
         summary = await ReplayRunner(
-            source_factory(), supervisor, speed=0, control_sink=control_sink,
+            source_factory(),
+            supervisor,
+            speed=0,
+            control_sink=control_sink,
         ).run()
     finally:
         sampling = False
@@ -176,7 +201,10 @@ async def _run_mode(
         rss_peak = max(rss_peak, rss_end)
         active_state_entries = sum(len(store) for store in supervisor.state_stores.values())
         peak_reorder = max(
-            (dispatcher.peak_pending_reorder_total for dispatcher in supervisor.dispatchers.values()),
+            (
+                dispatcher.peak_pending_reorder_total
+                for dispatcher in supervisor.dispatchers.values()
+            ),
             default=0,
         )
         writer.close()
@@ -203,18 +231,32 @@ async def _run_mode(
         "dropped_runtime_work": gap_text.count("queue_saturation"),
         "sse_notification_drops": 0,
     }
-    zero_drop = all(counters[key] == 0 for key in (
-        "quality_gaps", "state_capacity_events", "reorder_capacity_events",
-        "dropped_input", "dropped_runtime_work",
-    )) and not error_controls
+    zero_drop = (
+        all(
+            counters[key] == 0
+            for key in (
+                "quality_gaps",
+                "state_capacity_events",
+                "reorder_capacity_events",
+                "dropped_input",
+                "dropped_runtime_work",
+            )
+        )
+        and not error_controls
+    )
     elapsed = summary.elapsed_wall_seconds
     return {
         "source_type": source_type,
         "scenario": scenario,
         "speed": 0,
-        "database": {"type": "disk-backed SQLite", "pragmas": {
-            "journal_mode": "WAL", "synchronous": "NORMAL", "foreign_keys": "ON",
-        }},
+        "database": {
+            "type": "disk-backed SQLite",
+            "pragmas": {
+                "journal_mode": "WAL",
+                "synchronous": "NORMAL",
+                "foreign_keys": "ON",
+            },
+        },
         "active_target_count": len(registration.plugins),
         "active_lane_ids": sorted(str(item) for item in registration.plugins),
         "mechanism_result_counts": mechanisms,
@@ -222,7 +264,11 @@ async def _run_mode(
         "counters": counters,
         "timing": {
             "replay_wall_seconds": round(elapsed, 6),
-            "observed_processing_rate_observations_per_second": round(summary.observations_emitted / elapsed, 3) if elapsed else None,
+            "observed_processing_rate_observations_per_second": round(
+                summary.observations_emitted / elapsed, 3
+            )
+            if elapsed
+            else None,
             "processing_latency": percentiles(processing_latencies),
             "persistence_latency": percentiles(persist_latencies),
             "dga_result_persistence_latency": percentiles(dga_persist_latencies),
@@ -230,8 +276,10 @@ async def _run_mode(
             "structural_time_to_signal": "one admitted observation for stateless DGA/DNS/ENC/Exfil; stateful mechanisms retain their governed evidence windows",
         },
         "memory": {
-            "rss_start_bytes": rss_start, "rss_peak_bytes": rss_peak,
-            "rss_end_bytes": rss_end, "active_state_entries_end": active_state_entries,
+            "rss_start_bytes": rss_start,
+            "rss_peak_bytes": rss_peak,
+            "rss_end_bytes": rss_end,
+            "active_state_entries_end": active_state_entries,
             "peak_reorder_occupancy": peak_reorder,
             "sqlite_file_size_bytes": database_size,
         },
@@ -245,7 +293,8 @@ async def run_characterization(root: Path = ROOT) -> dict[str, object]:
     rss_before = process.memory_info().rss
     started = perf_counter()
     registration = build_mvp_runtime_registration(
-        datetime.now(timezone.utc), dga_model_path=str(model_path),
+        datetime.now(timezone.utc),
+        dga_model_path=str(model_path),
     )
     model_load_seconds = perf_counter() - started
     rss_after = process.memory_info().rss
@@ -258,11 +307,14 @@ async def run_characterization(root: Path = ROOT) -> dict[str, object]:
     typed_bundle = root / "tests" / "fixtures" / "replay" / "final_mvp_mixed"
     pcap_bundle = root / "tests" / "fixtures" / "pcap" / "raw_ddos_recon"
     typed = await _run_mode(
-        registration, "TYPED_NDJSON", lambda: NdjsonReplaySource(typed_bundle),
+        registration,
+        "TYPED_NDJSON",
+        lambda: NdjsonReplaySource(typed_bundle),
         "controlled mixed DDoS/C2/DGA/DNS/ENC/Recon/Exfil",
     )
     pcap = await _run_mode(
-        registration, "RAW_PCAP",
+        registration,
+        "RAW_PCAP",
         lambda: PcapReplaySource(pcap_bundle / "capture.pcap", pcap_bundle / "manifest.json"),
         "controlled DDoS + Recon raw PCAP; DNS extraction deferred",
     )
@@ -278,10 +330,19 @@ async def run_characterization(root: Path = ROOT) -> dict[str, object]:
             "cpu_logical": psutil.cpu_count(logical=True),
             "cpu_physical": psutil.cpu_count(logical=False),
             "ram_total_bytes": psutil.virtual_memory().total,
-            "dependency_versions": {name: importlib.metadata.version(name) for name in (
-                "evidencegate", "dpkt", "pydantic", "fastapi", "psutil",
-                "scikit-learn", "joblib", "tldextract",
-            )},
+            "dependency_versions": {
+                name: importlib.metadata.version(name)
+                for name in (
+                    "evidencegate",
+                    "dpkt",
+                    "pydantic",
+                    "fastapi",
+                    "psutil",
+                    "scikit-learn",
+                    "joblib",
+                    "tldextract",
+                )
+            },
         },
         "default_target_count": len(registration.plugins),
         "model": {
@@ -339,26 +400,26 @@ def markdown_report(payload: dict[str, object]) -> str:
     model = payload["model"]
     return f"""# Final MVP Model-Inclusive Benchmark Report
 
-> **{payload['watermark']}**
+> **{payload["watermark"]}**
 
-Classification: **{payload['classification']}**. This is not a production capacity, enterprise sizing, or SLA claim.
+Classification: **{payload["classification"]}**. This is not a production capacity, enterprise sizing, or SLA claim.
 
 ## Startup and DGA model
 
-- Readiness: `{model['readiness']}`
-- Load time: `{model['load_seconds']}` seconds
-- RSS before/after/delta: `{model['rss_before_load_bytes']}` / `{model['rss_after_load_bytes']}` / `{model['rss_delta_bytes']}` bytes
-- Artifact: `{model['artifact_sha256']}`
-- Frozen model input / score: `{model['model_input']}` / `{model['observed_score']}` (regression tolerance `{model['score_regression_tolerance']}`)
-- DGA representation p50/p95/p99 ms: `{model['representation_latency']}`
-- DGA transform + inference p50/p95/p99 ms: `{model['transform_inference_latency']}`
-- DGA result persistence p50/p95/p99 ms (typed run): `{runs[0]['timing']['dga_result_persistence_latency']}`
+- Readiness: `{model["readiness"]}`
+- Load time: `{model["load_seconds"]}` seconds
+- RSS before/after/delta: `{model["rss_before_load_bytes"]}` / `{model["rss_after_load_bytes"]}` / `{model["rss_delta_bytes"]}` bytes
+- Artifact: `{model["artifact_sha256"]}`
+- Frozen model input / score: `{model["model_input"]}` / `{model["observed_score"]}` (regression tolerance `{model["score_regression_tolerance"]}`)
+- DGA representation p50/p95/p99 ms: `{model["representation_latency"]}`
+- DGA transform + inference p50/p95/p99 ms: `{model["transform_inference_latency"]}`
+- DGA result persistence p50/p95/p99 ms (typed run): `{runs[0]["timing"]["dga_result_persistence_latency"]}`
 
 The numeric output is a **DGA-labelled lexical resemblance score**, not malware, infection, compromise, C2, tunnel, exfiltration, ownership, intent, or attack probability. No production threshold is active.
 
 ## Workload and runs
 
-Exact controlled mix: `{json.dumps(payload['workload_mix'], sort_keys=True)}`.
+Exact controlled mix: `{json.dumps(payload["workload_mix"], sort_keys=True)}`.
 
 | Source | Read | Observations | Routed updates | Persisted | DGA exercised | Zero drop |
 |---|---:|---:|---:|---:|---|---|
@@ -382,18 +443,24 @@ Processing is routing/enqueue latency. Persistence is SQLite write latency. End-
 
 ## No-drop region and target
 
-{payload['no_drop_region']}. Proposed SIH demo throughput target: **NONE**. {payload['target_basis']}
+{payload["no_drop_region"]}. Proposed SIH demo throughput target: **NONE**. {payload["target_basis"]}
 
 ## Limitations
 
-{chr(10).join('- ' + item for item in payload['limitations'])}
+{chr(10).join("- " + item for item in payload["limitations"])}
 """
 
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--json", type=Path, default=ROOT / "benchmark_results" / "final_mvp_model_inclusive_benchmark.json")
-    parser.add_argument("--report", type=Path, default=ROOT / "FINAL_MVP_MODEL_INCLUSIVE_BENCHMARK_REPORT.md")
+    parser.add_argument(
+        "--json",
+        type=Path,
+        default=ROOT / "benchmark_results" / "final_mvp_model_inclusive_benchmark.json",
+    )
+    parser.add_argument(
+        "--report", type=Path, default=ROOT / "FINAL_MVP_MODEL_INCLUSIVE_BENCHMARK_REPORT.md"
+    )
     args = parser.parse_args()
     payload = await run_characterization(ROOT)
     args.json.parent.mkdir(parents=True, exist_ok=True)
