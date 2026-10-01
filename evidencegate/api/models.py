@@ -123,6 +123,54 @@ class InvestigationsResponse(StrictModel):
     links: list[InvestigationLinkDto]
 
 
+class CorrelationEventIntervalDto(StrictModel):
+    start: datetime
+    end: datetime
+    basis: str
+
+
+class MatchedCorrelationFactDto(StrictModel):
+    reason: str
+    fact_kind: str
+    normalized_value: str
+    left_fact_id: str
+    right_fact_id: str
+    source_observation_id: str
+
+
+class CorrelationClaimGuardDto(StrictModel):
+    allowed: list[str]
+    prohibited: list[str]
+
+
+class CorrelationCandidateDto(StrictModel):
+    pair_id: str
+    left_result_id: str
+    right_result_id: str
+    left_source_result_hash: str
+    right_source_result_hash: str
+    relation_policy: str
+    relation_policy_version: str
+    matched_facts: list[MatchedCorrelationFactDto]
+    matched_fact_ids: list[str]
+    source_observation_ids: list[str]
+    left_event_interval: CorrelationEventIntervalDto
+    right_event_interval: CorrelationEventIntervalDto
+    event_time_relationship: str
+    left_visibility: VisibilitySnapshotDto
+    right_visibility: VisibilitySnapshotDto
+    left_quality: QualitySnapshotDto
+    right_quality: QualitySnapshotDto
+    left_source_provenance: list[str]
+    right_source_provenance: list[str]
+    status: str
+    claim_guard: CorrelationClaimGuardDto
+
+
+class CorrelationCandidatesResponse(StrictModel):
+    candidates: list[CorrelationCandidateDto]
+
+
 class ReplayRequest(StrictModel):
     scenario: str
     speed: float = Field(default=0, ge=0, le=1000)

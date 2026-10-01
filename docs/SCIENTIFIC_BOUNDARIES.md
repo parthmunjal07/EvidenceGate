@@ -25,6 +25,12 @@ The DGA model score means resemblance to DGA-labelled lexical examples under the
 - Apparent source diversity does not establish source spoofing.
 - A factual relation between Results does not establish a common attacker, campaign, or attack progression.
 
+## Correlation candidates
+
+The CORR-04A relation currently materialized is exact equality of an immutable source observation ID between two Results from distinct known families. A persisted pair is a candidate for joint analyst review. Its matched facts and provenance are factual; stored event-time overlap is context and never a join rule. The derived fact and pair tables preserve source Result hashes and do not rewrite Result evidence, visibility, quality, claim ceiling, or provenance.
+
+Scoped entity, peer, domain, DNS answer, service, session, and target-service fact types are schema support only. They do not currently produce candidates. Cross-time DNS-to-TLS, C2-to-transfer, and reconnaissance-to-demand rules are disabled, and their time windows remain unset. Protocol alone, raw IP equality, and time proximity alone cannot produce a candidate. Learned ranking is not implemented. Every candidate carries a typed guard against causality, common-attacker, same-campaign, attack-chain, compromise, and maliciousness-probability claims.
+
 ## One-way degradation
 
 With only one direction, a sensor can still record arrivals, visible TCP flags, bytes and packets observed at that point, and whatever application metadata is present. It may not see replies, connection completion, server outcomes, request/response semantics, or the counterfactual victim impact. Loss, sampling, truncation, and midstream start further weaken state reconstruction. Sidecar-supplied role or direction metadata is an input assertion, not an independently inferred fact.

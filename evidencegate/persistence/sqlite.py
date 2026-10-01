@@ -10,6 +10,21 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from evidencegate.correlation.contracts import (
+    FACT_DERIVATION_VERSION,
+    CorrelationCandidate,
+    CorrelationFactSeed,
+    EventInterval,
+    EventTimeBasis,
+    MatchedFact,
+    MatchedReason,
+)
+from evidencegate.correlation.engine import (
+    ResultCorrelationContext,
+    candidate_for_exact_observation,
+    exact_observation_fact,
+    merge_candidates,
+)
 from evidencegate.domain.enums import (
     AnalyticUnavailableReason,
     EvidenceReadiness,
@@ -21,6 +36,14 @@ from evidencegate.domain.enums import (
 )
 from evidencegate.domain.events import VisibilityProfile
 from evidencegate.domain.quality import EvidenceQuality
+from evidencegate.persistence.correlation_codec import (
+    candidate_from_row,
+    candidate_values,
+    event_interval_from_values,
+    fact_values,
+    quality_from_json,
+    visibility_from_json,
+)
 from evidencegate.results.finalizer import canonical_result_content, result_id_for
 from evidencegate.results.types import (
     AnalyticUnavailable,
@@ -122,6 +145,7 @@ class SqliteWriter:
         for version, filename in (
             (2, "002_results_v2.sql"),
             (3, "003_evidence_result_payload.sql"),
+            (4, "004_correlation_foundation.sql"),
         ):
             if conn.execute(
                 "SELECT 1 FROM schema_migrations WHERE version = ?", (version,)
@@ -173,6 +197,12 @@ class SqliteWriter:
             ).fetchone()
             if existing is not None:
                 if existing[0] == content_hash:
+                    cursor.execute(
+                        """INSERT OR IGNORE INTO correlation_outbox
+                           (source_result_id, source_result_hash, derivation_version, status)
+                           VALUES (?, ?, ?, 'PENDING')""",
+                        (result.result_id, content_hash, FACT_DERIVATION_VERSION),
+                    )
                     conn.execute("COMMIT")
                     return False
                 raise ResultIdentityConflict(
@@ -221,12 +251,338 @@ class SqliteWriter:
                 ),
             )
             self._insert_children(cursor, result)
+            cursor.execute(
+                """INSERT OR IGNORE INTO correlation_outbox
+                   (source_result_id, source_result_hash, derivation_version, status)
+                   VALUES (?, ?, ?, 'PENDING')""",
+                (result.result_id, content_hash, FACT_DERIVATION_VERSION),
+            )
             conn.execute("COMMIT")
             return True
         except Exception:
             if conn.in_transaction:
                 conn.execute("ROLLBACK")
             raise
+
+    async def process_correlation_outbox_batch(self, *, limit: int = 1) -> int:
+        """Atomically materialize one bounded batch of durable correlation work."""
+        if not 1 <= limit <= 500:
+            raise ValueError("correlation outbox batch limit must be between 1 and 500")
+        async with self._lock:
+            conn = self._require_connection()
+            operation = asyncio.create_task(
+                asyncio.to_thread(self._process_correlation_outbox_batch_sync, conn, limit)
+            )
+            try:
+                return await asyncio.shield(operation)
+            except asyncio.CancelledError:
+                try:
+                    await operation
+                except Exception:
+                    pass
+                raise
+
+    def _process_correlation_outbox_batch_sync(self, conn: sqlite3.Connection, limit: int) -> int:
+        conn.execute("BEGIN")
+        try:
+            outbox = conn.execute(
+                """SELECT outbox_id, source_result_id, source_result_hash, derivation_version
+                   FROM correlation_outbox WHERE status = 'PENDING'
+                   ORDER BY outbox_id LIMIT ?""",
+                (limit,),
+            ).fetchall()
+            if not outbox:
+                conn.execute("COMMIT")
+                return 0
+
+            result_ids = tuple(dict.fromkeys(row[1] for row in outbox))
+            placeholders = ",".join("?" for _ in result_ids)
+            source_rows = conn.execute(
+                f"""SELECT result_id, content_hash, lane_id, created_time,
+                          evidence_interval_start, evidence_interval_end,
+                          quality_snapshot_json, visibility_snapshot_json
+                   FROM results WHERE result_id IN ({placeholders})""",
+                result_ids,
+            ).fetchall()
+            source_by_id = {row[0]: self._correlation_context_row(row) for row in source_rows}
+            for row in outbox:
+                context = source_by_id.get(row[1])
+                if context is None or context.source_result_hash != row[2]:
+                    raise ResultIdentityConflict(
+                        "correlation outbox source Result/hash is missing or inconsistent"
+                    )
+                if row[3] != FACT_DERIVATION_VERSION:
+                    raise PersistenceError("unsupported correlation outbox derivation version")
+
+            obs_rows = conn.execute(
+                f"""SELECT result_id, source_observation_id
+                   FROM source_observation_ids WHERE result_id IN ({placeholders})
+                   ORDER BY result_id, position""",
+                result_ids,
+            ).fetchall()
+            observations_by_result: dict[str, list[str]] = {
+                result_id: [] for result_id in result_ids
+            }
+            for result_id, observation_id in obs_rows:
+                observations_by_result[result_id].append(observation_id)
+
+            provenance_by_result = self._provenance_for_results(conn, result_ids)
+            contexts = {
+                result_id: ResultCorrelationContext(
+                    result_id=context.result_id,
+                    source_result_hash=context.source_result_hash,
+                    lane_id=context.lane_id,
+                    event_interval=context.event_interval,
+                    visibility=context.visibility,
+                    quality=context.quality,
+                    source_provenance=provenance_by_result.get(result_id, ()),
+                )
+                for result_id, context in source_by_id.items()
+            }
+
+            for outbox_id, source_result_id, source_hash, _ in outbox:
+                context = contexts[source_result_id]
+                facts = tuple(
+                    exact_observation_fact(context, observation_id)
+                    for observation_id in observations_by_result[source_result_id]
+                )
+                for fact in facts:
+                    conn.execute(
+                        """INSERT OR IGNORE INTO correlation_facts (
+                            fact_id, source_result_id, source_result_hash, fact_kind,
+                            normalized_value, namespace, scope, role, identity_basis,
+                            event_interval_start, event_interval_end, event_time_basis,
+                            available_time, source_observation_ids, visibility_basis,
+                            quality_basis, source_fields, derivation_basis,
+                            normalizer_version, derivation_version
+                        ) VALUES ("""
+                        + ",".join("?" for _ in fact_values(fact))
+                        + ")",
+                        fact_values(fact),
+                    )
+
+                matched_rows = self._find_matching_facts(conn, facts)
+                peer_ids = tuple(
+                    sorted(
+                        {
+                            str(row["source_result_id"])
+                            for row in matched_rows
+                            if row["source_result_id"] != source_result_id
+                        }
+                    )
+                )
+                peer_provenance = self._provenance_for_results(conn, peer_ids)
+                matched_by_peer: dict[str, list[MatchedFact]] = {}
+                fact_by_value = {fact.normalized_value: fact for fact in facts}
+                for row in matched_rows:
+                    peer_id = str(row["source_result_id"])
+                    if peer_id == source_result_id:
+                        continue
+                    current_fact = fact_by_value.get(str(row["normalized_value"]))
+                    if current_fact is None:
+                        continue
+                    if str(row["actual_result_hash"]) != str(row["source_result_hash"]):
+                        raise ResultIdentityConflict(
+                            "indexed correlation fact hash is inconsistent"
+                        )
+                    matched_by_peer.setdefault(peer_id, []).append(
+                        MatchedFact(
+                            reason=MatchedReason.EXACT_SHARED_SOURCE_OBSERVATION,
+                            fact_kind=current_fact.fact_kind,
+                            normalized_value=current_fact.normalized_value,
+                            left_fact_id=current_fact.fact_id,
+                            right_fact_id=str(row["fact_id"]),
+                            source_observation_id=current_fact.normalized_value,
+                        )
+                    )
+
+                additions: dict[str, CorrelationCandidate] = {}
+                peer_contexts: dict[str, ResultCorrelationContext] = {}
+                for row in matched_rows:
+                    peer_id = str(row["source_result_id"])
+                    if peer_id == source_result_id or peer_id in peer_contexts:
+                        continue
+                    peer_contexts[peer_id] = ResultCorrelationContext(
+                        result_id=peer_id,
+                        source_result_hash=str(row["source_result_hash"]),
+                        lane_id=str(row["lane_id"]),
+                        event_interval=event_interval_from_values(
+                            str(row["event_interval_start"]),
+                            str(row["event_interval_end"]),
+                            str(row["event_time_basis"]),
+                        ),
+                        visibility=visibility_from_json(str(row["visibility_basis"])),
+                        quality=quality_from_json(str(row["quality_basis"])),
+                        source_provenance=peer_provenance.get(peer_id, ()),
+                    )
+                for peer_id, reasons in matched_by_peer.items():
+                    candidate = candidate_for_exact_observation(
+                        context, peer_contexts[peer_id], tuple(reasons)
+                    )
+                    if candidate is not None:
+                        additions[candidate.pair_id] = candidate
+
+                self._merge_and_write_candidates(conn, additions)
+                conn.execute(
+                    """UPDATE correlation_outbox
+                       SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP
+                       WHERE outbox_id = ? AND status = 'PENDING'""",
+                    (outbox_id,),
+                )
+
+            conn.execute("COMMIT")
+            return len(outbox)
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+
+    @staticmethod
+    def _correlation_context_row(row: tuple) -> ResultCorrelationContext:
+        (
+            result_id,
+            source_hash,
+            lane_id,
+            created_time,
+            interval_start,
+            interval_end,
+            quality_json,
+            visibility_json,
+        ) = row
+        if interval_start is not None:
+            interval = event_interval_from_values(
+                interval_start, interval_end, EventTimeBasis.EVIDENCE_INTERVAL.value
+            )
+        else:
+            interval = EventInterval(
+                datetime.fromisoformat(created_time),
+                datetime.fromisoformat(created_time),
+                EventTimeBasis.RESULT_EVENT_TIME,
+            )
+        return ResultCorrelationContext(
+            result_id=result_id,
+            source_result_hash=source_hash,
+            lane_id=lane_id,
+            event_interval=interval,
+            quality=quality_from_json(quality_json) if quality_json else EvidenceQuality(),
+            visibility=(
+                visibility_from_json(visibility_json) if visibility_json else VisibilityProfile()
+            ),
+            source_provenance=(),
+        )
+
+    @staticmethod
+    def _provenance_for_results(
+        conn: sqlite3.Connection, result_ids: tuple[str, ...]
+    ) -> dict[str, tuple[str, ...]]:
+        values: dict[str, list[str]] = {}
+        for start in range(0, len(result_ids), 400):
+            chunk = result_ids[start : start + 400]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                f"""SELECT result_id, provenance_ref FROM provenance_references
+                    WHERE result_id IN ({placeholders}) ORDER BY result_id, position""",
+                chunk,
+            ).fetchall()
+            for result_id, provenance_ref in rows:
+                values.setdefault(result_id, []).append(provenance_ref)
+        return {result_id: tuple(items) for result_id, items in values.items()}
+
+    @staticmethod
+    def _find_matching_facts(
+        conn: sqlite3.Connection, facts: tuple[CorrelationFactSeed, ...]
+    ) -> list[dict[str, object]]:
+        values = tuple(dict.fromkeys(fact.normalized_value for fact in facts))
+        matches: list[dict[str, object]] = []
+        for start in range(0, len(values), 400):
+            chunk = values[start : start + 400]
+            if not chunk:
+                continue
+            placeholders = ",".join("?" for _ in chunk)
+            cursor = conn.execute(
+                f"""SELECT f.fact_id, f.source_result_id, f.source_result_hash,
+                          f.fact_kind, f.normalized_value, f.namespace, f.scope, f.role,
+                          f.identity_basis, f.event_interval_start, f.event_interval_end,
+                          f.event_time_basis, f.available_time, f.source_observation_ids,
+                          f.visibility_basis, f.quality_basis, f.source_fields,
+                          f.derivation_basis, f.normalizer_version, f.derivation_version,
+                          r.lane_id, r.content_hash AS actual_result_hash
+                   FROM correlation_facts f JOIN results r ON r.result_id = f.source_result_id
+                   WHERE f.fact_kind = 'EXACT_OBSERVATION'
+                     AND f.namespace = 'evidencegate.source_observation'
+                     AND f.scope = 'source_observation_id' AND f.role = 'observed'
+                     AND f.normalized_value IN ({placeholders})
+                   ORDER BY f.normalized_value, f.source_result_id, f.fact_id""",
+                chunk,
+            )
+            columns = [item[0] for item in cursor.description]
+            matches.extend(dict(zip(columns, row)) for row in cursor.fetchall())
+        return matches
+
+    @staticmethod
+    def _merge_and_write_candidates(
+        conn: sqlite3.Connection, additions: dict[str, CorrelationCandidate]
+    ) -> None:
+        if not additions:
+            return
+        ids = tuple(sorted(additions))
+        existing: dict[str, CorrelationCandidate] = {}
+        for start in range(0, len(ids), 400):
+            chunk = ids[start : start + 400]
+            placeholders = ",".join("?" for _ in chunk)
+            cursor = conn.execute(
+                f"SELECT * FROM correlation_candidates WHERE pair_id IN ({placeholders})", chunk
+            )
+            columns = [item[0] for item in cursor.description]
+            existing.update(
+                {row[0]: candidate_from_row(dict(zip(columns, row))) for row in cursor.fetchall()}
+            )
+        values = []
+        for pair_id in ids:
+            candidate = additions[pair_id]
+            if pair_id in existing:
+                candidate = merge_candidates(existing[pair_id], candidate)
+            values.append(candidate_values(candidate))
+        placeholders = ",".join("?" for _ in values[0])
+        conn.executemany(
+            """INSERT INTO correlation_candidates (
+                pair_id, left_result_id, right_result_id, left_source_result_hash,
+                right_source_result_hash, relation_policy, relation_policy_version,
+                matched_reasons, matched_fact_ids, source_observation_ids,
+                left_event_interval_start, left_event_interval_end, left_event_time_basis,
+                right_event_interval_start, right_event_interval_end, right_event_time_basis,
+                event_time_relationship, left_visibility, right_visibility, left_quality,
+                right_quality, left_source_provenance, right_source_provenance, status,
+                claim_guard
+            ) VALUES ("""
+            + placeholders
+            + ") ON CONFLICT(pair_id) DO UPDATE SET matched_reasons=excluded.matched_reasons, "
+            + "matched_fact_ids=excluded.matched_fact_ids, "
+            + "source_observation_ids=excluded.source_observation_ids",
+            values,
+        )
+
+    async def list_correlation_candidates(
+        self, *, limit: int = 100, source_result_id: str | None = None
+    ) -> tuple[CorrelationCandidate, ...]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        async with self._lock:
+            conn = self._require_connection()
+            if source_result_id is None:
+                rows = conn.execute(
+                    "SELECT * FROM correlation_candidates ORDER BY pair_id LIMIT ?", (limit,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM correlation_candidates
+                       WHERE left_result_id = ? OR right_result_id = ?
+                       ORDER BY pair_id LIMIT ?""",
+                    (source_result_id, source_result_id, limit),
+                ).fetchall()
+            cursor = conn.execute("SELECT * FROM correlation_candidates LIMIT 0")
+            columns = [item[0] for item in cursor.description]
+            return tuple(candidate_from_row(dict(zip(columns, row))) for row in rows)
 
     @staticmethod
     def _insert_children(cursor: sqlite3.Cursor, result: Result) -> None:

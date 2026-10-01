@@ -145,6 +145,7 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
             "/alerts",
             "/family-evidence",
             "/investigations",
+            "/correlation/candidates",
             "/events",
             "/replay",
             "/replay/status",
@@ -168,6 +169,41 @@ async def test_empty_database_health_runtime_and_openapi(tmp_path):
         assert (await client.get("/runtime")).status_code == 200
         assert (await client.get("/results")).status_code == 200
         assert (await client.get("/alerts")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_persisted_correlation_candidates_have_a_separate_exact_pair_api(tmp_path):
+    async with client_for(tmp_path / "pairs.db") as (client, service):
+        left = dataclasses.replace(
+            make_result("left", lane="ddos.syn_state"),
+            source_observation_ids=("shared-source-observation",),
+            result_id="",
+        )
+        left = dataclasses.replace(left, result_id=result_id_for(left))
+        right = dataclasses.replace(
+            make_result("right", lane="recon.h"),
+            source_observation_ids=("shared-source-observation",),
+            result_id="",
+        )
+        right = dataclasses.replace(right, result_id=result_id_for(right))
+        await service.writer.write_result(left)
+        await service.writer.write_result(right)
+        while await service.writer.process_correlation_outbox_batch(limit=10):
+            pass
+
+        response = await client.get("/correlation/candidates")
+        assert response.status_code == 200
+        candidates = response.json()["candidates"]
+        assert len(candidates) == 1
+        pair = candidates[0]
+        assert pair["left_result_id"] == min(left.result_id, right.result_id)
+        assert pair["right_result_id"] == max(left.result_id, right.result_id)
+        assert pair["source_observation_ids"] == ["shared-source-observation"]
+        assert pair["status"] == "CANDIDATE_FOR_JOINT_REVIEW"
+        assert "NO_CAUSALITY" in pair["claim_guard"]["prohibited"]
+        # Existing family-view links remain available to the current UI.
+        legacy = await client.get("/investigations")
+        assert legacy.status_code == 200
 
 
 @pytest.mark.asyncio

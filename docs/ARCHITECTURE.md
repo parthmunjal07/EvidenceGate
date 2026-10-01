@@ -36,6 +36,14 @@ Each provider emits an independent immutable `Result` with its mechanism, observ
 
 Family evidence is a read-only composition over Results. Deterministic investigation links use factual relations such as shared source-observation identity across independent results. They help an analyst inspect related evidence; they do not assert causality, a common attacker, campaign, progression, or a combined threat probability. A learned relevance ranker was researched and not promoted.
 
+### CORR-04A exact-observation foundation
+
+The correlation foundation stores typed, versioned facts as derived records. It does not add them to the canonical Result payload or change existing Result IDs and hashes. A Result write and its correlation outbox intent share one SQLite transaction. A restart-safe background worker materializes exact source_observation_id facts and retrieves matches through a composite SQLite index.
+
+The enabled relation is EXACT_OBSERVATION: it produces a deterministic candidate for two exact Result IDs in distinct known families. Candidates retain both source hashes, matched fact IDs and observation provenance, event-time relationship, visibility, quality, derivation/policy versions, and a fixed typed claim guard. /correlation/candidates exposes these precise pairs. The existing /investigations family-view response remains unchanged for current clients and retains its family-view aggregation semantics.
+
+Typed schemas exist for scoped entity, peer, domain, observed DNS answer, service, session, and target-service facts, but current materialization emits exact-observation facts only. Protocol context, raw IP equality, and time proximity are not standalone join keys. DNS-to-TLS peer, C2-to-transfer, and reconnaissance-to-demand policies remain disabled with no configured time windows. No learned ranking or causal/attack-chain inference is implemented. This is a persistence and deterministic retrieval foundation, not a validated cross-event correlation system.
+
 ### State, persistence and interfaces
 
 Stateful providers keep bounded, provider-specific state. The current replay service exposes an allowlisted scenario catalogue rather than arbitrary filesystem paths or URLs. Results and replay records persist in SQLite. The FastAPI service exposes health, replay, results, family evidence, investigation, and related analyst APIs; server-sent events can publish result updates. The frontend presents the evidence and its limitations, with family views and a versioned attention queue. Queue priority is a presentation decision, not a scientific verdict.
@@ -51,6 +59,8 @@ Stateful providers keep bounded, provider-specific state. The current replay ser
 | DGA lexical model | Implemented when exact artifact is available | Controlled MVP; fail-closed otherwise |
 | SQLite persistence, REST/SSE, analyst workbench | Implemented | Single-process prototype architecture |
 | Family evidence and factual investigation links | Implemented | No learned correlation or causal inference |
+| CORR-04A typed exact-observation fact and Result-pair foundation | Implemented | Versioned derived records; existing family-view API retained |
+| Cross-event relation policies and DNS answer coverage | Disabled / deferred | No temporal windows; raw-PCAP DNS extraction remains deferred |
 | Live NIC capture; NetFlow/IPFIX/sFlow | Deferred | Not in current runtime |
 | DNS extraction from raw PCAP | Deferred | DGA/DNS demo uses typed replay observations |
 | Distributed state/execution and production capacity sizing | Deferred | Current measurements do not establish production readiness |

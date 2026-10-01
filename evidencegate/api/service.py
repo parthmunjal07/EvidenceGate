@@ -289,14 +289,24 @@ class EvidenceGateService:
         self.registration = build_mvp_runtime_registration(datetime.now(timezone.utc))
         self._replay = _ReplayState()
         self._task: asyncio.Task[None] | None = None
+        self._correlation_task: asyncio.Task[None] | None = None
         self._started_monotonic: float | None = None
         self._connected = False
 
     def start(self) -> None:
         self.writer.connect()
         self._connected = True
+        self._correlation_task = asyncio.create_task(
+            self._run_correlation_outbox(), name="correlation-outbox"
+        )
 
     async def close(self) -> None:
+        if self._correlation_task is not None and not self._correlation_task.done():
+            self._correlation_task.cancel()
+            try:
+                await self._correlation_task
+            except asyncio.CancelledError:
+                pass
         if self._task is not None and not self._task.done():
             self._task.cancel()
             try:
@@ -305,6 +315,25 @@ class EvidenceGateService:
                 pass
         self.writer.close()
         self._connected = False
+
+    async def _run_correlation_outbox(self) -> None:
+        """Drain durable derived work without joining Result publication."""
+        while True:
+            try:
+                processed = await self.writer.process_correlation_outbox_batch()
+                if processed:
+                    self.runtime_trace.emit(
+                        "CORRELATION_OUTBOX_PROCESSED",
+                        reason=f"materialized {processed} correlation outbox item(s)",
+                    )
+                    continue
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Correlation outbox batch failed; pending work will retry")
+                await asyncio.sleep(1.0)
+            else:
+                await asyncio.sleep(0.2)
 
     async def persist_and_publish(self, result: Result) -> bool:
         inserted = await self.writer.write_result(result)

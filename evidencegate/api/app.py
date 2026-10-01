@@ -15,13 +15,19 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from evidencegate.correlation.contracts import CorrelationCandidate
 from evidencegate.api.models import (
     AlertsResponse,
+    CorrelationCandidateDto,
+    CorrelationCandidatesResponse,
+    CorrelationClaimGuardDto,
+    CorrelationEventIntervalDto,
     FamilyEvidenceResponse,
     FamilyEvidenceViewDto,
     HealthResponse,
     InvestigationLinkDto,
     InvestigationsResponse,
+    MatchedCorrelationFactDto,
     QualitySnapshotDto,
     ReplayRequest,
     ReplayStatusResponse,
@@ -109,6 +115,67 @@ def _family_view_dto(view) -> FamilyEvidenceViewDto:
         missing_evidence=list(view.missing_evidence),
         visibility_summary=list(view.visibility_summary),
         quality_summary=list(view.quality_summary),
+    )
+
+
+def _correlation_candidate_dto(
+    candidate: CorrelationCandidate,
+) -> CorrelationCandidateDto:
+    def visibility(value) -> VisibilitySnapshotDto:
+        return VisibilitySnapshotDto(
+            available=sorted(item.value for item in value.available),
+            unavailable=sorted(item.value for item in value.unavailable),
+            degraded=sorted(item.value for item in value.degraded),
+        )
+
+    def quality(value) -> QualitySnapshotDto:
+        return QualitySnapshotDto(
+            packet_loss=value.packet_loss.value,
+            sampling=value.sampling.value,
+            parser=value.parser.value,
+            capture_gap=value.capture_gap.value,
+        )
+
+    def interval(value) -> CorrelationEventIntervalDto:
+        return CorrelationEventIntervalDto(
+            start=value.start, end=value.end, basis=value.basis.value
+        )
+
+    return CorrelationCandidateDto(
+        pair_id=candidate.pair_id,
+        left_result_id=candidate.left_result_id,
+        right_result_id=candidate.right_result_id,
+        left_source_result_hash=candidate.left_source_result_hash,
+        right_source_result_hash=candidate.right_source_result_hash,
+        relation_policy=candidate.relation_policy.value,
+        relation_policy_version=candidate.relation_policy_version,
+        matched_facts=[
+            MatchedCorrelationFactDto(
+                reason=item.reason.value,
+                fact_kind=item.fact_kind.value,
+                normalized_value=item.normalized_value,
+                left_fact_id=item.left_fact_id,
+                right_fact_id=item.right_fact_id,
+                source_observation_id=item.source_observation_id,
+            )
+            for item in candidate.matched_facts
+        ],
+        matched_fact_ids=list(candidate.matched_fact_ids),
+        source_observation_ids=list(candidate.source_observation_ids),
+        left_event_interval=interval(candidate.left_event_interval),
+        right_event_interval=interval(candidate.right_event_interval),
+        event_time_relationship=candidate.event_time_relationship.value,
+        left_visibility=visibility(candidate.left_visibility),
+        right_visibility=visibility(candidate.right_visibility),
+        left_quality=quality(candidate.left_quality),
+        right_quality=quality(candidate.right_quality),
+        left_source_provenance=list(candidate.left_source_provenance),
+        right_source_provenance=list(candidate.right_source_provenance),
+        status=candidate.status.value,
+        claim_guard=CorrelationClaimGuardDto(
+            allowed=[item.value for item in candidate.claim_guard.allowed],
+            prohibited=[item.value for item in candidate.claim_guard.prohibited],
+        ),
     )
 
 
@@ -384,6 +451,29 @@ def create_app(
                 )
                 for item in links
             ],
+        )
+
+    @application.get(
+        "/correlation/candidates",
+        response_model=CorrelationCandidatesResponse,
+        summary="List persisted exact-observation Result-pair candidates",
+        description=(
+            "Derived candidates are versioned and eventually materialized from the "
+            "transactional outbox. They support joint analyst review only."
+        ),
+    )
+    async def get_correlation_candidates(
+        limit: int = Query(default=100, ge=1, le=1000),
+        source_result_id: str | None = None,
+    ) -> CorrelationCandidatesResponse:
+        try:
+            candidates = await service.writer.list_correlation_candidates(
+                limit=limit, source_result_id=source_result_id
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return CorrelationCandidatesResponse(
+            candidates=[_correlation_candidate_dto(item) for item in candidates]
         )
 
     if alerts_enabled:
